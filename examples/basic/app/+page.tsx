@@ -1,13 +1,4 @@
-<<<<<<< Updated upstream
-=======
-<<<<<<< Updated upstream
-import { Suspense } from 'react'
-
->>>>>>> Stashed changes
-import { Link } from '@jk2908/drift/ui/components/link'
-=======
-import { Link } from '@jk2908/drift/client'
->>>>>>> Stashed changes
+import { Link } from '@jk2908/drift/navigation'
 
 import { Blue } from './blue'
 import { Red } from './red'

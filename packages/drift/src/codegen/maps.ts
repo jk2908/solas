@@ -1,14 +1,6 @@
-import { Config } from '../config'
+import { Config } from '../_shared/config'
 
-<<<<<<< Updated upstream
-import type { Imports, Modules } from '../build'
-=======
-<<<<<<< Updated upstream
-import type { Imports, Modules } from '../build/route-processor'
-=======
 import type { Build } from '../build'
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
 import { AUTOGEN_MSG } from './utils'
 

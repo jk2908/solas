@@ -1,12 +1,13 @@
 type BunRequest = Request & { params?: Record<string, string | string[]> }
 
-import type { HttpException } from './shared/http-exception'
-import type { Logger, LogLevel } from './shared/logger'
-import type { Metadata } from './shared/metadata'
-
-import type { Router } from './server/router'
+import { Config } from './_shared/config'
 
 import type { Build } from './build'
+
+import type { Logger, LogLevel } from './_shared/utils/logger'
+import type { Metadata } from './metadata'
+import type { HttpException } from './navigation/http-exception'
+import type { Router } from './router/router'
 
 export type PluginConfig = {
 	app?: {
@@ -40,8 +41,10 @@ export type BuildContext = {
 }
 
 export type DriftRequest = Request & {
-	error?: HttpException | Error
-	match: Router.Match | null
+	[Config.$]: {
+		error?: HttpException | Error
+		match: Router.Match | null
+	}
 }
 
 export type Segment = {
@@ -76,7 +79,7 @@ export type Endpoint = {
 export type ManifestEntry = Segment | Endpoint
 
 export type Manifest = Awaited<
-	ReturnType<typeof Build.RouteProcessor.prototype.process>
+	ReturnType<typeof Build.Finder.prototype.process>
 >['manifest']
 
 export type View<TProps> =

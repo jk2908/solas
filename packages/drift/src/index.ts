@@ -14,17 +14,14 @@ import { writeManifest } from './codegen/manifest'
 import { writeMaps } from './codegen/maps'
 import { writeRouter } from './codegen/router'
 
-import { Config } from './config'
-
-import { Logger } from './shared/logger'
-
-import { Compress } from './server/compress'
-import { prerender } from './server/prerender'
-import { format } from './server/utils'
+import { Config } from './_shared/config'
 
 import { Build } from './build'
 
-import { debounce } from './utils'
+import { Compress } from './_shared/utils/compress'
+import { Format } from './_shared/utils/format'
+import { Logger } from './_shared/utils/logger'
+import { Time } from './_shared/utils/time'
 
 const DEFAULT_CONFIG = {
 	precompress: true,
@@ -85,7 +82,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			fs.mkdir(generatedDir, { recursive: true }),
 		])
 
-		const processor = new Build.RouteProcessor(buildContext, config)
+		const processor = new Build.Finder(buildContext, config)
 		const { manifest, prerenderableRoutes, imports, modules } = await processor.run()
 
 		// set prerenderable routes in context for use in closeBundle
@@ -102,11 +99,11 @@ function drift(c: PluginConfig): PluginOption[] {
 		])
 
 		// format generated files, avoid stopping build on errors
-		await format(Config.GENERATED_DIR, buildContext).catch(() => {})
+		await Format.run(Config.GENERATED_DIR, buildContext).catch(() => {})
 	}
 
 	// debounced build to avoid multiple builds on file changes
-	const rebuild = debounce(build, 1000)
+	const rebuild = Time.debounce(build, 1000)
 
 	const plugin: PluginOption = {
 		name: 'drift',
@@ -182,7 +179,7 @@ function drift(c: PluginConfig): PluginOption[] {
 							).default
 
 							for (const route of buildContext.prerenderableRoutes) {
-								const { value, done } = await prerender(
+								const { value, done } = await Build.prerender(
 									(req: Request) => app.fetch(req),
 									route,
 									config.app.url,

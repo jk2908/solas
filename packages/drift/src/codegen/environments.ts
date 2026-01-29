@@ -1,4 +1,4 @@
-import { Config } from '../config'
+import { Config } from '../_shared/config'
 
 import { AUTOGEN_MSG } from './utils'
 
@@ -12,15 +12,7 @@ export function writeRSCEntry() {
 
     import type { ReactFormState } from 'react-dom/client'
 
-<<<<<<< Updated upstream
-    import { rsc, action } from '${Config.PKG_NAME}/render/env/rsc'
-=======
-<<<<<<< Updated upstream
-    import { rsc, action } from '${PKG_NAME}/render/env/rsc'
-=======
-    import { rsc, action } from '${Config.PKG_NAME}/core'
->>>>>>> Stashed changes
->>>>>>> Stashed changes
+    import { rsc, action } from '${Config.PKG_NAME}/env/rsc'
 
     import { manifest } from './manifest'
     import { importMap } from './maps'
@@ -92,15 +84,7 @@ export function writeSSREntry() {
 	return `
     ${AUTOGEN_MSG}
     
-<<<<<<< Updated upstream
-    export { ssr } from '${Config.PKG_NAME}/render/env/ssr'
-=======
-<<<<<<< Updated upstream
-    export { ssr } from '${PKG_NAME}/render/env/ssr'
-=======
-    export { ssr } from '${Config.PKG_NAME}/core'
->>>>>>> Stashed changes
->>>>>>> Stashed changes
+    export { ssr } from '${Config.PKG_NAME}/env/ssr'
   `.trim()
 }
 
@@ -112,15 +96,7 @@ export function writeBrowserEntry() {
 	return `
     ${AUTOGEN_MSG}
 
-<<<<<<< Updated upstream
-    import { browser } from '${Config.PKG_NAME}/render/env/browser'
-=======
-<<<<<<< Updated upstream
-    import { browser } from '${PKG_NAME}/render/env/browser'
-=======
-    import { browser } from '${Config.PKG_NAME}/core'
->>>>>>> Stashed changes
->>>>>>> Stashed changes
+    import { browser } from '${Config.PKG_NAME}/env/browser'
 
     browser()
   `.trim()

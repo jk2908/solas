@@ -1,12 +1,4 @@
-<<<<<<< Updated upstream
-import { abort } from '@jk2908/drift/shared/http-exception'
-=======
-<<<<<<< Updated upstream
-import { exception } from '@jk2908/drift/shared/http-exception'
-=======
 import { abort } from '@jk2908/drift/navigation'
->>>>>>> Stashed changes
->>>>>>> Stashed changes
 
 export const metadata = async ({ params }: { params?: { id: string } }) => {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)
