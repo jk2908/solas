@@ -7,9 +7,3 @@ declare module 'drift/manifest' {
 declare module 'drift/import-map' {
 	export const importMap: ImportMap
 }
-
-declare global {
-	interface Window {
-		__DRIFT__: unknown
-	}
-}

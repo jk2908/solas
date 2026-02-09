@@ -19,10 +19,10 @@ import { rscStream } from 'rsc-html-stream/client'
 
 import { ErrorBoundary } from '../ui/error-boundary'
 
-import { Logger } from '../_shared/utils/logger'
-import { RedirectBoundary } from '../navigation'
+import { Logger } from '../../utils/logger'
+import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Head } from '../render/head'
-import { RouterProvider } from '../router'
+import { RouterProvider } from '../router/router-provider'
 import type { RSCPayload } from './rsc'
 
 /**

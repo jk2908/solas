@@ -2,9 +2,9 @@ import { Suspense } from 'react'
 
 import DefaultErr from '../ui/defaults/error'
 
-import { HttpExceptionBoundary } from '../navigation'
-import { HttpException, isHttpException } from '../navigation/'
-import type { Matcher } from '../router'
+import { HttpException, isHttpException } from '../navigation/http-exception'
+import { HttpExceptionBoundary } from '../navigation/http-exception-boundary'
+import type { Matcher } from '../router/matcher'
 
 type Match = NonNullable<Matcher.EnhancedMatch>
 
@@ -22,7 +22,6 @@ type Match = NonNullable<Matcher.EnhancedMatch>
  * @returns the rendered route tree
  *
  * @example
- *
  * <Shell>
  *   <Suspense>
  *     <ErrorBoundary>

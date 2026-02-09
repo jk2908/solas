@@ -4,7 +4,7 @@ import { createContext, useCallback, useEffect, useMemo } from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
-import { Events } from '../_shared/events'
+import { Events } from '../../utils/events'
 import type { RSCPayload } from '../env/rsc'
 
 type GoConfig = {

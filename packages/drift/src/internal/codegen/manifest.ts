@@ -1,6 +1,6 @@
-import type { Manifest } from '../types'
+import type { Manifest } from '../../types'
 
-import { Config } from '../_shared/config'
+import { Config } from '../../config'
 
 import { AUTOGEN_MSG } from './utils'
 

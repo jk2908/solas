@@ -9,22 +9,22 @@ import {
 	renderToReadableStream,
 } from '@vitejs/plugin-rsc/rsc'
 
-import type { DriftRequest, ImportMap, Manifest } from '../types'
+import type { DriftRequest, ImportMap, Manifest } from '../../types'
 
-import { Config } from '../_shared/config'
+import { Config } from '../../config'
 
 import DefaultErr from '../ui/defaults/error'
 
-import { Logger } from '../_shared/utils/logger'
+import { Logger } from '../../utils/logger'
 import { Metadata } from '../metadata'
 import {
 	HttpException,
 	type Payload as HttpExceptionPayload,
 	type HttpExceptionStatusCode,
 	isHttpException,
-} from '../navigation'
+} from '../navigation/http-exception'
 import { Tree } from '../render/tree'
-import { Matcher } from '../router'
+import { Matcher } from '../router/matcher'
 import { getKnownDigest } from './utils'
 
 export type RSCPayload = {

@@ -1,22 +1,20 @@
 type BunRequest = Request & { params?: Record<string, string | string[]> }
 
-import { Config } from './_shared/config'
+import { Config } from './config'
 
-import type { Build } from './build'
+import type { Build } from './internal/build'
 
-import type { Logger, LogLevel } from './_shared/utils/logger'
-import type { Metadata } from './metadata'
-import type { HttpException } from './navigation/http-exception'
-import type { Router } from './router/router'
+import type { Metadata } from './internal/metadata'
+import type { HttpException } from './internal/navigation/http-exception'
+import type { Router } from './internal/router/router'
+import type { LogLevel } from './utils/logger'
 
 export type PluginConfig = {
-	app?: {
-		url?: `http://${string}` | `https://${string}`
-	}
+	url?: `http://${string}` | `https://${string}`
 	precompress?: boolean
 	prerender?: 'full' | 'declarative'
 	outDir?: string
-	metadata?: Metadata.Collection
+	metadata?: Metadata.Item
 	trailingSlash?: boolean
 	readonly logger?: {
 		level?: LogLevel
@@ -36,7 +34,6 @@ export type BuildContext = {
 		}
 	}
 	transpiler: InstanceType<typeof Bun.Transpiler>
-	logger: InstanceType<typeof Logger>
 	prerenderableRoutes: Set<string>
 }
 

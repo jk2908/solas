@@ -3,30 +3,25 @@
 	"version": "0.1.0",
 	"type": "module",
 	"main": "./dist/index.js",
-	"types": "./dist/types.d.ts",
+	"types": "./dist/index.d.ts",
 	"scripts": {
-		"build": "bunchee"
-	},
-	"dependencies": {
-		"@vitejs/plugin-rsc": "^0.5.7",
-		"devalue": "^5.1.1",
-		"isbot": "^5.1.28",
-		"rsc-html-stream": "^0.0.7"
+		"build": "rm -rf dist && tsc"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.1",
-		"@types/dom-navigation": "^1.0.6",
-		"bunchee": "^6.5.4"
+		"@types/dom-navigation": "^1.0.6"
 	},
 	"peerDependencies": {
 		"@types/react": "^19.2.3",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "latest",
+		"@vitejs/plugin-rsc": "^0.5.7",
 		"react": "^19.2.3",
 		"react-dom": "^19.2.3",
+		"rsc-html-stream": "^0.0.7",
 		"react-server-dom-webpack": "^19.2.3",
 		"typescript": "^5.8.3",
-		"vite": "^7.2.4"
+		"vite": "^7.3.1"
 	},
 	"peerDependenciesMeta": {
 		"react-server-dom-webpack": {
@@ -35,36 +30,39 @@
 	},
 	"exports": {
 		".": {
-			"types": "./dist/types.d.ts",
-			"default": "./dist/index.js"
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
 		},
 		"./env/rsc": {
-			"types": "./dist/env/rsc.d.ts",
-			"default": "./dist/env/rsc.js"
+			"types": "./dist/internal/env/rsc.d.ts",
+			"import": "./dist/internal/env/rsc.js"
 		},
 		"./env/ssr": {
-			"types": "./dist/env/ssr.d.ts",
-			"default": "./dist/env/ssr.js"
+			"types": "./dist/internal/env/ssr.d.ts",
+			"import": "./dist/internal/env/ssr.js"
 		},
 		"./env/browser": {
-			"types": "./dist/env/browser.d.ts",
-			"default": "./dist/env/browser.js"
+			"types": "./dist/internal/env/browser.d.ts",
+			"import": "./dist/internal/env/browser.js"
 		},
 		"./router": {
 			"types": "./dist/router.d.ts",
-			"default": "./dist/router.js"
+			"import": "./dist/router.js"
 		},
 		"./navigation": {
 			"types": "./dist/navigation.d.ts",
-			"default": "./dist/navigation.js"
+			"import": "./dist/navigation.js"
 		},
-		"./ui/error-boundary": {
+		"./error-boundary": {
 			"types": "./dist/error-boundary.d.ts",
-			"default": "./dist/error-boundary.js"
+			"import": "./dist/error-boundary.js"
+		},
+		"./config": {
+			"types": "./dist/config.d.ts",
+			"import": "./dist/config.js"
 		}
 	},
 	"files": [
-		"dist",
-		"src"
+		"dist"
 	]
 }
