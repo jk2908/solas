@@ -292,47 +292,72 @@ export class Router {
 	 * @param config - the plugin config
 	 * @returns a request handler for static assets
 	 */
-	static serveStatic(config: PluginConfig) {
+	static static(config: PluginConfig) {
 		return async (req: Request) => {
 			const pathname = new URL(req.url).pathname
 			const assetPath = pathname.startsWith('/assets/') ? pathname.slice(8) : pathname
 			const outDir = config.outDir?.replace(/\/$/, '') ?? ''
 			const filePath = `${outDir}/${assetPath}`
-			const accept = req.headers.get('accept-encoding') ?? ''
 
-			let file = Bun.file(filePath)
-			let encoding: string | null = null
+			return Router.serve(filePath, req, config.precompress, {
+				'Cache-Control': 'public, immutable, max-age=31536000',
+			})
+		}
+	}
 
-			if (config.precompress) {
-				if (accept.includes('br')) {
-					const brotli = Bun.file(`${filePath}.br`)
+	/**
+	 * Serve a file with optional compression content negotiation
+	 * @param filePath - absolute path to the file
+	 * @param req - the request (for Accept-Encoding header)
+	 * @param precompress - whether to look for .br/.gz variants
+	 * @param headers - additional headers to add
+	 * @returns response with the file or 404
+	 */
+	static async serve(
+		filePath: string,
+		req: Request,
+		precompress: boolean = false,
+		headers: Record<string, string> = {},
+	) {
+		const accept = req.headers.get('accept-encoding') ?? ''
 
-					if (await brotli.exists()) {
-						file = brotli
-						encoding = 'br'
-					}
-				}
+		let file = Bun.file(filePath)
+		let encoding: string | null = null
 
-				if (!encoding && accept.includes('gzip')) {
-					const gzip = Bun.file(`${filePath}.gz`)
+		if (precompress) {
+			if (accept.includes('br')) {
+				const brotli = Bun.file(`${filePath}.br`)
 
-					if (await gzip.exists()) {
-						file = gzip
-						encoding = 'gzip'
-					}
+				if (await brotli.exists()) {
+					file = brotli
+					encoding = 'br'
 				}
 			}
 
-			if (!(await file.exists())) return new Response('Not found', { status: 404 })
+			if (!encoding && accept.includes('gzip')) {
+				const gzip = Bun.file(`${filePath}.gz`)
 
-			const res = new Response(file)
-			res.headers.set('Cache-Control', 'public, immutable, max-age=31536000')
-
-			if (encoding) res.headers.set('Content-Encoding', encoding)
-			if (file.type) res.headers.set('Content-Type', file.type)
-
-			return res
+				if (await gzip.exists()) {
+					file = gzip
+					encoding = 'gzip'
+				}
+			}
 		}
+
+		if (!(await file.exists())) {
+			return new Response('Not found', { status: 404 })
+		}
+
+		const res = new Response(file)
+
+		for (const [key, value] of Object.entries(headers)) {
+			res.headers.set(key, value)
+		}
+
+		if (encoding) res.headers.set('Content-Encoding', encoding)
+		if (file.type && !headers['Content-Type']) res.headers.set('Content-Type', file.type)
+
+		return res
 	}
 
 	/**

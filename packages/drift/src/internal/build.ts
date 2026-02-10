@@ -2,11 +2,19 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BuildContext, Endpoint, HttpMethod, PluginConfig, Segment } from '../types'
+import type {
+	BuildContext,
+	Endpoint,
+	HttpMethod,
+	PluginConfig,
+	Segment,
+	SegmentPrerender,
+} from '../types'
 
 import { Config } from '../config'
 
 import { Logger } from '../utils/logger'
+import { Prerender } from './prerender'
 
 export namespace Build {
 	export type ScanResult = {
@@ -132,10 +140,10 @@ export namespace Build {
 		 * Run the Finder to get the app route and associated data
 		 * needed for codegen
 		 * @returns data needed for codegen
-		 * @returns data.entries - the full list of entries for the manifest
+		 * @returns data.manifest - the route manifest
 		 * @returns data.imports - the dynamic and static imports for page and API routes
-		 * @returns data.handlers - the Hono route handlers
-		 * @returns data.prerenderableRoutes - the prerenderable routes
+		 * @returns data.modules - module metadata for each route
+		 * @returns data.prerenderableRoutes - routes to prerender at build time
 		 * @throws if an error occurs during scanning
 		 */
 		async run() {
@@ -353,7 +361,7 @@ export namespace Build {
 		/**
 		 * Process the scanned route data
 		 * @param res the scanned route data
-		 * @returns an object containing finalised manifest, imports, and prerenderable routes
+		 * @returns an object containing finalised manifest, imports, modules, and prerenderable routes
 		 */
 		async process(res: ScanResult) {
 			const processed = new Set<string>()
@@ -369,7 +377,7 @@ export namespace Build {
 			}
 
 			const modules: Modules = {}
-			const prerenderableCache = new Map<string, boolean>()
+			const prerenderCache = new Map<string, boolean>()
 
 			for (const segment of res.segments) {
 				try {
@@ -395,8 +403,8 @@ export namespace Build {
 					const isDynamic = route.includes(':')
 					const isCatchAll = route.includes('*')
 
-					// track if any parent is prerenderable
-					let hasInheritedPrerender = false
+					// track inherited prerender from shell/layouts
+					let inheritedPrerender = false
 
 					const shellImport = Finder.getImportPath(shell)
 
@@ -406,23 +414,17 @@ export namespace Build {
 					const loadingIds: (string | null)[] = []
 					const middlewareIds: (string | null)[] = []
 
-					// if shell not processed yet
+					// check shell prerender
 					if (!processed.has(shell)) {
-						let cached = prerenderableCache.get(shell)
-
-						if (cached === undefined) {
-							cached = await isPrerenderable(shell, this.buildContext)
-							prerenderableCache.set(shell, cached)
-						}
-
-						hasInheritedPrerender = cached
-
+						prerenderCache.set(
+							shell,
+							await Prerender.getStaticFlag(shell, this.buildContext),
+						)
 						imports.components.static.set(shellId, shellImport)
 						processed.add(shell)
-					} else {
-						hasInheritedPrerender =
-							hasInheritedPrerender || (prerenderableCache.get(shell) ?? false)
 					}
+
+					inheritedPrerender ||= prerenderCache.get(shell) ?? false
 
 					for (const layout of layouts) {
 						if (!layout) {
@@ -433,22 +435,17 @@ export namespace Build {
 						const layoutImport = Finder.getImportPath(layout)
 						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
 
-						let cached = prerenderableCache.get(layout)
-
-						if (cached === undefined) {
-							cached = await isPrerenderable(layout, this.buildContext)
-							prerenderableCache.set(layout, cached)
-						}
-
-						hasInheritedPrerender ||= cached
-						// always record chain. Only imports are deduped
-						layoutIds.push(layoutId)
-
-						// avoid re-importing seen layouts
 						if (!processed.has(layout)) {
+							prerenderCache.set(
+								layout,
+								await Prerender.getStaticFlag(layout, this.buildContext),
+							)
 							imports.components.dynamic.set(layoutId, layoutImport)
 							processed.add(layout)
 						}
+
+						inheritedPrerender ||= prerenderCache.get(layout) ?? false
+						layoutIds.push(layoutId)
 					}
 
 					for (const notFound of notFounds) {
@@ -515,55 +512,35 @@ export namespace Build {
 						}
 					}
 
-					// generate entry ID based on page if exists, otherwise dir
+					// generate entry id based on page if exists, otherwise dir
 					const entryId = page
 						? `${EntryKind.PAGE}${Bun.hash(Finder.getImportPath(page))}`
 						: `${EntryKind.PAGE}${Bun.hash(route)}`
 
-					let shouldPrerender = false
-
 					if (page) {
-						const pageImport = Finder.getImportPath(page)
+						inheritedPrerender ||= await Prerender.getStaticFlag(page, this.buildContext)
+						imports.components.dynamic.set(entryId, Finder.getImportPath(page))
+						processed.add(page)
+					}
 
-						shouldPrerender =
-							hasInheritedPrerender ||
-							this.config?.prerender === 'full' ||
-							(await isPrerenderable(page, this.buildContext))
+					// resolve prerender mode: 'full' prerenders everything, 
+					// 'declarative' only if inherited
+					const globalMode = this.config?.prerender
+					const prerenderMode: SegmentPrerender =
+						globalMode === 'full' ? 'full' :
+						globalMode === 'declarative' && inheritedPrerender ? 'ppr' :
+						false
 
-						if (shouldPrerender) {
-							if (!isDynamic && !isCatchAll) {
-								prerenderableRoutes.add(route)
-							} else {
-								const paramsList = await getPrerenderParamsList(
-									path.resolve(process.cwd(), page),
-									this.buildContext,
-								)
+					if (prerenderMode) {
+						if (!isDynamic && !isCatchAll) {
+							prerenderableRoutes.add(route)
+						} else if (page) {
+							const staticParams = await Prerender.getStaticParams(page, this.buildContext)
 
-								if (!paramsList?.length) {
-									logger.warn(
-										'[process]',
-										`No prerenderable params found for ${page}, skipping prerendering`,
-									)
-								}
-
-								const dynamicPrerenderableRoutes = createPrerenderRoutesFromParamsList(
-									route,
-									paramsList,
-								)
-
-								if (!dynamicPrerenderableRoutes?.length) {
-									logger.warn(
-										'[process]',
-										`No prerenderable routes found for ${page}, skipping prerendering`,
-									)
-								} else {
-									for (const r of dynamicPrerenderableRoutes) prerenderableRoutes.add(r)
-								}
+							for (const r of Prerender.getDynamicRouteList(route, staticParams)) {
+								prerenderableRoutes.add(r)
 							}
 						}
-
-						imports.components.dynamic.set(entryId, pageImport)
-						processed.add(page)
 					}
 
 					const entry: Segment = {
@@ -580,7 +557,7 @@ export namespace Build {
 							middlewares: middlewares.map(m => (m ? Finder.getImportPath(m) : null)),
 							page: page ? Finder.getImportPath(page) : null,
 						},
-						prerender: shouldPrerender,
+						prerender: prerenderMode,
 						dynamic: isDynamic,
 						catch_all: isCatchAll,
 					}
@@ -691,130 +668,7 @@ export namespace Build {
 				}
 			}
 
-			return { manifest, imports, prerenderableRoutes, modules }
-		}
-	}
-
-	/**
-	 * Check if a route is prerenderable
-	 * @param path - the path to the route
-	 * @param buildContext - the build context
-	 * @returns true if the route is prerenderable, false otherwise
-	 */
-	export async function isPrerenderable(path: string, buildContext: BuildContext) {
-		try {
-			const code = await Bun.file(path).text()
-			const exports = buildContext.transpiler.scan(code).exports
-
-			return exports.some(e => e === 'prerender')
-		} catch (err) {
-			logger.error(`prerender:isPrerenderable ${path}`, err)
-			return false
-		}
-	}
-
-	/**
-	 * Get the list of prerenderable params for a route
-	 * @param path - the path to the route
-	 * @param buildContext - the build context
-	 * @returns the list of prerenderable params
-	 */
-	export async function getPrerenderParamsList(path: string, buildContext: BuildContext) {
-		try {
-			const mod = await import(path)
-
-			if (!mod || !mod?.prerender || typeof mod.prerender !== 'function') {
-				logger.warn(
-					'[prerender:getPrerenderParamsList]',
-					`No exported prerender function found in ${path}`,
-				)
-
-				return []
-			}
-
-			return await Promise.resolve(mod.prerender())
-		} catch (err) {
-			logger.error(`prerender:getPrerenderParamsList ${path}`, err)
-			return []
-		}
-	}
-
-	/**
-	 * Create prerender routes from a list of params
-	 * @param route - the route to create prerender routes from
-	 * @param list - the list of params to create prerender routes from
-	 * @returns the list of prerender routes
-	 */
-	export function createPrerenderRoutesFromParamsList(
-		route: string,
-		list: Record<string, string>[],
-	) {
-		return list
-			.map(list =>
-				Object.entries(list).reduce(
-					(acc, [key, value]) =>
-						acc.replace(`:${key}`, encodeURIComponent(String(value))),
-					route,
-				),
-			)
-			.filter(res => !res.includes(':'))
-	}
-
-	/**
-	 * Prerender a route
-	 * @param renderer - the renderer function to use
-	 * @param urls - the URLs to prerender
-	 * @param urls.route - the route to prerender
-	 * @param urls.app - the app URL to use as the base for relative routes
-	 * @param buildContext - the build context
-	 * @returns an async generator that yields the prerendered route
-	 * @throws if an error occurs during prerendering
-	 */
-	export async function* prerender(
-		renderer: (req: Request) => Promise<Response>,
-		target: string,
-		base: string,
-		buildContext?: BuildContext,
-	) {
-		try {
-			const url =
-				target.startsWith('http://') || target.startsWith('https://')
-					? new URL(target)
-					: new URL(target, base)
-
-			const req = new Request(url.toString(), {
-				method: 'GET',
-				headers: {
-					Accept: 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8',
-					Host: url.host,
-					Origin: url.origin,
-				},
-			})
-
-			const res = await renderer(req)
-
-			if (!res.ok) throw new Error(`${target} returned ${res.status}`)
-
-			let body = await res.text()
-			const MARKER = '<!-- X-Drift-Renderer: prerender -->\n'
-
-			if (
-				String(res.headers.get('content-type') ?? '').includes('text/html') &&
-				!body.startsWith(MARKER)
-			) {
-				body = MARKER + body
-			}
-
-			yield {
-				route: target,
-				status: res.status,
-				headers: res.headers,
-				body,
-				res,
-			}
-		} catch (err) {
-			logger.error(`[prerender*] ${target}`, err)
-			throw err
+			return { manifest, imports, modules, prerenderableRoutes }
 		}
 	}
 }

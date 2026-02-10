@@ -3,7 +3,7 @@ import { Link } from '@jk2908/drift/navigation'
 import { Blue } from './blue'
 import { Red } from './red'
 
-//export const prerender = true
+// export const prerender = true
 
 export const metadata = {
 	title: 'Home',

@@ -3,9 +3,10 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "bunx --bun vite",
-		"build": "bunx --bun vite build",
-		"preview": "bunx --env-file=.env.preview --bun vite preview"
+		"postinstall": "ln -sf ../@jk2908/drift/dist/cli.js node_modules/.bin/drift",
+		"dev": "drift dev",
+		"build": "drift build",
+		"preview": "drift preview"
 	},
 	"dependencies": {
 		"@jk2908/drift": "workspace:*",

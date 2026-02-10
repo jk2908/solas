@@ -12,8 +12,6 @@
 							":BLANK_LINE:",
 							["react", "react/**/*", "react-dom", "react-dom/**/*"],
 							":BLANK_LINE:",
-							["hono", "hono/**/*"],
-							":BLANK_LINE:",
 							["@jk2908/drift", "@jk2908/drift/**/*", ".drift", ".drift/**/*"],
 							":PACKAGE:",
 							":BLANK_LINE:",

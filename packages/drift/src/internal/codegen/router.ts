@@ -1,4 +1,4 @@
-import type { Endpoint, Manifest, Segment } from '../../types'
+import type { Endpoint, Manifest, PluginConfig, Segment } from '../../types'
 
 import { Config } from '../../config'
 
@@ -11,9 +11,10 @@ import { AUTOGEN_MSG } from './utils'
  * with all the routes and handlers defined in the manifest
  * @param manifest - the application manifest
  * @param imports - the imported modules
+ * @param config - the plugin configuration
  * @returns the stringified code
  */
-export function writeRouter(manifest: Manifest, imports: Build.Imports) {
+export function writeRouter(manifest: Manifest, imports: Build.Imports, config: PluginConfig) {
 	// group manifest entries by method and path
 	const groups = createHandlerGroups(manifest)
 
@@ -53,7 +54,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
       return new Router({
         trailingSlash: config.trailingSlash,
       })
-        .add('/assets/*', 'GET', Router.serveStatic(config))
+        .add('/assets/*', 'GET', Router.static(config))
         ${[...groups.entries()]
 					.map(([, group]) => {
 						if (!Array.isArray(group)) {

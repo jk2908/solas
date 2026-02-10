@@ -34,17 +34,22 @@ export type RSCPayload = {
 	metadata?: Promise<Metadata.Item>
 }
 
+type RSCResult = {
+	stream: ReadableStream<Uint8Array>
+	status: number
+	ppr: boolean
+}
+
 /**
  * RSC handler - returns a ReadableStream response for RSC requests
  * @param req - the incoming request
- * @param Shell - the app root (shell) component to render
  * @param manifest - the application manifest containing routes and metadata
  * @param importMap - the import map for route components and endpoints
  * @param baseMetadata - optional global metadata from config
  * @param returnValue - optional return value from an action
  * @param formState - optional React form state for hydration
  * @param temporaryReferences - optional temporary references for RSC
- * @returns a ReadableStream response for RSC requests
+ * @returns stream, status code, and ppr flag for the response
  */
 export async function rsc(
 	req: DriftRequest,
@@ -104,8 +109,12 @@ export async function rsc(
 				},
 			}),
 			status: 404,
+			ppr: false,
 		}
 	}
+
+	// check if this route uses PPR
+	const ppr = match.prerender === 'ppr'
 
 	const collection = new Metadata.Collection(baseMetadata)
 
@@ -156,7 +165,7 @@ export async function rsc(
 			},
 		})
 
-		return { stream, status }
+		return { stream, status, ppr }
 	} catch (err) {
 		// shell failed to render - return minimal fallback
 		logger.error('rsc shell', err)
@@ -197,6 +206,7 @@ export async function rsc(
 				},
 			),
 			status: 500,
+			ppr: false,
 		}
 	}
 }

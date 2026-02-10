@@ -22,7 +22,11 @@ export default function Post({ params }: { params?: { id: string } }) {
 	return <>Post {JSON.stringify(post)}</>
 }
 
-//export const prerender = () => allPosts.map(p => ({ id: p.__mdsrc.slug }))
+// export const prerender = true
+// or for dynamic routes with static params:
+// export function prerender() {
+// 	return allPosts.map(p => ({ id: p.__mdsrc.slug }))
+// }
 
 const allPosts = [
 	{

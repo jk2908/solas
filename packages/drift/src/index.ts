@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { PluginOption } from 'vite'
+import type { PluginOption, UserConfig, ViteDevServer } from 'vite'
 
 import react from '@vitejs/plugin-react'
 import rsc from '@vitejs/plugin-rsc'
@@ -22,7 +22,6 @@ import { Config } from './config'
 
 import { Build } from './internal/build'
 
-import { Compress } from './utils/compress'
 import { Format } from './utils/format'
 import { Logger } from './utils/logger'
 import { Time } from './utils/time'
@@ -81,8 +80,8 @@ function drift(c: PluginConfig): PluginOption[] {
 			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
 			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
 			Bun.write(path.join(generatedDir, 'maps.ts'), writeMaps(imports, modules)),
-			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
-			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry()),
+			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports, config)),
+			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry(prerenderableRoutes)),
 			Bun.write(path.join(generatedDir, Config.ENTRY_SSR), writeSSREntry()),
 			Bun.write(path.join(generatedDir, Config.ENTRY_BROWSER), writeBrowserEntry()),
 		])
@@ -94,10 +93,10 @@ function drift(c: PluginConfig): PluginOption[] {
 	// debounced build to avoid multiple builds on file changes
 	const rebuild = Time.debounce(build, 1000)
 
-	const plugin: PluginOption = {
+	const plugin = {
 		name: 'drift',
-		enforce: 'pre',
-		async config(viteConfig) {
+		enforce: 'pre' as const,
+		async config(viteConfig: UserConfig) {
 			await build()
 
 			viteConfig.build ??= {}
@@ -126,115 +125,35 @@ function drift(c: PluginConfig): PluginOption[] {
 				'react-dom/client',
 			]
 		},
-		configureServer(server) {
+		configureServer(server: ViteDevServer) {
 			logger.info('[configureServer]', `Watching for changes in ./${Config.APP_DIR}...`)
 
 			server.watcher
-				.on('add', path => {
-					if (path.includes(Config.APP_DIR)) rebuild()
+				.on('add', (p: string) => {
+					if (p.includes(Config.APP_DIR)) rebuild()
 				})
-				.on('change', path => {
-					if (path.includes(Config.APP_DIR)) rebuild()
+				.on('change', (p: string) => {
+					if (p.includes(Config.APP_DIR)) rebuild()
 				})
-				.on('unlink', path => {
-					if (path.includes(Config.APP_DIR)) rebuild()
+				.on('unlink', (p: string) => {
+					if (p.includes(Config.APP_DIR)) rebuild()
 				})
 		},
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return
 
-			try {
-				if (buildContext.prerenderableRoutes.size > 0) {
-					if (!config.url) {
-						logger.error(
-							'[closeBundle]',
-							'Skipping prerender: no app URL configured. Set the VITE_APP_URL env var or set the app.url in the plugin config',
-						)
-					} else {
-						Bun.env.PRERENDER = 'true'
+			// Write build manifest for CLI to pick up
+			const generatedDir = path.join(process.cwd(), Config.GENERATED_DIR)
+			await Bun.write(
+				path.join(generatedDir, 'build.json'),
+				JSON.stringify({
+					prerenderableRoutes: Array.from(buildContext.prerenderableRoutes),
+					outDir: config.outDir,
+					precompress: config.precompress,
+				}),
+			)
 
-						try {
-							if (
-								!buildContext.bundle.server.outDir ||
-								!buildContext.bundle.server.entryPath
-							) {
-								throw new Error('No server outDir or entryPath found')
-							}
-
-							const app = (
-								await import(
-									`file://${Bun.file(buildContext.bundle.server.entryPath).name}`
-								)
-							).default
-
-							for (const route of buildContext.prerenderableRoutes) {
-								const { value, done } = await Build.prerender(
-									(req: Request) => app.fetch(req),
-									route,
-									config.url,
-									buildContext,
-								).next()
-
-								if (done || !value) {
-									logger.warn('[closeBundle]', `skipped prerendering ${route}: no output`)
-									continue
-								}
-
-								const { status, body } = value
-
-								if (status !== 200) {
-									logger.warn('[closeBundle]', `skipped prerendering ${route}: ${status}`)
-									continue
-								}
-
-								const outPath =
-									route === '/'
-										? path.join(buildContext.bundle.server.outDir, 'index.html')
-										: path.join(buildContext.bundle.server.outDir, route, 'index.html')
-
-								await fs.mkdir(path.dirname(outPath), { recursive: true })
-								await Bun.write(outPath, body)
-
-								logger.info('[closeBundle]', `prerendered ${route} to ${outPath}`)
-							}
-						} catch (err) {
-							logger.error('[closeBundle:prerender]', err)
-						} finally {
-							logger.info('[closeBundle]', 'stopping server')
-							Bun.env.PRERENDER = 'false'
-						}
-					}
-				}
-
-				if (config.precompress) {
-					try {
-						const dir = path.resolve(process.cwd(), config.outDir)
-
-						for await (const { input, compressed } of Compress.run(dir, buildContext, {
-							filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
-						})) {
-							await Bun.write(`${input}.br`, compressed)
-							logger.info(
-								'[closeBundle:precompress]',
-								`compressed ${input} to ${input}.br`,
-							)
-						}
-					} catch (err) {
-						logger.error('[closeBundle:precompress]', err)
-					}
-				}
-			} catch (err) {
-				logger.error('[closeBundle]', err)
-				return
-			} finally {
-				buildContext.bundle.server = {
-					entryPath: null,
-					outDir: null,
-				}
-
-				// fini
-				logger.info('[closeBundle]', 'build complete')
-			}
+			logger.info('[closeBundle]', 'vite build complete')
 		},
 	}
 
