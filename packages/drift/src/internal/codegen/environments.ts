@@ -1,18 +1,21 @@
+import type { BuildContext } from '../../types'
+
 import { Config } from '../../config'
 
 import { AUTOGEN_MSG } from './utils'
 
 /**
  * Generates the RSC entry code
- * @param prerenderableRoutes - routes that have been prerendered
+ * @param buildContext - the build context containing prerendered routes
  * @returns the stringified code
  */
-export function writeRSCEntry(prerenderableRoutes: Set<string>) {
+export function writeRSCEntry(buildContext: BuildContext) {
 	return `
     ${AUTOGEN_MSG}
 
     import type { ReactFormState } from 'react-dom/client'
 
+    import type { DriftRequest } from '${Config.PKG_NAME}'
     import { rsc, action } from '${Config.PKG_NAME}/env/rsc'
     import { Router } from '${Config.PKG_NAME}/router'
 
@@ -21,9 +24,9 @@ export function writeRSCEntry(prerenderableRoutes: Set<string>) {
     import { config } from './config'
     import { createRouter } from './router'
 
-    const prerenderedRoutes = new Set(${JSON.stringify([...prerenderableRoutes])})
+    const prerenderedRoutes = new Set(${JSON.stringify([...buildContext.prerenderedRoutes])})
 
-    export async function handler(req: Request) { 
+    export async function handler(req: DriftRequest) { 
       let opts: {
         formState?: ReactFormState
         temporaryReferences?: unknown
@@ -72,8 +75,6 @@ export function writeRSCEntry(prerenderableRoutes: Set<string>) {
       })
     }
 
-    import.meta.hot?.accept()
-
     const router = createRouter()
 
     export default {
@@ -83,12 +84,14 @@ export function writeRSCEntry(prerenderableRoutes: Set<string>) {
         
         if (accept.includes('text/html')) {
           const pathname = url.pathname
-          const path = !prerenderedRoutes.has(pathname) ? null : pathname === '/'
-            ? config.outDir + '/index.html'
-            : config.outDir + pathname + '/index.html'
+          const prerenderPath = !prerenderedRoutes.has(pathname)
+            ? null
+            : pathname === '/'
+              ? config.outDir + '/index.html'
+              : config.outDir + pathname + '/index.html'
 
-          if (path) {
-            const res = await Router.serve(path, req, config.precompress, {
+          if (prerenderPath) {
+            const res = await Router.serve(prerenderPath, req, config.precompress, {
               'Content-Type': 'text/html; charset=utf-8',
             })
 
@@ -99,6 +102,8 @@ export function writeRSCEntry(prerenderableRoutes: Set<string>) {
         return router.fetch(req)
       }
     }
+
+    import.meta.hot?.accept()
   `.trim()
 }
 

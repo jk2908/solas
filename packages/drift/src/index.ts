@@ -57,7 +57,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			},
 		},
 		transpiler,
-		prerenderableRoutes: new Set<string>(),
+		prerenderedRoutes: new Set<string>(),
 	}
 
 	async function build() {
@@ -71,17 +71,17 @@ function drift(c: PluginConfig): PluginOption[] {
 		])
 
 		const processor = new Build.Finder(buildContext, config)
-		const { manifest, prerenderableRoutes, imports, modules } = await processor.run()
+		const { manifest, prerenderedRoutes, imports, modules } = await processor.run()
 
 		// set prerenderable routes in context for use in closeBundle
-		buildContext.prerenderableRoutes = prerenderableRoutes
+		buildContext.prerenderedRoutes = prerenderedRoutes
 
 		await Promise.all([
 			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
 			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
 			Bun.write(path.join(generatedDir, 'maps.ts'), writeMaps(imports, modules)),
 			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports, config)),
-			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry(prerenderableRoutes)),
+			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry(buildContext)),
 			Bun.write(path.join(generatedDir, Config.ENTRY_SSR), writeSSREntry()),
 			Bun.write(path.join(generatedDir, Config.ENTRY_BROWSER), writeBrowserEntry()),
 		])
@@ -142,12 +142,13 @@ function drift(c: PluginConfig): PluginOption[] {
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return
 
-			// Write build manifest for CLI to pick up
+			// write build manifest 
 			const generatedDir = path.join(process.cwd(), Config.GENERATED_DIR)
+
 			await Bun.write(
 				path.join(generatedDir, 'build.json'),
 				JSON.stringify({
-					prerenderableRoutes: Array.from(buildContext.prerenderableRoutes),
+					prerenderedRoutes: Array.from(buildContext.prerenderedRoutes),
 					outDir: config.outDir,
 					precompress: config.precompress,
 				}),

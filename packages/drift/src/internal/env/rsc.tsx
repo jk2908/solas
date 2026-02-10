@@ -34,12 +34,6 @@ export type RSCPayload = {
 	metadata?: Promise<Metadata.Item>
 }
 
-type RSCResult = {
-	stream: ReadableStream<Uint8Array>
-	status: number
-	ppr: boolean
-}
-
 /**
  * RSC handler - returns a ReadableStream response for RSC requests
  * @param req - the incoming request
@@ -115,7 +109,6 @@ export async function rsc(
 
 	// check if this route uses PPR
 	const ppr = match.prerender === 'ppr'
-
 	const collection = new Metadata.Collection(baseMetadata)
 
 	const metadata = match

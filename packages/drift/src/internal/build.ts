@@ -143,7 +143,7 @@ export namespace Build {
 		 * @returns data.manifest - the route manifest
 		 * @returns data.imports - the dynamic and static imports for page and API routes
 		 * @returns data.modules - module metadata for each route
-		 * @returns data.prerenderableRoutes - routes to prerender at build time
+		 * @returns data.prerenderedRoutes - routes to prerender at build time
 		 * @throws if an error occurs during scanning
 		 */
 		async run() {
@@ -365,7 +365,7 @@ export namespace Build {
 		 */
 		async process(res: ScanResult) {
 			const processed = new Set<string>()
-			const prerenderableRoutes = new Set<string>()
+			const prerenderedRoutes = new Set<string>()
 
 			const manifest: Record<string, Segment | Endpoint | (Segment | Endpoint)[]> = {}
 
@@ -523,22 +523,27 @@ export namespace Build {
 						processed.add(page)
 					}
 
-					// resolve prerender mode: 'full' prerenders everything, 
+					// resolve prerender mode: 'full' prerenders everything,
 					// 'declarative' only if inherited
 					const globalMode = this.config?.prerender
 					const prerenderMode: SegmentPrerender =
-						globalMode === 'full' ? 'full' :
-						globalMode === 'declarative' && inheritedPrerender ? 'ppr' :
-						false
+						globalMode === 'full'
+							? 'full'
+							: globalMode === 'declarative' && inheritedPrerender
+								? 'ppr'
+								: false
 
 					if (prerenderMode) {
 						if (!isDynamic && !isCatchAll) {
-							prerenderableRoutes.add(route)
+							prerenderedRoutes.add(route)
 						} else if (page) {
-							const staticParams = await Prerender.getStaticParams(page, this.buildContext)
+							const staticParams = await Prerender.getStaticParams(
+								page,
+								this.buildContext,
+							)
 
 							for (const r of Prerender.getDynamicRouteList(route, staticParams)) {
-								prerenderableRoutes.add(r)
+								prerenderedRoutes.add(r)
 							}
 						}
 					}
@@ -668,7 +673,7 @@ export namespace Build {
 				}
 			}
 
-			return { manifest, imports, modules, prerenderableRoutes }
+			return { manifest, imports, modules, prerenderedRoutes }
 		}
 	}
 }

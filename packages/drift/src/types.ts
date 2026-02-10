@@ -37,7 +37,7 @@ export type BuildContext = {
 		}
 	}
 	transpiler: InstanceType<typeof Bun.Transpiler>
-	prerenderableRoutes: Set<string>
+	prerenderedRoutes: Set<string>
 }
 
 export type DriftRequest = Request & {
