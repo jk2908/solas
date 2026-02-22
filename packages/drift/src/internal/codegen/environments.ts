@@ -1,15 +1,12 @@
-import type { BuildContext } from '../../types'
-
 import { Config } from '../../config'
 
 import { AUTOGEN_MSG } from './utils'
 
 /**
  * Generates the RSC entry code
- * @param buildContext - the build context containing prerendered routes
  * @returns the stringified code
  */
-export function writeRSCEntry(buildContext: BuildContext) {
+export function writeRSCEntry() {
 	return `
     ${AUTOGEN_MSG}
 
@@ -24,7 +21,15 @@ export function writeRSCEntry(buildContext: BuildContext) {
     import { config } from './config'
     import { createRouter } from './router'
 
-    const prerenderedRoutes = new Set(${JSON.stringify([...buildContext.prerenderedRoutes])})
+    const fullyPrerenderedRoutes = new Set(
+      Object.values(manifest)
+        .flat()
+        .filter(
+          (entry): entry is { __path: string; prerender: 'full' } =>
+            'prerender' in entry && entry.prerender === 'full',
+        )
+        .map(entry => entry.__path),
+    )
 
     export async function handler(req: DriftRequest) { 
       let opts: {
@@ -52,8 +57,9 @@ export function writeRSCEntry(buildContext: BuildContext) {
       if (!req.headers.get('accept')?.includes('text/html')) {
         return new Response(rscStream, {
           headers: {
-            'Content-Type': 'text/x-component;charset=utf-8',
-            vary: 'accept',
+            'Cache-Control': 'private, no-store',
+            'Content-Type': 'text/x-component; charset=utf-8',
+            Vary: 'accept',
           },
           status,
         })
@@ -68,8 +74,9 @@ export function writeRSCEntry(buildContext: BuildContext) {
                 
       return new Response(htmlStream, {
         headers: {
+          'Cache-Control': 'private, no-store',
           'Content-Type': 'text/html',
-          vary: 'accept',
+          Vary: 'accept',
         },
         status,
       })
@@ -84,7 +91,7 @@ export function writeRSCEntry(buildContext: BuildContext) {
         
         if (accept.includes('text/html')) {
           const pathname = url.pathname
-          const prerenderPath = !prerenderedRoutes.has(pathname)
+          const prerenderPath = !fullyPrerenderedRoutes.has(pathname)
             ? null
             : pathname === '/'
               ? config.outDir + '/index.html'
@@ -92,6 +99,7 @@ export function writeRSCEntry(buildContext: BuildContext) {
 
           if (prerenderPath) {
             const res = await Router.serve(prerenderPath, req, config.precompress, {
+              'Cache-Control': 'public, max-age=31536000, immutable',
               'Content-Type': 'text/html; charset=utf-8',
             })
 

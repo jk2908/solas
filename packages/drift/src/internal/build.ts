@@ -377,7 +377,7 @@ export namespace Build {
 			}
 
 			const modules: Modules = {}
-			const prerenderCache = new Map<string, boolean>()
+			const prerenderCache = new Map<string, boolean | undefined>()
 
 			for (const segment of res.segments) {
 				try {
@@ -406,6 +406,15 @@ export namespace Build {
 					// track inherited prerender from shell/layouts
 					let inheritedPrerender = false
 
+					function applyInheritedPrerender(flag: boolean | undefined) {
+						if (flag === false) {
+							inheritedPrerender = false
+							return
+						}
+
+						inheritedPrerender ||= flag === true
+					}
+
 					const shellImport = Finder.getImportPath(shell)
 
 					const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
@@ -424,7 +433,7 @@ export namespace Build {
 						processed.add(shell)
 					}
 
-					inheritedPrerender ||= prerenderCache.get(shell) ?? false
+					applyInheritedPrerender(prerenderCache.get(shell))
 
 					for (const layout of layouts) {
 						if (!layout) {
@@ -444,7 +453,7 @@ export namespace Build {
 							processed.add(layout)
 						}
 
-						inheritedPrerender ||= prerenderCache.get(layout) ?? false
+						applyInheritedPrerender(prerenderCache.get(layout))
 						layoutIds.push(layoutId)
 					}
 
@@ -518,22 +527,22 @@ export namespace Build {
 						: `${EntryKind.PAGE}${Bun.hash(route)}`
 
 					if (page) {
-						inheritedPrerender ||= await Prerender.getStaticFlag(page, this.buildContext)
+						const pagePrerender = await Prerender.getStaticFlag(page, this.buildContext)
+						applyInheritedPrerender(pagePrerender)
+
 						imports.components.dynamic.set(entryId, Finder.getImportPath(page))
 						processed.add(page)
 					}
 
-					// resolve prerender mode: 'full' prerenders everything,
-					// 'declarative' only if inherited
-					const globalMode = this.config?.prerender
-					const prerenderMode: SegmentPrerender =
-						globalMode === 'full'
+					const globalPrerenderMode = this.config?.prerender ?? 'ppr'
+					const shouldPrerender = globalPrerenderMode !== false && inheritedPrerender
+					const prerenderMode: SegmentPrerender = shouldPrerender
+						? globalPrerenderMode === 'full'
 							? 'full'
-							: globalMode === 'declarative' && inheritedPrerender
-								? 'ppr'
-								: false
+							: 'ppr'
+						: false
 
-					if (prerenderMode) {
+					if (shouldPrerender) {
 						if (!isDynamic && !isCatchAll) {
 							prerenderedRoutes.add(route)
 						} else if (page) {

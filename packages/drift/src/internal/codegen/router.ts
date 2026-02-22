@@ -1,4 +1,4 @@
-import type { Endpoint, Manifest, PluginConfig, Segment } from '../../types'
+import type { Endpoint, Manifest, Segment } from '../../types'
 
 import { Config } from '../../config'
 
@@ -11,10 +11,9 @@ import { AUTOGEN_MSG } from './utils'
  * with all the routes and handlers defined in the manifest
  * @param manifest - the application manifest
  * @param imports - the imported modules
- * @param config - the plugin configuration
  * @returns the stringified code
  */
-export function writeRouter(manifest: Manifest, imports: Build.Imports, config: PluginConfig) {
+export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 	// group manifest entries by method and path
 	const groups = createHandlerGroups(manifest)
 
@@ -77,7 +76,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports, config: 
 
 							return group.__kind === Build.EntryKind.PAGE
 								? `.add('${group.__path}', '${method}', req => rsc(req), ${params}, ${mwArg})`
-								: `.add('${group.__path}', '${method}', req => ${group.__id}(req), ${params}, ${mwArg})`
+								: `.add('${group.__path}', '${method}',\n// @ts-ignore - endpoint may not accept request param\nreq => ${group.__id}(req), ${params}, ${mwArg})`
 						}
 
 						// unified handler: page + endpoint pair only
@@ -117,7 +116,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports, config: 
 					}, ${params}, ${mwArg})`
 					})
 					.join('\n      ')}
-        .error((err, req) => rsc(req, err))
+        .error((_err, req) => rsc(req))
     }
 
     export type App = Server<ReturnType<typeof createRouter>>

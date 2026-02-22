@@ -22,18 +22,39 @@ export function Link({ href, preload = 'intent', ...props }: Props) {
 			{...props}
 			href={href}
 			onClick={e => {
+				props.onClick?.(e)
+				if (e.defaultPrevented) return
+
+				// only intercept plain left-click same-origin navigations
+				if (e.button !== 0) return
+				if (e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) return
+				if (props.target && props.target !== '_self') return
+				if (props.download) return
+
+				const to = new URL(href, window.location.origin)
+				if (to.origin !== window.location.origin) return
+
 				e.preventDefault()
-				go(href)
+				go(to.pathname + to.search + to.hash)
 			}}
-			onFocus={() => {
+			onFocus={e => {
+				props.onFocus?.(e)
+				if (e.defaultPrevented) return
+
 				if (preload !== 'intent') return
 				preloader(href)
 			}}
-			onTouchStart={() => {
+			onTouchStart={e => {
+				props.onTouchStart?.(e)
+				if (e.defaultPrevented) return
+
 				if (preload !== 'intent') return
 				preloader(href)
 			}}
-			onMouseEnter={() => {
+			onMouseEnter={e => {
+				props.onMouseEnter?.(e)
+				if (e.defaultPrevented) return
+
 				if (preload === 'none') return
 				preloader(href)
 			}}

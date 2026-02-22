@@ -9,8 +9,6 @@ export const metadata = {
 	title: 'Home',
 }
 
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-
 export default async function Page() {
 	return (
 		<div>
@@ -25,11 +23,6 @@ export default async function Page() {
 			<Red />
 		</div>
 	)
-}
-
-async function SuspendedComponent() {
-	await wait(5000)
-	return <div>I am suspended!</div>
 }
 /*
 export default function HomePage({ params }: { params?: Record<string, string> }) {

@@ -11,7 +11,7 @@ import { ErrorBoundary } from '../ui/error-boundary'
 import { Logger } from '../../utils/logger'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Head } from '../render/head'
-import { RouterProvider } from '../router/router-provider'
+import { RouterProvider } from '../router/router-context'
 import type { RSCPayload } from './rsc'
 import { getKnownDigest } from './utils'
 
@@ -58,7 +58,7 @@ export async function ssr(rscStream: ReadableStream<Uint8Array>, opts: SSROption
 	)
 
 	// ppr uses React's prerender api - prelude is the static shell,
-	// dynamic content wrapped in Suspense streams 
+	// dynamic content wrapped in Suspense streams
 	// after via rsc payload
 	if (ppr) {
 		const { prelude } = await prerender(<A />, {

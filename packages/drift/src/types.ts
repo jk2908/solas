@@ -9,8 +9,8 @@ import type { HttpException } from './internal/navigation/http-exception'
 import type { Router } from './internal/router/router'
 import type { LogLevel } from './utils/logger'
 
-export type PrerenderMode = 'declarative' | 'full' | false
-export type SegmentPrerender = 'ppr' | 'full' | false
+export type PrerenderMode = 'full' | 'ppr' | false
+export type SegmentPrerender = 'full' | 'ppr' | false
 
 export type PluginConfig = {
 	url?: `http://${string}` | `https://${string}`
@@ -101,14 +101,14 @@ export type MapEntry = {
 
 export type ImportMap = Record<string, MapEntry>
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS'
 
 export type Primitive = string | number | boolean | bigint | symbol | null | undefined
 
 export type LooseNumber<T extends number> = T | (number & {})
 
 export type BuildManifest = {
-	prerenderableRoutes: string[]
+	prerenderedRoutes: string[]
 	outDir: string
 	precompress: boolean
 }

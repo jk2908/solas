@@ -25,6 +25,7 @@ import {
 } from '../navigation/http-exception'
 import { Tree } from '../render/tree'
 import { Matcher } from '../router/matcher'
+import { RequestContext } from './request-context'
 import { getKnownDigest } from './utils'
 
 export type RSCPayload = {
@@ -56,6 +57,7 @@ export async function rsc(
 ) {
 	const matcher = new Matcher(manifest, importMap)
 	const logger = new Logger()
+	const prerender = req.headers.get('x-drift-prerender') === '1'
 	const url = new URL(req.url)
 	const pathname =
 		url.pathname.endsWith('/') && url.pathname !== '/'
@@ -93,21 +95,23 @@ export async function rsc(
 		}
 
 		return {
-			stream: renderToReadableStream(rscPayload, {
-				temporaryReferences,
-				onError(err: unknown) {
-					const digest = getKnownDigest(err)
-					if (digest) return digest
+			stream: RequestContext.write({ prerender }, () =>
+				renderToReadableStream(rscPayload, {
+					temporaryReferences,
+					onError(err: unknown) {
+						const digest = getKnownDigest(err)
+						if (digest) return digest
 
-					logger.error('[rsc]', err)
-				},
-			}),
+						logger.error('[rsc]', err)
+					},
+				}),
+			),
 			status: 404,
 			ppr: false,
 		}
 	}
 
-	// check if this route uses PPR
+	// check if this route is a candidate for ppr
 	const ppr = match.prerender === 'ppr'
 	const collection = new Metadata.Collection(baseMetadata)
 
@@ -148,15 +152,17 @@ export async function rsc(
 	const status = isHttpException(match.error) ? match.error.status : 200
 
 	try {
-		const stream = renderToReadableStream(rscPayload, {
-			temporaryReferences,
-			onError(err: unknown) {
-				const digest = getKnownDigest(err)
-				if (digest) return digest
+		const stream = RequestContext.write({ prerender }, () =>
+			renderToReadableStream(rscPayload, {
+				temporaryReferences,
+				onError(err: unknown) {
+					const digest = getKnownDigest(err)
+					if (digest) return digest
 
-				logger.error('rsc', err)
-			},
-		})
+					logger.error('rsc', err)
+				},
+			}),
+		)
 
 		return { stream, status, ppr }
 	} catch (err) {
@@ -174,29 +180,31 @@ export async function rsc(
 		})
 
 		return {
-			stream: renderToReadableStream(
-				{
-					root: (
-						<html lang="en">
-							<head>
-								<meta charSet="UTF-8" />
-								<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-								<meta name="robots" content="noindex,nofollow" />
+			stream: RequestContext.write({ prerender }, () =>
+				renderToReadableStream(
+					{
+						root: (
+							<html lang="en">
+								<head>
+									<meta charSet="UTF-8" />
+									<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+									<meta name="robots" content="noindex,nofollow" />
 
-								<title>{title}</title>
-							</head>
+									<title>{title}</title>
+								</head>
 
-							<body>
-								<DefaultErr error={error} />
-							</body>
-						</html>
-					),
-					returnValue,
-					formState,
-				},
-				{
-					temporaryReferences,
-				},
+								<body>
+									<DefaultErr error={error} />
+								</body>
+							</html>
+						),
+						returnValue,
+						formState,
+					},
+					{
+						temporaryReferences,
+					},
+				),
 			),
 			status: 500,
 			ppr: false,
@@ -212,7 +220,7 @@ export async function action(req: Request) {
 	const id = req.headers.get('x-rsc-action-id')
 
 	if (id) {
-		// x-rsc-action header exists when action is
+		// x-rsc-action-id header exists when action is
 		// called via ReactClient.setServerCallback
 		const body = req.headers.get('content-type')?.startsWith('multipart/form-data')
 			? await req.formData()
@@ -236,22 +244,6 @@ export async function action(req: Request) {
 
 	return { returnValue, formState, temporaryReferences }
 }
-
-const driftPayloadReducer = {
-	Error: (v: unknown) => {
-		if (!(v instanceof Error)) return false
-
-		return [
-			v.constructor.name,
-			v.message,
-			v.cause,
-			v.stack,
-			isHttpException(v) ? v.status : undefined,
-			isHttpException(v) ? v.payload : undefined,
-		]
-	},
-}
-
 export const driftPayloadReviver = {
 	Error: ([name, message, cause, stack, status, payload]: [
 		string,

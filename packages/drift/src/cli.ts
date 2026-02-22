@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Set production mode early
+// set production mode early
 process.env.NODE_ENV = 'production'
 
 import fs from 'node:fs/promises'
@@ -13,12 +13,13 @@ import { Compress } from './utils/compress'
 import { Logger } from './utils/logger'
 
 const logger = new Logger()
+const INTERNAL_ORIGIN = 'http://drift.local'
 
 async function build() {
 	const cwd = process.cwd()
 	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
 
-	// 1. Run vite build
+	// run vite build
 	logger.info('[build]', 'running vite build...')
 	const vite = Bun.spawnSync(['bunx', '--bun', 'vite', 'build', '--mode', 'production'], {
 		cwd,
@@ -32,7 +33,7 @@ async function build() {
 		process.exit(1)
 	}
 
-	// 2. Read build manifest
+	// read build manifest
 	let manifest: BuildManifest
 	try {
 		const raw = await fs.readFile(manifestPath, 'utf-8')
@@ -45,55 +46,68 @@ async function build() {
 	const outDir = path.resolve(cwd, manifest.outDir)
 	const rscDir = path.join(outDir, 'rsc')
 
-	// 3. Prerender routes
-	if (manifest.prerenderableRoutes.length > 0) {
-		logger.info('[prerender]', `prerendering ${manifest.prerenderableRoutes.length} routes...`)
+	// prerender routes
+	if (manifest.prerenderedRoutes.length > 0) {
+		logger.info(
+			'[prerender]',
+			`prerendering ${manifest.prerenderedRoutes.length} routes...`,
+		)
 
-		// Ensure production mode for React
+		// ensure production mode for React
 		process.env.NODE_ENV = 'production'
 
-		// Change to RSC dir so relative imports work
-		const originalCwd = process.cwd()
-		process.chdir(rscDir)
+		const rscEntry = path.join(rscDir, 'index.js')
+		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
-		try {
-			const rscEntry = path.join(rscDir, 'index.js')
-			const { default: app } = await import(/* @vite-ignore */ rscEntry)
+		// @todo: move into prerender namespace
 
-			for (const route of manifest.prerenderableRoutes) {
-				try {
-					const url = `http://localhost${route}`
-					const res = await app.fetch(new Request(url, { headers: { Accept: 'text/html' } }))
+		for (const route of manifest.prerenderedRoutes) {
+			try {
+				// synthetic url only - request is handled in-process by app.fetch
+				const url = `${INTERNAL_ORIGIN}${route}`
+				const res = await app.fetch(
+					new Request(url, {
+						headers: {
+							Accept: 'text/html',
+							'x-drift-prerender': '1',
+						},
+					}),
+				)
 
-					if (!res.ok) {
-						logger.warn('[prerender]', `skipped ${route}: ${res.status}`)
-						continue
-					}
-
-					const html = await res.text()
-					const outPath = route === '/' ? path.join(outDir, 'index.html') : path.join(outDir, route, 'index.html')
-
-					await fs.mkdir(path.dirname(outPath), { recursive: true })
-					await Bun.write(outPath, html)
-					logger.info('[prerender]', route)
-				} catch (err) {
-					logger.error('[prerender]', `failed ${route}: ${err}`)
+				if (!res.ok) {
+					logger.warn('[prerender]', `skipped ${route}: ${res.status}`)
+					continue
 				}
+
+				// @todo: hash files
+
+				const html = await res.text()
+				const outPath =
+					route === '/'
+						? path.join(outDir, 'index.html')
+						: path.join(outDir, route, 'index.html')
+
+				await fs.mkdir(path.dirname(outPath), { recursive: true })
+				await Bun.write(outPath, html)
+				logger.info('[prerender]', route)
+			} catch (err) {
+				logger.error('[prerender]', `failed ${route}: ${err}`)
 			}
-		} finally {
-			process.chdir(originalCwd)
 		}
 	}
 
-	// 4. Precompress
+	// precompress
 	if (manifest.precompress) {
 		logger.info('[precompress]', 'compressing assets...')
 
 		const buildContext = {
 			outDir: manifest.outDir,
-			bundle: { server: { entryPath: null, outDir: null }, client: { entryPath: null, outDir: null } },
+			bundle: {
+				server: { entryPath: null, outDir: null },
+				client: { entryPath: null, outDir: null },
+			},
 			transpiler: new Bun.Transpiler({ loader: 'tsx' }),
-			prerenderableRoutes: new Set<string>(),
+			prerenderedRoutes: new Set<string>(),
 		}
 
 		for await (const { input, compressed } of Compress.run(outDir, buildContext, {
@@ -104,7 +118,7 @@ async function build() {
 		}
 	}
 
-	// 5. Cleanup
+	// cleanup
 	await fs.unlink(manifestPath).catch(() => {})
 
 	logger.info('[build]', 'done')
@@ -126,11 +140,9 @@ async function preview() {
 	const outDir = path.resolve(cwd, 'dist')
 	const rscDir = path.join(outDir, 'rsc')
 
-	// Import RSC server (handles prerendered HTML, static assets, and SSR)
-	process.chdir(rscDir)
+	// import RSC server (handles prerendered HTML, static assets, and SSR).
 	const rscEntry = path.join(rscDir, 'index.js')
 	const { default: app } = await import(/* @vite-ignore */ rscEntry)
-	process.chdir(cwd)
 
 	const port = 4173
 
@@ -141,11 +153,11 @@ async function preview() {
 
 	logger.info('[preview]', `server running at http://localhost:${port}`)
 
-	// Keep alive
+	// keep alive
 	await new Promise(() => {})
 }
 
-// CLI
+// cli entry point
 const [, , command] = process.argv
 
 switch (command) {
@@ -160,12 +172,13 @@ switch (command) {
 		break
 	default:
 		console.log(`
-drift - metaframework cli
+			drift - metaframework cli
 
-Commands:
-  build    Build for production (vite build + prerender + compress)
-  dev      Start development server
-  preview  Preview production build (serves prerendered HTML with SSR fallback)
-`)
+			Commands:
+				build    Build for production (vite build + prerender + compress)
+				dev      Start development server
+				preview  Preview production build (serves prerendered HTML with SSR fallback)
+		`)
+
 		process.exit(command ? 1 : 0)
 }

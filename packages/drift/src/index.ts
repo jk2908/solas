@@ -28,7 +28,7 @@ import { Time } from './utils/time'
 
 const DEFAULT_CONFIG = {
 	precompress: true,
-	prerender: 'declarative',
+	prerender: false,
 	outDir: 'dist',
 	trailingSlash: false,
 } as const satisfies Partial<PluginConfig>
@@ -80,8 +80,8 @@ function drift(c: PluginConfig): PluginOption[] {
 			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
 			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
 			Bun.write(path.join(generatedDir, 'maps.ts'), writeMaps(imports, modules)),
-			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports, config)),
-			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry(buildContext)),
+			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
+			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry()),
 			Bun.write(path.join(generatedDir, Config.ENTRY_SSR), writeSSREntry()),
 			Bun.write(path.join(generatedDir, Config.ENTRY_BROWSER), writeBrowserEntry()),
 		])
@@ -142,7 +142,7 @@ function drift(c: PluginConfig): PluginOption[] {
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return
 
-			// write build manifest 
+			// write build manifest
 			const generatedDir = path.join(process.cwd(), Config.GENERATED_DIR)
 
 			await Bun.write(

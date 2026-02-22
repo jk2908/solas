@@ -8,7 +8,7 @@
 		"drift": "./dist/cli.js"
 	},
 	"scripts": {
-		"build": "rm -rf dist && tsc"
+		"build": "rm -rf dist && tsc && chmod +x dist/cli.js"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.1",
@@ -55,6 +55,10 @@
 		"./navigation": {
 			"types": "./dist/navigation.d.ts",
 			"import": "./dist/navigation.js"
+		},
+		"./server": {
+			"types": "./dist/server.d.ts",
+			"import": "./dist/server.js"
 		},
 		"./error-boundary": {
 			"types": "./dist/error-boundary.d.ts",
