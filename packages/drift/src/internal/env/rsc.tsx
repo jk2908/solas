@@ -26,7 +26,7 @@ import {
 import { Tree } from '../render/tree'
 import { Matcher } from '../router/matcher'
 import { RequestContext } from './request-context'
-import { getKnownDigest } from './utils'
+import { getKnownDigest, isKnownError } from './utils'
 
 export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -95,12 +95,21 @@ export async function rsc(
 		}
 
 		return {
-			stream: RequestContext.write({ prerender }, () =>
+			// this path is a safety fallback when a prerender request
+			// hits an unmatched route. In build prerender we force
+			// mode to 'full' so the 404/error shell resolves
+			// immediately. In normal request-time rendering
+			// we keep mode as null (obvi)
+			stream: RequestContext.write({ prerender: prerender ? 'full' : null }, () =>
 				renderToReadableStream(rscPayload, {
 					temporaryReferences,
 					onError(err: unknown) {
+						if (err == null) return
+
 						const digest = getKnownDigest(err)
+
 						if (digest) return digest
+						if (isKnownError(err)) return
 
 						logger.error('[rsc]', err)
 					},
@@ -152,16 +161,26 @@ export async function rsc(
 	const status = isHttpException(match.error) ? match.error.status : 200
 
 	try {
-		const stream = RequestContext.write({ prerender }, () =>
-			renderToReadableStream(rscPayload, {
-				temporaryReferences,
-				onError(err: unknown) {
-					const digest = getKnownDigest(err)
-					if (digest) return digest
+		// this is the main matched route render pass for page/layout
+		// tree output. Mode is null for normal ssr, 'full' for full
+		// prerender, and 'ppr' for ppr prerender. dynamic() only
+		// suspends when mode is 'ppr'
+		const stream = RequestContext.write(
+			{ prerender: prerender ? (ppr ? 'ppr' : 'full') : null },
+			() =>
+				renderToReadableStream(rscPayload, {
+					temporaryReferences,
+					onError(err: unknown) {
+						if (err == null) return
 
-					logger.error('rsc', err)
-				},
-			}),
+						const digest = getKnownDigest(err)
+
+						if (digest) return digest
+						if (isKnownError(err)) return
+
+						logger.error('[rsc]', err)
+					},
+				}),
 		)
 
 		return { stream, status, ppr }
@@ -180,7 +199,11 @@ export async function rsc(
 		})
 
 		return {
-			stream: RequestContext.write({ prerender }, () =>
+			// this branch renders the minimal error shell after the
+			// main tree throws. We keep the same mode as the
+			// request so helpers see consistent state
+			// prevents mode drift on error paths
+			stream: RequestContext.write({ prerender: prerender ? 'full' : null }, () =>
 				renderToReadableStream(
 					{
 						root: (

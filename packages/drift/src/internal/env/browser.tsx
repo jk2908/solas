@@ -30,7 +30,9 @@ import type { RSCPayload } from './rsc'
  */
 export async function browser() {
 	const logger = new Logger()
-	const payload = await createFromReadableStream<RSCPayload>(rscStream)
+	const payload = await createFromReadableStream<RSCPayload>(rscStream, {
+		unstable_allowPartialStream: true,
+	})
 
 	let setPayload: (payload: RSCPayload) => void = () => {}
 

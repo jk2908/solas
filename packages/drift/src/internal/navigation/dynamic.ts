@@ -1,5 +1,7 @@
 import { RequestContext } from '../env/request-context'
 
+const NEVER: Promise<never> = new Promise(() => {})
+
 /**
  * Declaratively mark render below this call as request-time only
  * @description in prerender mode this suspends forever so the nearest Suspense
@@ -8,7 +10,6 @@ import { RequestContext } from '../env/request-context'
  */
 export async function dynamic() {
 	const { prerender } = RequestContext.use()
-	if (!prerender) return
-
-	throw new Promise<never>(() => {})
+	if (prerender !== 'ppr') return
+	await NEVER
 }

@@ -1,7 +1,7 @@
 import { Suspense, use } from 'react'
 import type { ReactFormState } from 'react-dom/client'
-import { renderToReadableStream } from 'react-dom/server.edge'
-import { prerender } from 'react-dom/static.edge'
+import { resume as reactResume, renderToReadableStream } from 'react-dom/server.edge'
+import { prerender as reactPrerender } from 'react-dom/static.edge'
 
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { injectRSCPayload } from 'rsc-html-stream/server'
@@ -10,16 +10,39 @@ import { ErrorBoundary } from '../ui/error-boundary'
 
 import { Logger } from '../../utils/logger'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
+import { Prerender } from '../prerender'
 import { Head } from '../render/head'
 import { RouterProvider } from '../router/router-context'
 import type { RSCPayload } from './rsc'
 import { getKnownDigest } from './utils'
 
-type SSROptions = {
+type Opts = {
 	formState?: ReactFormState
 	nonce?: string
 	ppr?: boolean
 }
+
+const logger = new Logger()
+
+function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
+	const payload = use(payloadPromise)
+
+	return (
+		<RedirectBoundary>
+			<RouterProvider>
+				<ErrorBoundary
+					fallback={null}
+					onError={err => logger.error('[ssr:metadata]', err)}>
+					<Suspense fallback={null}>
+						<Head metadata={payload.metadata} />
+					</Suspense>
+				</ErrorBoundary>
+
+				{payload.root}
+			</RouterProvider>
+		</RedirectBoundary>
+	)
+	}
 
 /**
  * SSR handler - returns a ReadableStream response for HTML requests
@@ -27,41 +50,17 @@ type SSROptions = {
  * @param opts - SSR options including formState, nonce, and ppr mode
  * @returns a ReadableStream of the rendered HTML
  */
-export async function ssr(rscStream: ReadableStream<Uint8Array>, opts: SSROptions = {}) {
+async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	const { formState, nonce, ppr = false } = opts
-	const logger = new Logger()
 	const [s1, s2] = rscStream.tee()
 	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
-
-	function A() {
-		const payload = use(payloadPromise)
-
-		return (
-			<RedirectBoundary>
-				<RouterProvider>
-					<ErrorBoundary
-						fallback={null}
-						onError={err => logger.error('[ssr:metadata]', err)}>
-						<Suspense fallback={null}>
-							<Head metadata={payload.metadata} />
-						</Suspense>
-					</ErrorBoundary>
-
-					{payload.root}
-				</RouterProvider>
-			</RedirectBoundary>
-		)
-	}
 
 	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
 		'index',
 	)
 
-	// ppr uses React's prerender api - prelude is the static shell,
-	// dynamic content wrapped in Suspense streams
-	// after via rsc payload
 	if (ppr) {
-		const { prelude } = await prerender(<A />, {
+		const { prelude } = await reactPrerender(<A payloadPromise={payloadPromise} />, {
 			bootstrapScriptContent,
 			onError(err) {
 				const digest = getKnownDigest(err)
@@ -74,7 +73,7 @@ export async function ssr(rscStream: ReadableStream<Uint8Array>, opts: SSROption
 		return prelude.pipeThrough(injectRSCPayload(s2, { nonce }))
 	}
 
-	const htmlStream = await renderToReadableStream(<A />, {
+	const htmlStream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
 		bootstrapScriptContent,
 		nonce,
 		formState,
@@ -88,3 +87,104 @@ export async function ssr(rscStream: ReadableStream<Uint8Array>, opts: SSROption
 
 	return htmlStream.pipeThrough(injectRSCPayload(s2, { nonce }))
 }
+
+/**
+ * Build-time prerender artifact generation.
+ * For PPR routes this returns static prelude HTML + opaque postponed state.
+ */
+async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
+	const { ppr = false, nonce } = opts
+	const [s1, s2] = rscStream.tee()
+	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
+
+	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
+		'index',
+	)
+
+	if (ppr) {
+		const controller = new AbortController()
+
+		// abort on a macrotask so sync and microtask work still lands in prelude
+		// unresolved work is captured as postponed state for resume
+		setTimeout(() => {
+			controller.abort(new Prerender.Postponed())
+		}, 0)
+
+		const { prelude, postponed } = await reactPrerender(
+			<A payloadPromise={payloadPromise} />,
+			{
+				bootstrapScriptContent,
+				signal: controller.signal,
+				onError(err) {
+					if (Prerender.isPostponed(err)) return
+
+					const digest = getKnownDigest(err)
+					if (digest) return digest
+
+					logger.error('[ssr:prerender:ppr]', err)
+				},
+			},
+		)
+
+		return {
+			mode: 'ppr',
+			html: await new Response(prelude).text(),
+			postponed: postponed ?? undefined,
+		}
+	}
+
+	const stream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
+		bootstrapScriptContent,
+		onError(err) {
+			const digest = getKnownDigest(err)
+			if (digest) return digest
+
+			logger.error('[ssr:prerender:full]', err)
+		},
+	})
+
+	await stream.allReady
+
+	return {
+		mode: 'full',
+		html: await new Response(stream.pipeThrough(injectRSCPayload(s2, { nonce }))).text(),
+	}
+}
+
+/**
+ * Request-time resume for PPR routes
+ */
+async function resume(
+	rscStream: ReadableStream<Uint8Array>,
+	postponedState: unknown,
+	opts: Pick<Opts, 'nonce'> & { injectPayload?: boolean } = {},
+) {
+	const { nonce, injectPayload = true } = opts
+	const [s1, s2] = rscStream.tee()
+	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
+
+	const htmlStream = await reactResume(
+		<A payloadPromise={payloadPromise} />,
+		postponedState as never,
+		{
+			nonce,
+			onError(err) {
+				const digest = getKnownDigest(err)
+				if (digest) return digest
+
+				logger.error('[ssr:resume]', err)
+			},
+		},
+	)
+
+	if (!injectPayload) return htmlStream
+
+	return htmlStream.pipeThrough(injectRSCPayload(s2, { nonce }))
+}
+
+Object.assign(ssr, { prerender, resume }) satisfies typeof ssr & {
+	prerender: typeof prerender
+	resume: typeof resume
+}
+
+export { ssr }

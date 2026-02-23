@@ -14,5 +14,5 @@ export function GET() {
 }
 
 export async function POST() {
-  return Response.json({ message: 'Post created successfully' }, { status: 201 })
+	return Response.json({ message: 'Post created successfully' }, { status: 201 })
 }

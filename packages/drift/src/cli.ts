@@ -9,11 +9,24 @@ import type { BuildManifest } from './types'
 
 import { Config } from './config'
 
+import { Prerender } from './internal/prerender'
 import { Compress } from './utils/compress'
 import { Logger } from './utils/logger'
+import { Time } from './utils/time'
 
 const logger = new Logger()
 const INTERNAL_ORIGIN = 'http://drift.local'
+const DEFAULT_PRERENDER_TIMEOUT_MS = 15_000
+
+function getPrerenderTimeoutMs() {
+	const v = Number(process.env.DRIFT_PRERENDER_TIMEOUT_MS)
+
+	if (!Number.isFinite(v) || v <= 0) {
+		return DEFAULT_PRERENDER_TIMEOUT_MS
+	}
+
+	return v
+}
 
 async function build() {
 	const cwd = process.cwd()
@@ -48,9 +61,11 @@ async function build() {
 
 	// prerender routes
 	if (manifest.prerenderedRoutes.length > 0) {
+		const prerenderTimeoutMs = getPrerenderTimeoutMs()
+
 		logger.info(
 			'[prerender]',
-			`prerendering ${manifest.prerenderedRoutes.length} routes...`,
+			`prerendering ${manifest.prerenderedRoutes.length} routes (timeout: ${prerenderTimeoutMs}ms)...`,
 		)
 
 		// ensure production mode for React
@@ -63,35 +78,69 @@ async function build() {
 
 		for (const route of manifest.prerenderedRoutes) {
 			try {
+				const routeDir = route === '/' ? '' : route.replace(/^\//, '')
+
 				// synthetic url only - request is handled in-process by app.fetch
 				const url = `${INTERNAL_ORIGIN}${route}`
-				const res = await app.fetch(
-					new Request(url, {
-						headers: {
-							Accept: 'text/html',
-							'x-drift-prerender': '1',
-						},
-					}),
+				const maybeRes = await Time.withTimeout(
+					app.fetch(
+						new Request(url, {
+							headers: {
+								Accept: 'text/html',
+								'x-drift-prerender': '1',
+								'x-drift-prerender-artifact': '1',
+							},
+						}),
+					),
+					prerenderTimeoutMs,
+					`route ${route}`,
 				)
+
+				if (!(maybeRes instanceof Response)) {
+					throw new Error(`invalid prerender response for ${route}`)
+				}
+
+				const res = maybeRes
 
 				if (!res.ok) {
 					logger.warn('[prerender]', `skipped ${route}: ${res.status}`)
 					continue
 				}
 
+				const artifact = (await res.json()) as Prerender.Artifact
+
+				if (artifact.mode === 'ppr') {
+					const baseDir = Prerender.getArtifactPath(outDir, route)
+
+					await fs.mkdir(baseDir, { recursive: true })
+					await Bun.write(path.join(baseDir, 'prelude.html'), artifact.html)
+
+					if (artifact.postponed !== undefined) {
+						await Bun.write(
+							path.join(baseDir, 'postponed.json'),
+							JSON.stringify(artifact.postponed),
+						)
+					}
+
+					logger.info('[prerender]', `${route} (ppr)`)
+					continue
+				}
+
 				// @todo: hash files
 
-				const html = await res.text()
 				const outPath =
 					route === '/'
 						? path.join(outDir, 'index.html')
-						: path.join(outDir, route, 'index.html')
+						: path.join(outDir, routeDir, 'index.html')
 
 				await fs.mkdir(path.dirname(outPath), { recursive: true })
-				await Bun.write(outPath, html)
-				logger.info('[prerender]', route)
+				await Bun.write(outPath, artifact.html)
+				logger.info('[prerender]', `${route} (full)`)
 			} catch (err) {
-				logger.error('[prerender]', `failed ${route}: ${err}`)
+				logger.error(
+					'[prerender]',
+					`failed ${route}: ${err}. This often means unresolved async work (for example external fetches or dynamic rendering in full mode).`,
+				)
 			}
 		}
 	}

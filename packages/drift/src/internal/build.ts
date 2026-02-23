@@ -377,7 +377,7 @@ export namespace Build {
 			}
 
 			const modules: Modules = {}
-			const prerenderCache = new Map<string, boolean | undefined>()
+			const prerenderCache = new Map<string, SegmentPrerender | undefined>()
 
 			for (const segment of res.segments) {
 				try {
@@ -403,16 +403,16 @@ export namespace Build {
 					const isDynamic = route.includes(':')
 					const isCatchAll = route.includes('*')
 
-					// track inherited prerender from shell/layouts
-					let inheritedPrerender = false
+					// effective mode for this segment
+					// start from global config then apply shell/layout/page overrides
+					let currentPrerenderMode: SegmentPrerender = this.config?.prerender ?? false
 
-					function applyInheritedPrerender(flag: boolean | undefined) {
-						if (flag === false) {
-							inheritedPrerender = false
-							return
-						}
-
-						inheritedPrerender ||= flag === true
+					/**
+					 * apply explicit prerender mode overrides in inheritance order
+					 */
+					function applyPrerenderMode(flag: SegmentPrerender | undefined) {
+						if (flag === undefined) return
+						currentPrerenderMode = flag
 					}
 
 					const shellImport = Finder.getImportPath(shell)
@@ -425,15 +425,12 @@ export namespace Build {
 
 					// check shell prerender
 					if (!processed.has(shell)) {
-						prerenderCache.set(
-							shell,
-							await Prerender.getStaticFlag(shell, this.buildContext),
-						)
+						prerenderCache.set(shell, await Prerender.getStaticFlag(shell))
 						imports.components.static.set(shellId, shellImport)
 						processed.add(shell)
 					}
 
-					applyInheritedPrerender(prerenderCache.get(shell))
+					applyPrerenderMode(prerenderCache.get(shell))
 
 					for (const layout of layouts) {
 						if (!layout) {
@@ -445,15 +442,12 @@ export namespace Build {
 						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
 
 						if (!processed.has(layout)) {
-							prerenderCache.set(
-								layout,
-								await Prerender.getStaticFlag(layout, this.buildContext),
-							)
+							prerenderCache.set(layout, await Prerender.getStaticFlag(layout))
 							imports.components.dynamic.set(layoutId, layoutImport)
 							processed.add(layout)
 						}
 
-						applyInheritedPrerender(prerenderCache.get(layout))
+						applyPrerenderMode(prerenderCache.get(layout))
 						layoutIds.push(layoutId)
 					}
 
@@ -527,19 +521,16 @@ export namespace Build {
 						: `${EntryKind.PAGE}${Bun.hash(route)}`
 
 					if (page) {
-						const pagePrerender = await Prerender.getStaticFlag(page, this.buildContext)
-						applyInheritedPrerender(pagePrerender)
+						const pagePrerender = await Prerender.getStaticFlag(page)
+						applyPrerenderMode(pagePrerender)
 
 						imports.components.dynamic.set(entryId, Finder.getImportPath(page))
 						processed.add(page)
 					}
 
-					const globalPrerenderMode = this.config?.prerender ?? 'ppr'
-					const shouldPrerender = globalPrerenderMode !== false && inheritedPrerender
+					const shouldPrerender = currentPrerenderMode !== false
 					const prerenderMode: SegmentPrerender = shouldPrerender
-						? globalPrerenderMode === 'full'
-							? 'full'
-							: 'ppr'
+						? currentPrerenderMode
 						: false
 
 					if (shouldPrerender) {

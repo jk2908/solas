@@ -18,3 +18,17 @@ export function getKnownDigest(err: unknown) {
 
 	return null
 }
+
+export function isKnownError(err: unknown) {
+	if (getKnownDigest(err)) return true
+
+	if (err instanceof Error) {
+		if (err.name === 'AbortError') return true
+
+		if (err.message === 'The render was aborted by the server without a reason.') {
+			return true
+		}
+	}
+
+	return false
+}
