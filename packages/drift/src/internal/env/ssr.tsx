@@ -8,6 +8,7 @@ import { injectRSCPayload } from 'rsc-html-stream/server'
 
 import { ErrorBoundary } from '../ui/error-boundary'
 
+import { Drift } from '../../drift'
 import { Logger } from '../../utils/logger'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Prerender } from '../prerender'
@@ -20,6 +21,7 @@ type Opts = {
 	formState?: ReactFormState
 	nonce?: string
 	ppr?: boolean
+	route?: string
 }
 
 const logger = new Logger()
@@ -42,7 +44,7 @@ function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
 			</RouterProvider>
 		</RedirectBoundary>
 	)
-	}
+}
 
 /**
  * SSR handler - returns a ReadableStream response for HTML requests
@@ -59,6 +61,9 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 		'index',
 	)
 
+	// ppr uses react prerender where prelude is the static shell
+	// dynamic content is streamed via suspense
+	// rsc payload is injected after
 	if (ppr) {
 		const { prelude } = await reactPrerender(<A payloadPromise={payloadPromise} />, {
 			bootstrapScriptContent,
@@ -89,17 +94,26 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 }
 
 /**
- * Build-time prerender artifact generation.
- * For PPR routes this returns static prelude HTML + opaque postponed state.
+ * Build-time prerender artifact generation
+ * @description for PPR routes this returns static prelude HTML + opaque postponed state
  */
 async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
-	const { ppr = false, nonce } = opts
+	const { ppr = false, nonce, route } = opts
+
+	if (!route) {
+		const err = new Error('missing route in ssr.prerender() opts')
+		logger.error('[ssr:prerender]', err)
+
+		throw err
+	}
+
 	const [s1, s2] = rscStream.tee()
 	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
 
 	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
 		'index',
 	)
+	const schema = Drift.getVersion()
 
 	if (ppr) {
 		const controller = new AbortController()
@@ -127,6 +141,9 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		)
 
 		return {
+			schema,
+			route,
+			createdAt: Date.now(),
 			mode: 'ppr',
 			html: await new Response(prelude).text(),
 			postponed: postponed ?? undefined,
@@ -146,6 +163,9 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 	await stream.allReady
 
 	return {
+		schema,
+		route,
+		createdAt: Date.now(),
 		mode: 'full',
 		html: await new Response(stream.pipeThrough(injectRSCPayload(s2, { nonce }))).text(),
 	}

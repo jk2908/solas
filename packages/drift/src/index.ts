@@ -1,3 +1,4 @@
+import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -18,13 +19,24 @@ import { writeManifest } from './internal/codegen/manifest'
 import { writeMaps } from './internal/codegen/maps'
 import { writeRouter } from './internal/codegen/router'
 
-import { Config } from './config'
-
 import { Build } from './internal/build'
 
+import { Drift } from './drift'
 import { Format } from './utils/format'
 import { Logger } from './utils/logger'
 import { Time } from './utils/time'
+
+const DRIFT_VERSION = (() => {
+	const value = JSON.parse(
+		fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
+	) as { version?: unknown }
+
+	if (typeof value.version !== 'string' || value.version.length === 0) {
+		throw new Error('Missing drift package version')
+	}
+
+	return value.version
+})()
 
 const DEFAULT_CONFIG = {
 	precompress: true,
@@ -62,8 +74,8 @@ function drift(c: PluginConfig): PluginOption[] {
 
 	async function build() {
 		const cwd = process.cwd()
-		const routesDir = path.join(cwd, Config.APP_DIR)
-		const generatedDir = path.join(cwd, Config.GENERATED_DIR)
+		const routesDir = path.join(cwd, Drift.Config.APP_DIR)
+		const generatedDir = path.join(cwd, Drift.Config.GENERATED_DIR)
 
 		await Promise.all([
 			fs.mkdir(routesDir, { recursive: true }),
@@ -81,13 +93,13 @@ function drift(c: PluginConfig): PluginOption[] {
 			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
 			Bun.write(path.join(generatedDir, 'maps.ts'), writeMaps(imports, modules)),
 			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
-			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry()),
-			Bun.write(path.join(generatedDir, Config.ENTRY_SSR), writeSSREntry()),
-			Bun.write(path.join(generatedDir, Config.ENTRY_BROWSER), writeBrowserEntry()),
+			Bun.write(path.join(generatedDir, Drift.Config.ENTRY_RSC), writeRSCEntry()),
+			Bun.write(path.join(generatedDir, Drift.Config.ENTRY_SSR), writeSSREntry()),
+			Bun.write(path.join(generatedDir, Drift.Config.ENTRY_BROWSER), writeBrowserEntry()),
 		])
 
 		// format generated files, avoid stopping build on errors
-		await Format.run(Config.GENERATED_DIR).catch(() => {})
+		await Format.run(Drift.Config.GENERATED_DIR).catch(() => {})
 	}
 
 	// debounced build to avoid multiple builds on file changes
@@ -110,11 +122,12 @@ function drift(c: PluginConfig): PluginOption[] {
 			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(
 				process.env.VITE_APP_URL,
 			)
+			viteConfig.define['import.meta.env.DRIFT_VERSION'] = JSON.stringify(DRIFT_VERSION)
 
 			viteConfig.resolve ??= {}
 			viteConfig.resolve.alias = {
 				...(viteConfig.resolve.alias ?? {}),
-				'.drift': path.resolve(process.cwd(), Config.GENERATED_DIR),
+				'.drift': path.resolve(process.cwd(), Drift.Config.GENERATED_DIR),
 			}
 
 			viteConfig.optimizeDeps ??= {}
@@ -126,24 +139,27 @@ function drift(c: PluginConfig): PluginOption[] {
 			]
 		},
 		configureServer(server: ViteDevServer) {
-			logger.info('[configureServer]', `Watching for changes in ./${Config.APP_DIR}...`)
+			logger.info(
+				'[configureServer]',
+				`Watching for changes in ./${Drift.Config.APP_DIR}...`,
+			)
 
 			server.watcher
 				.on('add', (p: string) => {
-					if (p.includes(Config.APP_DIR)) rebuild()
+					if (p.includes(Drift.Config.APP_DIR)) rebuild()
 				})
 				.on('change', (p: string) => {
-					if (p.includes(Config.APP_DIR)) rebuild()
+					if (p.includes(Drift.Config.APP_DIR)) rebuild()
 				})
 				.on('unlink', (p: string) => {
-					if (p.includes(Config.APP_DIR)) rebuild()
+					if (p.includes(Drift.Config.APP_DIR)) rebuild()
 				})
 		},
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return
 
 			// write build manifest
-			const generatedDir = path.join(process.cwd(), Config.GENERATED_DIR)
+			const generatedDir = path.join(process.cwd(), Drift.Config.GENERATED_DIR)
 
 			await Bun.write(
 				path.join(generatedDir, 'build.json'),
@@ -162,9 +178,9 @@ function drift(c: PluginConfig): PluginOption[] {
 		plugin,
 		rsc({
 			entries: {
-				rsc: `./${Config.GENERATED_DIR}/${Config.ENTRY_RSC}`,
-				ssr: `./${Config.GENERATED_DIR}/${Config.ENTRY_SSR}`,
-				client: `./${Config.GENERATED_DIR}/${Config.ENTRY_BROWSER}`,
+				rsc: `./${Drift.Config.GENERATED_DIR}/${Drift.Config.ENTRY_RSC}`,
+				ssr: `./${Drift.Config.GENERATED_DIR}/${Drift.Config.ENTRY_SSR}`,
+				client: `./${Drift.Config.GENERATED_DIR}/${Drift.Config.ENTRY_BROWSER}`,
 			},
 		}),
 		react(),

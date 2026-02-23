@@ -1,6 +1,6 @@
 import type { Endpoint, Manifest, Segment } from '../../types'
 
-import { Config } from '../../config'
+import { Drift } from '../../drift'
 
 import { Build } from '../build'
 
@@ -29,7 +29,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 
     import type { Server } from 'bun'
 
-    import { Router } from '${Config.PKG_NAME}/router'
+	import { Router } from '${Drift.Config.PKG_NAME}/router'
 
     import { handler as rsc } from './entry.rsc'
     import { config } from './config'

@@ -2,14 +2,19 @@ import path from 'node:path'
 
 import type { BuildContext } from '../types'
 
-import { Config } from '../config'
+import { Drift } from '../drift'
 
 export namespace Prerender {
 	export type Artifact = {
+		schema: string
+		route: string
+		createdAt: number
 		mode: 'full' | 'ppr'
 		html: string
 		postponed?: unknown
 	}
+
+	export type ArtifactMetadata = Pick<Artifact, 'schema' | 'route' | 'createdAt' | 'mode'>
 
 	/**
 	 * Marker error used to intentionally abort prerender work and
@@ -59,7 +64,7 @@ export namespace Prerender {
 	 * @returns artifact directory path
 	 */
 	export function getArtifactPath(outDir: string, pathname: string) {
-		return path.join(outDir, Config.GENERATED_DIR, 'ppr', toRouteDir(pathname))
+		return path.join(outDir, Drift.Config.GENERATED_DIR, 'ppr', toRouteDir(pathname))
 	}
 
 	/**
@@ -94,6 +99,57 @@ export namespace Prerender {
 		} catch {
 			return null
 		}
+	}
+
+	/**
+	 * Load prerender artifact metadata generated at build time for a route
+	 * @param outDir - output directory
+	 * @param pathname - route pathname
+	 * @returns parsed metadata, or null
+	 */
+	export async function loadArtifactMetadata(outDir: string, pathname: string) {
+		const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'metadata.json'))
+		if (!(await file.exists())) return null
+
+		try {
+			const value = JSON.parse(await file.text())
+			if (!value || typeof value !== 'object') return null
+
+			const schema = (value as { schema?: unknown }).schema
+			const route = (value as { route?: unknown }).route
+			const createdAt = (value as { createdAt?: unknown }).createdAt
+			const mode = (value as { mode?: unknown }).mode
+
+			if (typeof schema !== 'string') return null
+			if (typeof route !== 'string') return null
+			if (typeof createdAt !== 'number') return null
+			if (mode !== 'full' && mode !== 'ppr') return null
+
+			return { schema, route, createdAt, mode } satisfies ArtifactMetadata
+		} catch {
+			return null
+		}
+	}
+
+	/**
+	 * Validate artifact metadata against expected route/mode and current Drift schema
+	 * @param metadata - parsed artifact metadata
+	 * @param pathname - expected route pathname
+	 * @param mode - expected prerender mode
+	 * @returns true when metadata is compatible
+	 */
+	export function isArtifactCompatible(
+		artifactMetadata: ArtifactMetadata,
+		pathname: string,
+		mode: Artifact['mode'],
+	) {
+		const schema = Drift.getVersion()
+
+		return (
+			artifactMetadata.schema === schema &&
+			artifactMetadata.route === pathname &&
+			artifactMetadata.mode === mode
+		)
 	}
 
 	/**
@@ -224,3 +280,4 @@ export namespace Prerender {
 			.filter(r => !r.includes(':') && !r.includes('*'))
 	}
 }
+ 

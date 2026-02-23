@@ -1,6 +1,6 @@
 import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
-import { Config } from '../../config'
+import { Drift } from '../../drift'
 
 import { HttpException } from '../navigation/http-exception'
 
@@ -261,13 +261,13 @@ export class Router {
 				return (
 					this.#onError?.(
 						error,
-						Object.assign(req, { [Config.$]: { match: null, error } }),
+						Object.assign(req, { [Drift.Config.$]: { match: null, error } }),
 					) ?? new Response(error.message, { status: error.status })
 				)
 			}
 
 			const matched = match
-			const request = Object.assign(req, { [Config.$]: { match: matched } })
+			const request = Object.assign(req, { [Drift.Config.$]: { match: matched } })
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
 
 			return await this.#run(
@@ -278,7 +278,7 @@ export class Router {
 			)
 		} catch (err) {
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
-			const request = Object.assign(req, { [Config.$]: { match, error } })
+			const request = Object.assign(req, { [Drift.Config.$]: { match, error } })
 
 			if (this.#onError) {
 				return await this.#onError(error, request)

@@ -11,10 +11,9 @@ import {
 
 import type { DriftRequest, ImportMap, Manifest } from '../../types'
 
-import { Config } from '../../config'
-
 import DefaultErr from '../ui/defaults/error'
 
+import { Drift } from '../../drift'
 import { Logger } from '../../utils/logger'
 import { Metadata } from '../metadata'
 import {
@@ -64,14 +63,14 @@ export async function rsc(
 			? url.pathname.slice(0, -1)
 			: url.pathname
 	const match = matcher.enhance(
-		matcher.reconcile(pathname, req[Config.$].match, req[Config.$].error),
+		matcher.reconcile(pathname, req[Drift.Config.$].match, req[Drift.Config.$].error),
 	)
 
 	// if there's no match then no user supplied error boundary
 	// has been found, and we should server render a default
 	// error screen
 	if (!match) {
-		const error = req[Config.$].error ?? new HttpException(404, 'Not found')
+		const error = req[Drift.Config.$].error ?? new HttpException(404, 'Not found')
 		const title = `${'status' in error ? `${error.status} -` : ''}${error.message}`
 
 		const rscPayload: RSCPayload = {

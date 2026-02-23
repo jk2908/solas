@@ -7,8 +7,7 @@ import path from 'node:path'
 
 import type { BuildManifest } from './types'
 
-import { Config } from './config'
-
+import { Drift } from './drift'
 import { Prerender } from './internal/prerender'
 import { Compress } from './utils/compress'
 import { Logger } from './utils/logger'
@@ -30,7 +29,7 @@ function getPrerenderTimeoutMs() {
 
 async function build() {
 	const cwd = process.cwd()
-	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
+	const manifestPath = path.join(cwd, Drift.Config.GENERATED_DIR, 'build.json')
 
 	// run vite build
 	logger.info('[build]', 'running vite build...')
@@ -113,14 +112,45 @@ async function build() {
 					const baseDir = Prerender.getArtifactPath(outDir, route)
 
 					await fs.mkdir(baseDir, { recursive: true })
-					await Bun.write(path.join(baseDir, 'prelude.html'), artifact.html)
+
+					const writes: Promise<number>[] = [
+						Bun.write(path.join(baseDir, 'prelude.html'), artifact.html),
+						Bun.write(
+							path.join(baseDir, 'metadata.json'),
+							JSON.stringify({
+								schema: artifact.schema,
+								route: artifact.route,
+								createdAt: artifact.createdAt,
+								mode: artifact.mode,
+							}),
+						),
+					]
 
 					if (artifact.postponed !== undefined) {
-						await Bun.write(
-							path.join(baseDir, 'postponed.json'),
-							JSON.stringify(artifact.postponed),
+						writes.push(
+							Bun.write(
+								path.join(baseDir, 'postponed.json'),
+								JSON.stringify(artifact.postponed),
+							),
 						)
 					}
+
+					await Promise.all(writes)
+
+					logger.info(
+						'[prerender:artifacts]',
+						JSON.stringify({
+							route,
+							prelude: artifact.html,
+							postponed: artifact.postponed ?? null,
+							metadata: {
+								schema: artifact.schema,
+								route: artifact.route,
+								createdAt: artifact.createdAt,
+								mode: artifact.mode,
+							},
+						}),
+					)
 
 					logger.info('[prerender]', `${route} (ppr)`)
 					continue

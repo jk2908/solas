@@ -11,8 +11,7 @@ import type {
 	SegmentPrerender,
 } from '../types'
 
-import { Config } from '../config'
-
+import { Drift } from '../drift'
 import { Logger } from '../utils/logger'
 import { Prerender } from './prerender'
 
@@ -107,7 +106,7 @@ export namespace Build {
 		 */
 		static toCanonicalRoute(file: string) {
 			const route = file
-				.replace(new RegExp(`^${Config.APP_DIR}`), '')
+				.replace(new RegExp(`^${Drift.Config.APP_DIR}`), '')
 				.replace(/\/\+page\.(j|t)sx?$/, '')
 				.replace(/\/\+endpoint\.(j|t)sx?$/, '')
 				.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
@@ -128,7 +127,7 @@ export namespace Build {
 		 */
 		static getImportPath(file: string) {
 			const cwd = process.cwd()
-			const generatedDir = path.join(cwd, Config.GENERATED_DIR)
+			const generatedDir = path.join(cwd, Drift.Config.GENERATED_DIR)
 
 			return path
 				.relative(generatedDir, path.resolve(cwd, file))
@@ -148,7 +147,7 @@ export namespace Build {
 		 */
 		async run() {
 			try {
-				return await this.process(await this.#scan(Config.APP_DIR))
+				return await this.process(await this.#scan(Drift.Config.APP_DIR))
 			} catch (err) {
 				logger.error('[run]: failed to build manifest', err)
 				throw err

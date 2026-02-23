@@ -1,6 +1,6 @@
 type BunRequest = Request & { params?: Record<string, string | string[]> }
 
-import { Config } from './config'
+import { Drift } from './drift'
 
 import type { Build } from './internal/build'
 
@@ -41,7 +41,7 @@ export type BuildContext = {
 }
 
 export type DriftRequest = Request & {
-	[Config.$]: {
+	[Drift.Config.$]: {
 		error?: HttpException | Error
 		match: Router.Match | null
 	}

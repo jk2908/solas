@@ -1,5 +1,4 @@
-import { Config } from '../../config'
-
+import { Drift } from '../../drift'
 import { AUTOGEN_MSG } from './utils'
 
 /**
@@ -12,10 +11,10 @@ export function writeRSCEntry() {
 
   import type { ReactFormState } from 'react-dom/client'
 
-  import type { DriftRequest } from '${Config.PKG_NAME}'
-  import { rsc, action } from '${Config.PKG_NAME}/env/rsc'
-  import { Prerender } from '${Config.PKG_NAME}/server'
-  import { Router } from '${Config.PKG_NAME}/router'
+  import type { DriftRequest } from '${Drift.Config.PKG_NAME}'
+  import { rsc, action } from '${Drift.Config.PKG_NAME}/env/rsc'
+  import { Prerender } from '${Drift.Config.PKG_NAME}/server'
+  import { Router } from '${Drift.Config.PKG_NAME}/router'
 
     import { manifest } from './manifest'
     import { importMap } from './maps'
@@ -78,9 +77,10 @@ export function writeRSCEntry() {
         req.headers.get('x-drift-prerender') === '1' &&
         req.headers.get('x-drift-prerender-artifact') === '1'
       ) {
-        const artifact = await mod.ssr.prerender(rscStream, {
+        const artifact = await mod.ssr.prerender(await rscStream, {
           formState: opts.formState,
           ppr,
+          route: pathname,
         })
 
         return new Response(JSON.stringify(artifact), {
@@ -97,9 +97,20 @@ export function writeRSCEntry() {
         ? await Prerender.loadPostponedState(config.outDir, pathname)
         : null
 
-      if (postponedState) {
+      const artifactMetadata = postponedState
+        ? await Prerender.loadArtifactMetadata(config.outDir, pathname)
+        : null
+
+      const canResume =
+        !!postponedState &&
+        (artifactMetadata
+          ? Prerender.isArtifactCompatible(artifactMetadata, pathname, 'ppr')
+          : true)
+
+      if (canResume) {
         const prelude = await Prerender.loadPrelude(config.outDir, pathname)
-        const resumeStream = await mod.ssr.resume(rscStream, postponedState, {
+          
+        const resumeStream = await mod.ssr.resume(await rscStream, postponedState, {
           nonce: undefined,
           injectPayload: false,
         })
@@ -184,7 +195,7 @@ export function writeSSREntry() {
 	return `
     ${AUTOGEN_MSG}
     
-    export { ssr } from '${Config.PKG_NAME}/env/ssr'
+    export { ssr } from '${Drift.Config.PKG_NAME}/env/ssr'
   `.trim()
 }
 
@@ -196,7 +207,7 @@ export function writeBrowserEntry() {
 	return `
     ${AUTOGEN_MSG}
 
-    import { browser } from '${Config.PKG_NAME}/env/browser'
+    import { browser } from '${Drift.Config.PKG_NAME}/env/browser'
 
     browser()
   `.trim()

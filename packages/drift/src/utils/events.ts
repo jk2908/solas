@@ -1,4 +1,4 @@
-import { Config } from '../config'
+import { Drift } from '../drift'
 
 export namespace Events {
 	/**
@@ -7,7 +7,7 @@ export namespace Events {
 	 */
 	export class DriftEvent<T> extends CustomEvent<T> {
 		constructor(name: string, detail?: T) {
-			super(`${Config.NAME}${name}`, { detail })
+			super(`${Drift.Config.NAME}${name}`, { detail })
 		}
 	}
 
