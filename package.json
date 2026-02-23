@@ -16,6 +16,7 @@
 		"@types/bun": "^1.2.18",
 		"@types/react": "^19.2.1",
 		"@types/react-dom": "^19.2.1",
+		"playwright": "^1.57.0",
 		"typescript": "^5.9.3"
 	}
 }

@@ -1,19 +1,18 @@
-import type { RedirectStatusCode } from 'hono/utils/http-status'
+export type RedirectStatusCode = 301 | 302 | 303 | 307 | 308
 
 /**
  * Redirect exception class to signal a redirect
  */
 export class Redirect extends Error {
-	url: string
-	status: RedirectStatusCode
 	digest?: string
 
-	constructor(url: string, status: RedirectStatusCode = 307) {
+	constructor(
+		public readonly url: string,
+		public readonly status: RedirectStatusCode = 307,
+	) {
 		super(`Redirecting to ${url} with status ${status}`)
 
 		this.name = 'Redirect'
-		this.url = url
-		this.status = status
 		this.digest = `${REDIRECT_DIGEST_PREFIX}:${status}:${url}`
 	}
 }
@@ -26,7 +25,7 @@ export const REDIRECT_DIGEST_PREFIX = 'REDIRECT'
  * @param err - the error to check
  * @returns true if the error is a Redirect error, false otherwise
  */
-export function isRedirect(err: unknown) {
+export function isRedirect(err: unknown): err is Redirect {
 	return (
 		typeof err === 'object' &&
 		err !== null &&

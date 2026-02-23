@@ -1,4 +1,4 @@
-import { exception } from '@jk2908/drift/shared/http-exception'
+import { abort } from '@jk2908/drift/shared/http-exception'
 
 export const metadata = async ({ params }: { params?: { id: string } }) => {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)
@@ -17,7 +17,7 @@ export const metadata = async ({ params }: { params?: { id: string } }) => {
 export default function Post({ params }: { params?: { id: string } }) {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)
 
-	if (!post) exception(404, 'Post not found')
+	if (!post) abort(404, 'Post not found')
 
 	return <>Post {JSON.stringify(post)}</>
 }

@@ -1,4 +1,4 @@
-import { PKG_NAME } from '../config'
+import { Config } from '../config'
 
 import { AUTOGEN_MSG } from './utils'
 
@@ -12,7 +12,7 @@ export function writeRSCEntry() {
 
     import type { ReactFormState } from 'react-dom/client'
 
-    import { rsc, action } from '${PKG_NAME}/render/env/rsc'
+    import { rsc, action } from '${Config.PKG_NAME}/render/env/rsc'
 
     import { manifest } from './manifest'
     import { importMap } from './maps'
@@ -84,7 +84,7 @@ export function writeSSREntry() {
 	return `
     ${AUTOGEN_MSG}
     
-    export { ssr } from '${PKG_NAME}/render/env/ssr'
+    export { ssr } from '${Config.PKG_NAME}/render/env/ssr'
   `.trim()
 }
 
@@ -96,7 +96,7 @@ export function writeBrowserEntry() {
 	return `
     ${AUTOGEN_MSG}
 
-    import { browser } from '${PKG_NAME}/render/env/browser'
+    import { browser } from '${Config.PKG_NAME}/render/env/browser'
 
     browser()
   `.trim()

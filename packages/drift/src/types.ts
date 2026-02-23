@@ -1,13 +1,12 @@
-import type { Context } from 'hono'
-
-import type { EntryKind } from './config'
+type BunRequest = Request & { params?: Record<string, string | string[]> }
 
 import type { HttpException } from './shared/http-exception'
 import type { Logger, LogLevel } from './shared/logger'
-import type { PRIORITY } from './shared/metadata'
-import type { Router } from './shared/router'
+import type { Metadata } from './shared/metadata'
 
-import type { RouteProcessor } from './build/route-processor'
+import type { Router } from './server/router'
+
+import type { Build } from './build'
 
 export type PluginConfig = {
 	app?: {
@@ -16,7 +15,7 @@ export type PluginConfig = {
 	precompress?: boolean
 	prerender?: 'full' | 'declarative'
 	outDir?: string
-	metadata?: Metadata
+	metadata?: Metadata.Collection
 	trailingSlash?: boolean
 	readonly logger?: {
 		level?: LogLevel
@@ -40,43 +39,23 @@ export type BuildContext = {
 	prerenderableRoutes: Set<string>
 }
 
-export type Params = Record<string, string | string[]>
-
-type TagValue = string | number | boolean | undefined
-
-export type MetaTag =
-	| { charSet: string }
-	| { name: string; content: TagValue }
-	| { httpEquiv: string; content: TagValue }
-	| { property: string; content: TagValue }
-
-export type LinkTag = {
-	rel: string
-	href?: string
-	as?: string
-	type?: string
-	media?: string
-	sizes?: string
-	crossOrigin?: 'anonymous' | 'use-credentials'
-}
-
-export type Metadata = {
-	title?: TagValue
-	meta?: MetaTag[]
-	link?: LinkTag[]
+export type DriftRequest = Request & {
+	error?: HttpException | Error
+	match: Router.Match | null
 }
 
 export type Segment = {
 	__id: string
 	__path: string
 	__params: string[]
-	__kind: typeof EntryKind.PAGE
+	__kind: typeof Build.EntryKind.PAGE
 	__depth: number
 	method: 'get'
 	paths: {
 		layouts: (string | null)[]
 		'404s': (string | null)[]
 		loaders: (string | null)[]
+		middlewares: (string | null)[]
 		page?: string | null
 	}
 	error?: HttpException | Error
@@ -89,48 +68,20 @@ export type Endpoint = {
 	__id: string
 	__path: string
 	__params: string[]
-	__kind: typeof EntryKind.ENDPOINT
-	method: Lowercase<HTTPMethod>
+	__kind: typeof Build.EntryKind.ENDPOINT
+	method: Lowercase<HttpMethod>
+	middlewares: (string | null)[]
 }
 
 export type ManifestEntry = Segment | Endpoint
 
 export type Manifest = Awaited<
-	ReturnType<typeof RouteProcessor.prototype.process>
+	ReturnType<typeof Build.RouteProcessor.prototype.process>
 >['manifest']
-
-export type Match = ReturnType<Router['match']>
 
 export type View<TProps> =
 	| React.ComponentType<TProps>
 	| React.LazyExoticComponent<React.ComponentType<TProps>>
-
-export type EnhancedMatch = Match & {
-	ui: {
-		layouts: (View<{
-			children?: React.ReactNode
-			params?: Params
-		}> | null)[]
-		Page: View<{
-			children?: React.ReactNode
-			params?: Params
-		}> | null
-		'404s': (View<{
-			children?: React.ReactNode
-			error?: HttpException
-		}> | null)[]
-		loaders: (View<{
-			children?: React.ReactNode
-		}> | null)[]
-	}
-	endpoint?: (c: Context) => unknown
-	metadata?: ({ params, error }: { params?: Params; error?: Error }) => Promise<
-		PromiseSettledResult<{
-			task: Promise<Metadata>
-			priority: (typeof PRIORITY)[keyof typeof PRIORITY]
-		}>[]
-	>
-}
 
 export type StaticImport = Record<string, unknown>
 export type DynamicImport<T = Record<string, unknown>> = () => Promise<T>
@@ -141,25 +92,13 @@ export type MapEntry = {
 	layouts?: readonly (DynamicImport | null)[]
 	'404s'?: readonly (DynamicImport | null)[]
 	loaders?: readonly (DynamicImport | null)[]
-	endpoint?: (c?: Context) => unknown
+	middlewares?: readonly (Router.Middleware | null)[]
+	endpoint?: (req?: BunRequest) => unknown
 }
 
 export type ImportMap = Record<string, MapEntry>
 
-export type PathMap = {
-	layouts: Record<string, StaticImport | DynamicImport>
-	pages: Record<string, DynamicImport>
-	'404s': Record<string, DynamicImport>
-	loaders: Record<string, DynamicImport>
-	endpoints: Partial<
-		Record<
-			Lowercase<HTTPMethod>,
-			Record<string, (c?: Context) => Response | Promise<Response>>
-		>
-	>
-}
-
-export type HTTPMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
 
 export type Primitive = string | number | boolean | bigint | symbol | null | undefined
 

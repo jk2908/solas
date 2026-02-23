@@ -3,17 +3,17 @@ import type { BuildContext } from '../types'
 /**
  * Check if a route is prerenderable
  * @param path - the path to the route
- * @param ctx - the build context
+ * @param buildContext - the build context
  * @returns true if the route is prerenderable, false otherwise
  */
-export async function isPrerenderable(path: string, ctx: BuildContext) {
+export async function isPrerenderable(path: string, buildContext: BuildContext) {
 	try {
 		const code = await Bun.file(path).text()
-		const exports = ctx.transpiler.scan(code).exports
+		const exports = buildContext.transpiler.scan(code).exports
 
 		return exports.some(e => e === 'prerender')
 	} catch (err) {
-		ctx.logger.error(`prerender:isPrerenderable ${path}`, err)
+		buildContext.logger.error(`prerender:isPrerenderable ${path}`, err)
 		return false
 	}
 }
@@ -21,15 +21,15 @@ export async function isPrerenderable(path: string, ctx: BuildContext) {
 /**
  * Get the list of prerenderable params for a route
  * @param path - the path to the route
- * @param ctx - the build context
+ * @param buildContext - the build context
  * @returns the list of prerenderable params
  */
-export async function getPrerenderParamsList(path: string, ctx: BuildContext) {
+export async function getPrerenderParamsList(path: string, buildContext: BuildContext) {
 	try {
 		const mod = await import(path)
 
 		if (!mod || !mod?.prerender || typeof mod.prerender !== 'function') {
-			ctx.logger.warn(
+			buildContext.logger.warn(
 				'[prerender:getPrerenderParamsList]',
 				`No exported prerender function found in ${path}`,
 			)
@@ -39,7 +39,7 @@ export async function getPrerenderParamsList(path: string, ctx: BuildContext) {
 
 		return await Promise.resolve(mod.prerender())
 	} catch (err) {
-		ctx.logger.error(`prerender:getPrerenderParamsList ${path}`, err)
+		buildContext.logger.error(`prerender:getPrerenderParamsList ${path}`, err)
 		return []
 	}
 }
@@ -70,7 +70,7 @@ export function createPrerenderRoutesFromParamsList(
  * @param urls - the URLs to prerender
  * @param urls.route - the route to prerender
  * @param urls.app - the app URL to use as the base for relative routes
- * @param ctx - the build context
+ * @param buildContext - the build context
  * @returns an async generator that yields the prerendered route
  * @throws if an error occurs during prerendering
  */
@@ -78,7 +78,7 @@ export async function* prerender(
 	renderer: (req: Request) => Promise<Response>,
 	target: string,
 	base: string,
-	ctx?: BuildContext,
+	buildContext?: BuildContext,
 ) {
 	try {
 		const url =
@@ -117,7 +117,7 @@ export async function* prerender(
 			res,
 		}
 	} catch (err) {
-		ctx?.logger.error(`[prerender*] ${target}`, err)
+		buildContext?.logger.error(`[prerender*] ${target}`, err)
 		throw err
 	}
 }

@@ -1,5 +1,3 @@
-import { Suspense } from 'react'
-
 import { Link } from '@jk2908/drift/ui/components/link'
 
 import { Blue } from './blue'
@@ -17,15 +15,13 @@ export default async function Page() {
 	return (
 		<div>
 			Hi am a page <Blue />
-			<Suspense fallback={<div>Loading suspended component...</div>}>
-				<SuspendedComponent />
-			</Suspense>
 			<Link href="/profile">Go to Profile</Link>
 			<Link href="/?foo=bar&baz=qux">Go to Home with Search Params</Link>
 			<Link href="to-dead-end">Go to Dead End (404)</Link>
 			<Link href="/posts/to-dead-end-with-nested-error">
 				Go to Dead End with Nested Error (404)
 			</Link>
+			<Link href="/about">Go to About</Link>
 			<Red />
 		</div>
 	)

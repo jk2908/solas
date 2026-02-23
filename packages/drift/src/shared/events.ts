@@ -1,4 +1,4 @@
-import { NAME as PKG } from '../config'
+import { Config } from '../config'
 
 /**
  * Drift custom event class
@@ -6,6 +6,6 @@ import { NAME as PKG } from '../config'
  */
 export class DriftEvent<T> extends CustomEvent<T> {
 	constructor(name: string, detail?: T) {
-		super(`${PKG}${name}`, { detail })
+		super(`${Config.NAME}${name}`, { detail })
 	}
 }

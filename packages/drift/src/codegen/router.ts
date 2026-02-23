@@ -1,97 +1,116 @@
 import type { Endpoint, Manifest, Segment } from '../types'
 
-import { EntryKind } from '../config'
-
-import type { Imports } from '../build/route-processor'
+import { Build } from '../build'
 
 import { AUTOGEN_MSG } from './utils'
 
 /**
- * Generates the exported server-side code for creating the Hono app
+ * Generates the exported server-side code for creating the router
  * with all the routes and handlers defined in the manifest
  * @param manifest - the application manifest
  * @param imports - the imported modules
  * @returns the stringified code
  */
-export function writeRouter(manifest: Manifest, imports: Imports) {
+export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 	const handlers = createHandlerGroups(manifest)
+	const middlewareByPath = new Map(
+		[...imports.middlewares.static.entries()].map(([id, path]) => [path, id]),
+	)
 
 	return `
     ${AUTOGEN_MSG}
 
     /// <reference types="bun" />
 
-    import {
-      Hono,
-      hc,
-      serveStatic,
-      trimTrailingSlash,
-      appendTrailingSlash,
-    } from '@jk2908/drift/_internal/hono'
+    import type { Server } from 'bun'
+
+    import { Router } from '@jk2908/drift/server/router'
 
     import { handler as rsc } from './entry.rsc'
     import { config } from './config'
 
     ${[...imports.endpoints.static.entries()]
 			.map(([key, value]) => {
-				const [, method] = key.split('_')
-
-				return `import { ${method.toUpperCase()} as ${key}} from '${value}'`
+				const [, method = 'get'] = key.split('_')
+				return `import { ${method.toUpperCase()} as ${key} } from ${JSON.stringify(value)}`
 			})
 			.join('\n')}
 
-    /**
-     * Creates a Hono app instance with all routes and handlers wired up
-     * @returns the Hono app
-     */
+    ${[...imports.middlewares.static.entries()]
+			.map(
+				([key, value]) => `import { middleware as ${key} } from ${JSON.stringify(value)}`,
+			)
+			.join('\n')}
+
     export function createRouter() {
-      return new Hono()
-        .use(!config.trailingSlash ? trimTrailingSlash() : appendTrailingSlash())
-        .use(
-          '/assets/*', 
-          serveStatic({ 
-            root: config.outDir,
-            onFound(_path, c) {
-              c.header('Cache-Control', 'public, immutable, max-age=31536000')
-            },
-            precompressed: config.precompress,
-          }))
+      return new Router({
+        trailingSlash: config.trailingSlash,
+      })
+        .add('/assets/*', 'GET', Router.serveStatic(config))
         ${[...handlers.entries()]
 					.map(([, group]) => {
 						if (!Array.isArray(group)) {
-							return group.__kind === EntryKind.PAGE
-								? `.${group.method}('${group.__path}', async c => rsc(c.req.raw))`
-								: `.${group.method}('${group.__path}', ${group.__id})`
+							const method = group.method.toUpperCase()
+							const params = JSON.stringify(group.__params ?? [])
+							const middlewareIds =
+								group.__kind === Build.EntryKind.PAGE
+									? ((group as Segment).paths.middlewares ?? [])
+									: ((group as Endpoint).middlewares ?? [])
+							const middleware = middlewareIds
+								.map((id: string | null) =>
+									id ? (middlewareByPath.get(id) ?? null) : null,
+								)
+								.filter(Boolean)
+							const middlewareArg = middleware.length
+								? `[${middleware.join(', ')}]`
+								: '[]'
+
+							return group.__kind === Build.EntryKind.PAGE
+								? `.add('${group.__path}', '${method}', req => rsc(req), ${params}, ${middlewareArg})`
+								: `.add('${group.__path}', '${method}', req => ${group.__id}(req), ${params}, ${middlewareArg})`
 						}
 
 						if (group.length > 2) throw new Error('Unexpected group length')
 
-						const id = group.find(e => e.__kind === EntryKind.ENDPOINT)?.__id
+						const id = group.find(e => e.__kind === Build.EntryKind.ENDPOINT)?.__id
 						const path = group[0].__path
+						const params = JSON.stringify(group[0].__params ?? [])
+						const middlewareIds =
+							(
+								group.find(entry => entry.__kind === Build.EntryKind.PAGE) as
+									| Segment
+									| undefined
+							)?.paths.middlewares ??
+							(group[0] as Endpoint).middlewares ??
+							[]
+						const middleware = middlewareIds
+							.map((id: string | null) =>
+								id ? (middlewareByPath.get(id) ?? null) : null,
+							)
+							.filter(Boolean)
+						const middlewareArg = middleware.length ? `[${middleware.join(', ')}]` : '[]'
 
-						return `.get('${path}', async c => {
-              const accept = c.req.header('accept') ?? ''
+						return `.add('${path}', 'GET', async req => {
+          		const accept = req.headers.get('accept') ?? ''
 
-              if (accept.includes('text/html') || accept.includes('text/x-component')) {
-                return rsc(c.req.raw)
-              }
+						if (accept.includes('text/html') || accept.includes('text/x-component')) {
+							return rsc(req)
+						}
 
-              if (!${id}) {
-                throw new Error('Unified handler missing implementation')
-              }
+						if (!${id}) {
+							throw new Error('Unified handler missing implementation')
+						}
 
-              // handler might be called with no args so 
-              // ignore to prevent red squigglies
-              // @ts-expect-error
-              return ${id}(c)
-            })`
+						// @ts-ignore
+						return ${id}(req)
+					}, ${params}, ${middlewareArg})`
 					})
-					.join('\n')}
-        .notFound(c => rsc(c.req.raw))
+					.join('\n      ')}
+        .error((err, req) => rsc(req, err))
+
     }
 
-    export type App = ReturnType<typeof createRouter>    
-    export const client = hc<App>(config.app?.url ?? import.meta.env.VITE_APP_URL)
+    export type App = Server<ReturnType<typeof createRouter>>
   `.trim()
 }
 

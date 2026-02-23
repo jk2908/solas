@@ -6,11 +6,11 @@ import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { injectRSCPayload } from 'rsc-html-stream/server'
 
 import { Logger } from '../../shared/logger'
-import { Metadata } from '../../shared/metadata'
 
 import { RouterProvider } from '../../client/router'
 
 import { ErrorBoundary } from '../../ui/components/error-boundary'
+import { Metadata } from '../../ui/components/metadata'
 import { RedirectBoundary } from '../../ui/defaults/redirect-boundary'
 
 import type { RSCPayload } from './rsc'

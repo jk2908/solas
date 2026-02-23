@@ -1,4 +1,4 @@
-import { NAME } from '../config'
+import { Config } from '../config'
 
 import { HttpException } from './http-exception'
 
@@ -65,7 +65,7 @@ export class Logger {
 		}
 
 		console.log(
-			`[${NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`,
+			`[${Config.NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`,
 			error ? `\n${error.stack}` : '',
 		)
 	}

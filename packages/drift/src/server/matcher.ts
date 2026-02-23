@@ -1,41 +1,64 @@
 import { lazy } from 'react'
 
-import { RegExpRouter } from 'hono/router/reg-exp-router'
-import { SmartRouter } from 'hono/router/smart-router'
-import { TrieRouter } from 'hono/router/trie-router'
-
 import type {
 	DynamicImport,
-	EnhancedMatch,
 	ImportMap,
 	Manifest,
 	ManifestEntry,
-	Match,
-	Params,
 	Primitive,
-	Segment,
-	Metadata as TMetadata,
 	View,
 } from '../types'
 
-import { EntryKind } from '../config'
+import { HttpException } from '../shared/http-exception'
+import { Logger } from '../shared/logger'
+import { Metadata } from '../shared/metadata'
 
-import { HttpException } from './http-exception'
-import { Logger } from './logger'
-import { PRIORITY } from './metadata'
+import { Build } from '../build'
+
+import type { Router } from './router'
+
+export namespace Matcher {
+	export type Match = ReturnType<Matcher['reconcile']>
+
+	export type EnhancedMatch = Match & {
+		ui: {
+			layouts: (View<{
+				children?: React.ReactNode
+				params?: Router.Params
+			}> | null)[]
+			Page: View<{
+				children?: React.ReactNode
+				params?: Router.Params
+			}> | null
+			'404s': (View<{
+				children?: React.ReactNode
+				error?: HttpException
+			}> | null)[]
+			loaders: (View<{
+				children?: React.ReactNode
+			}> | null)[]
+		}
+		error?: HttpException | Error
+		endpoint?: (req?: Request & { params?: Router.Params }) => unknown
+		metadata?: ({ params, error }: { params?: Router.Params; error?: Error }) => Promise<
+			PromiseSettledResult<{
+				task: Promise<Metadata.Item>
+				priority: (typeof Metadata.PRIORITY)[keyof typeof Metadata.PRIORITY]
+			}>[]
+		>
+	}
+}
+
+const logger = new Logger()
 
 /**
- * Handle routing and matching of within the application
- * @param manifest - contains all the routes (pages and api) and their metadata
- * @param map - contains the static and dynamic imports for each route
- * @see {@link Manifest} for the structure of the manifest
- * @see {@link ImportMap} for the structure of the import map
+ * Reconcile router matches with the application manifest and import map
  */
-export class Router {
+export class Matcher {
 	/**
 	 * Cache of enhanced matches
 	 */
-	static #enhancedMatchCache = new Map<string, EnhancedMatch>()
+	static #enhancedMatchCache = new Map<string, Matcher.EnhancedMatch>()
 
 	/**
 	 * Cache of loaded modules from dynamic imports
@@ -58,40 +81,18 @@ export class Router {
 		}
 	>()
 
-	static #logger: Logger = new Logger()
-
 	#manifest: Manifest = {}
 	#importMap: ImportMap = {}
 
 	/**
-	 * @see: https://hono.dev/docs/concepts/routers
+	 * @param manifest - contains all the routes (pages and api) and their metadata
+	 * @param map - contains the static and dynamic imports for each route
+	 * @see {@link Manifest} for the structure of the manifest
+	 * @see {@link ImportMap} for the structure of the import map
 	 */
-	#router: SmartRouter<Segment> = new SmartRouter({
-		routers: [new RegExpRouter(), new TrieRouter()],
-	})
-
 	constructor(manifest: Manifest, importMap: ImportMap) {
 		this.#manifest = manifest
 		this.#importMap = importMap
-
-		for (const path in this.#manifest) {
-			const entry = this.#manifest[path]
-
-			// process array entries (multiple entries per path)
-			// and register each page entry with the router
-			if (Array.isArray(entry)) {
-				for (const e of entry) {
-					if (e.__kind !== EntryKind.PAGE) continue
-					this.#router.add('GET', path, e)
-				}
-
-				continue
-			}
-
-			// single entry - only register if it's a page
-			if (entry.__kind !== EntryKind.PAGE) continue
-			this.#router.add('GET', path, entry)
-		}
 	}
 
 	/**
@@ -101,10 +102,10 @@ export class Router {
 	 */
 	static narrow(entry?: ManifestEntry | ManifestEntry[]) {
 		if (Array.isArray(entry)) {
-			return entry.find(e => e.__kind === EntryKind.PAGE) || null
+			return entry.find(e => e.__kind === Build.EntryKind.PAGE) || null
 		}
 
-		return entry?.__kind === EntryKind.PAGE ? entry : null
+		return entry?.__kind === Build.EntryKind.PAGE ? entry : null
 	}
 
 	/**
@@ -112,7 +113,7 @@ export class Router {
 	 * @param match - the matched route
 	 * @returns the status code
 	 */
-	static getMatchStatusCode(match: Match | EnhancedMatch | null) {
+	static getMatchStatusCode(match: Matcher.Match | Matcher.EnhancedMatch | null) {
 		if (!match) return 404
 
 		if ('error' in match) {
@@ -128,23 +129,23 @@ export class Router {
 	 * @returns the module entry
 	 */
 	static #load(loader: DynamicImport) {
-		let entry = Router.#moduleCache.get(loader)
+		let entry = Matcher.#moduleCache.get(loader)
 		if (entry) return entry
 
 		const promise = loader()
 			.then(mod => {
-				const entry = Router.#moduleCache.get(loader)
+				const entry = Matcher.#moduleCache.get(loader)
 				if (entry) entry.module = mod
 
 				return mod
 			})
 			.catch(err => {
-				Router.#moduleCache.delete(loader)
+				Matcher.#moduleCache.delete(loader)
 				throw err
 			})
 
 		entry = { promise }
-		Router.#moduleCache.set(loader, entry)
+		Matcher.#moduleCache.set(loader, entry)
 
 		return entry
 	}
@@ -157,9 +158,9 @@ export class Router {
 	static #view<T extends React.ComponentType<any>>(
 		loader: DynamicImport,
 	): View<React.ComponentProps<T>> {
-		const entry = Router.#load(loader)
+		const entry = Matcher.#load(loader)
 
-		Router.#logger?.debug(
+		logger.debug(
 			'[#view]',
 			loader.toString().slice(0, 60),
 			entry.module ? 'SYNC' : 'LAZY',
@@ -181,64 +182,37 @@ export class Router {
 	}
 
 	/**
-	 * Match a route against the registered routes using Hono's engine
+	 * Reconcile a router match against a manifest entry
 	 * @param path - the path to match against the routes
-	 * @returns the matched route or the closest parent for a 404.
+	 * @param match - match from router
+	 * @param error - optional error from router
+	 * @returns the matched route or the closest parent for a 404
 	 */
-	match(path: string) {
-		const result = this.#router.match('GET', path)
+	reconcile(path: string, match: Router.Match | null, error?: Error) {
+		if (match) {
+			const entry = Matcher.narrow(this.#manifest[match.route.path])
 
-		if (result) {
-			const [handlers, paramStash] = result
-			const entry = handlers?.[0]?.[0]
-
-			// a match is valid if we have a handler. Params are optional
 			if (entry) {
-				const params: Params = {}
-
-				// only process parameters if the router returned any
-				if (paramStash?.length) {
-					if (entry.catch_all) {
-						// for a catch all, we use the __path property on the matched entry.
-						// Neccessary because Hono doesn't expose wildcard params so we need
-						// to grab them from here. Derive the value by removing the
-						// static part of the pattern from the full path that was
-						// matched by the router
-						const staticPart = entry.__path.substring(0, entry.__path.indexOf('*'))
-						const value = paramStash[0].substring(staticPart.length)
-						params[entry.__params[0]] = value
-					} else {
-						// for dynamic routes, values are in paramStash starting at index 1
-						const paramValues = paramStash.slice(1)
-
-						// loop through the params and assign values to match.params
-						for (let i = 0; i < entry.__params.length; i++) {
-							const name = entry.__params[i]
-							const value = paramValues[i]
-
-							if (value === undefined) continue
-
-							params[name] = value
-						}
-					}
-				}
-
 				return {
 					...entry,
-					params,
+					params: match.params,
+					error,
 				}
 			}
 		}
 
 		// @note: if there's no match we'll traverse backwards
-		// to find the closest user supplied error boundary
+		// to find the closest user supplied 404 boundary
 		const entry = this.closest(path, 'paths.404s')
 
 		if (entry) {
 			return {
 				...entry,
 				params: {},
-				error: new HttpException(404, 'Not found'),
+				error:
+					error instanceof HttpException && error.status === 404
+						? error
+						: new HttpException(404, 'Not found'),
 			}
 		}
 
@@ -250,14 +224,14 @@ export class Router {
 	 * @param match - the matched route to enhance
 	 * @returns the enhanced route or null
 	 */
-	enhance(match: Match) {
+	enhance(match: Matcher.Match | null) {
 		if (!match) return null
 
 		const { __id } = match
-		const cached = Router.#enhancedMatchCache.get(__id)
+		const cached = Matcher.#enhancedMatchCache.get(__id)
 
 		if (cached) {
-			Router.#logger?.debug('[enhance]', __id, 'CACHED')
+			logger.debug('[enhance]', __id, 'CACHED')
 
 			// update params and error in case they changed as part
 			// of a dynamic route navigation
@@ -270,7 +244,7 @@ export class Router {
 		const entry = this.#importMap[__id]
 		if (!entry) return null
 
-		const enhanced: EnhancedMatch = {
+		const enhanced: Matcher.EnhancedMatch = {
 			ui: {
 				layouts: [],
 				Page: null,
@@ -282,18 +256,22 @@ export class Router {
 
 		// shell is a static import, layouts[0] in the enhanced match
 		if (entry.shell) {
-			enhanced.ui.layouts = [entry.shell.default as EnhancedMatch['ui']['layouts'][0]]
+			enhanced.ui.layouts = [
+				entry.shell.default as Matcher.EnhancedMatch['ui']['layouts'][0],
+			]
 		}
 
 		if (entry.layouts?.length) {
 			const dynamicLayouts = entry.layouts.map(l =>
-				l ? Router.#view<NonNullable<EnhancedMatch['ui']['layouts'][number]>>(l) : null,
+				l
+					? Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['layouts'][number]>>(l)
+					: null,
 			)
 			enhanced.ui.layouts = [...enhanced.ui.layouts, ...dynamicLayouts]
 		}
 
 		if (entry.page) {
-			enhanced.ui.Page = Router.#view<NonNullable<EnhancedMatch['ui']['Page']>>(
+			enhanced.ui.Page = Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['Page']>>(
 				entry.page,
 			)
 		}
@@ -301,7 +279,9 @@ export class Router {
 		// load 404 boundaries
 		if (entry['404s']?.length) {
 			enhanced.ui['404s'] = entry['404s'].map(e =>
-				e ? Router.#view<NonNullable<EnhancedMatch['ui']['404s'][number]>>(e) : null,
+				e
+					? Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['404s'][number]>>(e)
+					: null,
 			)
 		}
 
@@ -309,14 +289,22 @@ export class Router {
 		// are suspended - not inherited like other components
 		if (entry.loaders?.length) {
 			enhanced.ui.loaders = entry.loaders.map(l =>
-				l ? Router.#view<NonNullable<EnhancedMatch['ui']['loaders'][number]>>(l) : null,
+				l
+					? Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['loaders'][number]>>(l)
+					: null,
 			)
 		}
 
 		if (entry.endpoint) enhanced.endpoint = entry.endpoint
 
-		enhanced.metadata = ({ params, error }: { params?: Params; error?: Error }) => {
-			const tasks: { task: Promise<TMetadata>; priority: number }[] = []
+		enhanced.metadata = ({
+			params,
+			error,
+		}: {
+			params?: Router.Params
+			error?: Error
+		}) => {
+			const tasks: { task: Promise<Metadata.Item>; priority: number }[] = []
 
 			if (entry.shell) {
 				const metadata = entry.shell.metadata
@@ -325,41 +313,42 @@ export class Router {
 					if (typeof metadata === 'function') {
 						tasks.push({
 							task: Promise.resolve(metadata({ params, error })).catch(err => {
-								Router.#logger?.error(`[enhance.metadata]: ${__id}`, err)
+								logger.error(`[enhance.metadata]: ${__id}`, err)
 								return Promise.resolve({})
 							}),
-							priority: PRIORITY[EntryKind.SHELL],
+							priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
 						})
 					} else if (typeof metadata === 'object') {
 						tasks.push({
 							task: Promise.resolve(metadata),
-							priority: PRIORITY[EntryKind.SHELL],
+							priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
 						})
 					}
 				}
 			}
 
 			if (entry.layouts?.length) {
-				for (const l of entry.layouts) {
-					if (!l) continue
-					const e = Router.#load(l)
+				for (const layout of entry.layouts) {
+					if (!layout) continue
+
+					const e = Matcher.#load(layout)
 
 					if (e.module && 'metadata' in e.module) {
-						const metadata = e.module?.metadata
+						const metadata = e.module.metadata
 
 						if (metadata) {
 							if (typeof metadata === 'function') {
 								tasks.push({
 									task: Promise.resolve(metadata({ params, error })).catch(err => {
-										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										logger.error(`[enhance.metadata]: ${__id}`, err)
 										return {}
 									}),
-									priority: PRIORITY[EntryKind.LAYOUT],
+									priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
 								})
 							} else if (typeof metadata === 'object') {
 								tasks.push({
 									task: Promise.resolve(metadata),
-									priority: PRIORITY[EntryKind.LAYOUT],
+									priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
 								})
 							}
 						}
@@ -371,21 +360,21 @@ export class Router {
 
 								if (typeof metadata === 'function') {
 									return metadata({ params, error }).catch((err: unknown) => {
-										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										logger.error(`[enhance.metadata]: ${__id}`, err)
 										return {}
 									})
 								} else if (typeof metadata === 'object') {
 									return metadata
 								}
 							}),
-							priority: PRIORITY[EntryKind.LAYOUT],
+							priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
 						})
 					}
 				}
 			}
 
 			if (entry.page) {
-				const e = Router.#load(entry.page)
+				const e = Matcher.#load(entry.page)
 
 				if (e.module && 'metadata' in e.module) {
 					const metadata = e.module.metadata
@@ -394,15 +383,15 @@ export class Router {
 						if (typeof metadata === 'function') {
 							tasks.push({
 								task: Promise.resolve(metadata({ params, error })).catch(err => {
-									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									logger.error(`[enhance.metadata]: ${__id}`, err)
 									return {}
 								}),
-								priority: PRIORITY[EntryKind.PAGE],
+								priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
 							})
 						} else if (typeof metadata === 'object') {
 							tasks.push({
 								task: Promise.resolve(metadata),
-								priority: PRIORITY[EntryKind.PAGE],
+								priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
 							})
 						}
 					}
@@ -414,14 +403,14 @@ export class Router {
 
 							if (typeof metadata === 'function') {
 								return metadata({ params, error }).catch((err: unknown) => {
-									Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+									logger.error(`[enhance.metadata]: ${__id}`, err)
 									return {}
 								})
 							} else if (typeof metadata === 'object') {
 								return metadata
 							}
 						}),
-						priority: PRIORITY[EntryKind.PAGE],
+						priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
 					})
 				}
 			}
@@ -429,7 +418,7 @@ export class Router {
 			if (entry['404s'] && error) {
 				for (const errLoader of entry['404s']) {
 					if (!errLoader) continue
-					const e = Router.#load(errLoader)
+					const e = Matcher.#load(errLoader)
 
 					if (e.module && 'metadata' in e.module) {
 						const metadata = e.module.metadata
@@ -438,15 +427,15 @@ export class Router {
 							if (typeof metadata === 'function') {
 								tasks.push({
 									task: Promise.resolve(metadata({ params, error })).catch(err => {
-										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										logger.error(`[enhance.metadata]: ${__id}`, err)
 										return {}
 									}),
-									priority: PRIORITY[EntryKind[404]],
+									priority: Metadata.PRIORITY[Build.EntryKind['404']],
 								})
 							} else if (typeof metadata === 'object') {
 								tasks.push({
 									task: Promise.resolve(metadata),
-									priority: PRIORITY[EntryKind[404]],
+									priority: Metadata.PRIORITY[Build.EntryKind['404']],
 								})
 							}
 						}
@@ -458,14 +447,14 @@ export class Router {
 
 								if (typeof metadata === 'function') {
 									return metadata({ params, error }).catch((err: unknown) => {
-										Router.#logger?.error(`[enhanced.metadata]: ${__id}`, err)
+										logger.error(`[enhance.metadata]: ${__id}`, err)
 										return {}
 									})
 								} else if (typeof metadata === 'object') {
 									return metadata
 								}
 							}),
-							priority: PRIORITY[EntryKind[404]],
+							priority: Metadata.PRIORITY[Build.EntryKind['404']],
 						})
 					}
 				}
@@ -474,7 +463,7 @@ export class Router {
 			return Promise.allSettled(tasks)
 		}
 
-		Router.#enhancedMatchCache.set(__id, enhanced)
+		Matcher.#enhancedMatchCache.set(__id, enhanced)
 
 		return enhanced
 	}
@@ -494,91 +483,24 @@ export class Router {
 			const entry = this.#manifest[testPath]
 			if (!entry) continue
 
-			const pageEntry = Router.narrow(entry)
+			const pageEntry = Matcher.narrow(entry)
 			if (!pageEntry) continue
 
 			let curr: unknown = pageEntry
 
-			for (const seg of segments) {
-				if (
-					typeof curr !== 'object' ||
-					curr === null ||
-					!(seg in (curr as Record<string, unknown>))
-				) {
-					curr = undefined
-					break
-				}
+			for (const segment of segments) {
+				if (!curr || typeof curr !== 'object') break
+				if (!(segment in curr)) break
 
-				curr = (curr as Record<string, unknown>)[seg]
-				if (curr === undefined) break
+				curr = (curr as Record<string, unknown>)[segment]
 			}
 
-			if (curr !== undefined && curr !== null) {
-				// if the matched property is an array (e.g. paths.errors),
-				// only consider it present if it contains at least one
-				// non-null value. If all entries are null/undefined
-				// then treat it as absent and continue searching
-				if (Array.isArray(curr)) {
-					if (!curr.some(e => e != null)) curr = undefined
-				}
+			if (curr === undefined) continue
+			if (value && curr !== value) continue
 
-				// if the check above cleared curr, continue searching
-				if (curr === undefined || curr === null) continue
-				// if a specific value was provided, ensure it matches
-				if (value !== undefined && curr !== value) return null
-
-				return pageEntry
-			}
+			return pageEntry
 		}
 
 		return null
-	}
-
-	/**
-	 * Preload a route's assets
-	 * @param path - the path to preload
-	 * @returns a promise that resolves when all assets are loaded
-	 */
-	async preload(path: string) {
-		const match = this.match(path)
-		if (!match) return
-
-		const imports = this.#importMap[match.__id]
-		if (!imports) return
-
-		const loads: Promise<unknown>[] = []
-
-		if (imports.layouts) {
-			for (const l of imports.layouts) {
-				if (!l) continue
-				loads.push(Router.#load(l).promise)
-			}
-		}
-
-		if (imports.page) loads.push(Router.#load(imports.page).promise)
-
-		if (imports['404s']) {
-			for (const err of imports['404s']) {
-				if (!err) continue
-				loads.push(Router.#load(err).promise)
-			}
-		}
-
-		if (imports.loaders) {
-			for (const loader of imports.loaders) {
-				if (!loader) continue
-				loads.push(Router.#load(loader).promise)
-			}
-		}
-
-		return Promise.allSettled(loads)
-	}
-
-	get manifest() {
-		return this.#manifest
-	}
-
-	get importMap() {
-		return this.#importMap
 	}
 }

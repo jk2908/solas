@@ -1,6 +1,6 @@
-import { PKG_NAME } from '../config'
+import { Config } from '../config'
 
-import type { Imports, Modules } from '../build/route-processor'
+import type { Imports, Modules } from '../build'
 
 import { AUTOGEN_MSG } from './utils'
 
@@ -14,6 +14,9 @@ export function writeMaps(imports: Imports, modules: Modules) {
 		...imports.components.static
 			.entries()
 			.map(([k, v]) => `import * as ${k} from ${JSON.stringify(v)}`.trim()),
+		...imports.middlewares.static
+			.entries()
+			.map(([k, v]) => `import { middleware as ${k} } from ${JSON.stringify(v)}`.trim()),
 	]
 
 	const dynamics = [
@@ -45,13 +48,18 @@ export function writeMaps(imports: Imports, modules: Modules) {
 			parts.push(`loaders: [${loaders}]`)
 		}
 
+		if (m.middlewareIds?.length) {
+			const middleware = m.middlewareIds.map(id => (id === null ? 'null' : id)).join(', ')
+			parts.push(`middlewares: [${middleware}]`)
+		}
+
 		return `${JSON.stringify(id)}: { ${parts.join(', ')} }`
 	})
 
 	return `
 	  ${AUTOGEN_MSG}
 
-		import type { ImportMap } from '${PKG_NAME}'
+		import type { ImportMap } from '${Config.PKG_NAME}'
 
 	  ${statics.join('\n')}
 		

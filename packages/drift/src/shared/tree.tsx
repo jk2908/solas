@@ -1,13 +1,13 @@
 import { Suspense } from 'react'
 
-import type { EnhancedMatch } from '../types'
+import type { Matcher } from '../server/matcher'
 
-import DefaultNotFound from '../ui/defaults/+404'
+import DefaultErr from '../ui/defaults/error'
 import { HttpExceptionBoundary } from '../ui/defaults/http-exception-boundary'
 
 import { HttpException, isHttpException } from './http-exception'
 
-type Match = NonNullable<EnhancedMatch>
+type Match = NonNullable<Matcher.EnhancedMatch>
 
 /**
  * Route tree renderer
@@ -80,7 +80,7 @@ export function Tree({
 	if (error && isHttpException(error)) {
 		const Exception =
 			httpExceptionMap[error.status].slice(0, depth + 1).findLast(e => e !== null) ??
-			DefaultNotFound
+			DefaultErr
 
 		inner = (
 			<>

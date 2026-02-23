@@ -1,6 +1,6 @@
 import type { Manifest } from '../types'
 
-import { PKG_NAME } from '../config'
+import { Config } from '../config'
 
 import { AUTOGEN_MSG } from './utils'
 
@@ -13,7 +13,7 @@ export function writeManifest(manifest: Manifest) {
 	return `
     ${AUTOGEN_MSG}
 
-    import type { Manifest } from '${PKG_NAME}'
+    import type { Manifest } from '${Config.PKG_NAME}'
 
     export const manifest = 
       ${JSON.stringify(manifest, null, 2)} as const satisfies Manifest

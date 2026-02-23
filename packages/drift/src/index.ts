@@ -14,15 +14,15 @@ import { writeManifest } from './codegen/manifest'
 import { writeMaps } from './codegen/maps'
 import { writeRouter } from './codegen/router'
 
-import { APP_DIR, ENTRY_BROWSER, ENTRY_RSC, ENTRY_SSR, GENERATED_DIR } from './config'
+import { Config } from './config'
 
 import { Logger } from './shared/logger'
 
-import { compress } from './server/compress'
+import { Compress } from './server/compress'
 import { prerender } from './server/prerender'
 import { format } from './server/utils'
 
-import { RouteProcessor } from './build/route-processor'
+import { Build } from './build'
 
 import { debounce } from './utils'
 
@@ -77,15 +77,15 @@ function drift(c: PluginConfig): PluginOption[] {
 
 	async function build() {
 		const cwd = process.cwd()
-		const routesDir = path.join(cwd, APP_DIR)
-		const generatedDir = path.join(cwd, GENERATED_DIR)
+		const routesDir = path.join(cwd, Config.APP_DIR)
+		const generatedDir = path.join(cwd, Config.GENERATED_DIR)
 
 		await Promise.all([
 			fs.mkdir(routesDir, { recursive: true }),
 			fs.mkdir(generatedDir, { recursive: true }),
 		])
 
-		const processor = new RouteProcessor(buildContext, config)
+		const processor = new Build.RouteProcessor(buildContext, config)
 		const { manifest, prerenderableRoutes, imports, modules } = await processor.run()
 
 		// set prerenderable routes in context for use in closeBundle
@@ -96,13 +96,13 @@ function drift(c: PluginConfig): PluginOption[] {
 			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
 			Bun.write(path.join(generatedDir, 'maps.ts'), writeMaps(imports, modules)),
 			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
-			Bun.write(path.join(generatedDir, ENTRY_RSC), writeRSCEntry()),
-			Bun.write(path.join(generatedDir, ENTRY_SSR), writeSSREntry()),
-			Bun.write(path.join(generatedDir, ENTRY_BROWSER), writeBrowserEntry()),
+			Bun.write(path.join(generatedDir, Config.ENTRY_RSC), writeRSCEntry()),
+			Bun.write(path.join(generatedDir, Config.ENTRY_SSR), writeSSREntry()),
+			Bun.write(path.join(generatedDir, Config.ENTRY_BROWSER), writeBrowserEntry()),
 		])
 
 		// format generated files, avoid stopping build on errors
-		await format(GENERATED_DIR, buildContext).catch(() => {})
+		await format(Config.GENERATED_DIR, buildContext).catch(() => {})
 	}
 
 	// debounced build to avoid multiple builds on file changes
@@ -129,7 +129,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			viteConfig.resolve ??= {}
 			viteConfig.resolve.alias = {
 				...(viteConfig.resolve.alias ?? {}),
-				'.drift': path.resolve(process.cwd(), GENERATED_DIR),
+				'.drift': path.resolve(process.cwd(), Config.GENERATED_DIR),
 			}
 
 			viteConfig.optimizeDeps ??= {}
@@ -141,17 +141,17 @@ function drift(c: PluginConfig): PluginOption[] {
 			]
 		},
 		configureServer(server) {
-			logger.info('[configureServer]', `Watching for changes in ./${APP_DIR}...`)
+			logger.info('[configureServer]', `Watching for changes in ./${Config.APP_DIR}...`)
 
 			server.watcher
 				.on('add', path => {
-					if (path.includes(APP_DIR)) rebuild()
+					if (path.includes(Config.APP_DIR)) rebuild()
 				})
 				.on('change', path => {
-					if (path.includes(APP_DIR)) rebuild()
+					if (path.includes(Config.APP_DIR)) rebuild()
 				})
 				.on('unlink', path => {
-					if (path.includes(APP_DIR)) rebuild()
+					if (path.includes(Config.APP_DIR)) rebuild()
 				})
 		},
 		async closeBundle() {
@@ -224,7 +224,7 @@ function drift(c: PluginConfig): PluginOption[] {
 					try {
 						const dir = path.resolve(process.cwd(), config.outDir)
 
-						for await (const { input, compressed } of compress(dir, buildContext, {
+						for await (const { input, compressed } of Compress.run(dir, buildContext, {
 							filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
 						})) {
 							await Bun.write(`${input}.br`, compressed)
@@ -256,9 +256,9 @@ function drift(c: PluginConfig): PluginOption[] {
 		plugin,
 		rsc({
 			entries: {
-				rsc: `./${GENERATED_DIR}/${ENTRY_RSC}`,
-				ssr: `./${GENERATED_DIR}/${ENTRY_SSR}`,
-				client: `./${GENERATED_DIR}/${ENTRY_BROWSER}`,
+				rsc: `./${Config.GENERATED_DIR}/${Config.ENTRY_RSC}`,
+				ssr: `./${Config.GENERATED_DIR}/${Config.ENTRY_SSR}`,
+				client: `./${Config.GENERATED_DIR}/${Config.ENTRY_BROWSER}`,
 			},
 		}),
 		react(),

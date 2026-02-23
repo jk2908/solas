@@ -7,6 +7,10 @@ type HttpExceptionOptions = {
 
 export type HttpExceptionStatusCode = 404 | (number & {})
 
+const HTTP_EXCEPTION_NAME_MAP: Record<HttpExceptionStatusCode, string> = {
+	404: 'NOT_FOUND',
+} as const
+
 /**
  * Create a HTTPException instance
  * @param message - the message
@@ -16,18 +20,17 @@ export type HttpExceptionStatusCode = 404 | (number & {})
  * @param opts.cause - the cause
  */
 export class HttpException extends Error {
-	status: HttpExceptionStatusCode
 	payload?: Payload
 	digest?: string
 
 	constructor(
-		status: HttpExceptionStatusCode,
-		message: string,
+		public readonly status: HttpExceptionStatusCode,
+		public override readonly message: string,
 		opts?: HttpExceptionOptions,
 	) {
 		super(message, { cause: opts?.cause })
 
-		this.status = status
+		this.name = HTTP_EXCEPTION_NAME_MAP[status]
 		this.payload = opts?.payload
 		this.digest = `${HTTP_EXCEPTION_DIGEST_PREFIX}:${status}:${message}`
 	}
@@ -53,15 +56,15 @@ export function isHttpException(err: unknown): err is HttpException {
 
 /**
  * Throw an HTTPException
- * @param message - the message
  * @param status - the status code of the error
+ * @param message - the message
  * @param opts - the options
  * @param opts.payload - the payload
  * @param opts.cause - the cause
  * @throws a HTTPException with the given status and options
  */
-export function exception(
-	status: 404,
+export function abort(
+	status: HttpExceptionStatusCode,
 	message: string,
 	opts?: {
 		payload?: Payload

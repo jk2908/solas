@@ -9,7 +9,7 @@ import {
 	renderToReadableStream,
 } from '@vitejs/plugin-rsc/rsc'
 
-import type { ImportMap, Manifest, Metadata } from '../../types'
+import type { DriftRequest, ImportMap, Manifest } from '../../types'
 
 import {
 	HttpException,
@@ -17,9 +17,12 @@ import {
 	type HttpExceptionStatusCode,
 } from '../../shared/http-exception'
 import { Logger } from '../../shared/logger'
-import { MetadataCollection } from '../../shared/metadata'
-import { Router } from '../../shared/router'
+import { Metadata } from '../../shared/metadata'
 import { Tree } from '../../shared/tree'
+
+import { Matcher } from '../../server/matcher'
+
+import DefaultErr from '../../ui/defaults/error'
 
 import { getKnownDigest } from './utils'
 
@@ -27,7 +30,7 @@ export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
-	metadata?: Promise<Metadata>
+	metadata?: Promise<Metadata.Item>
 }
 
 /**
@@ -43,22 +46,29 @@ export type RSCPayload = {
  * @returns a ReadableStream response for RSC requests
  */
 export async function rsc(
-	req: Request,
+	req: DriftRequest,
 	manifest: Manifest,
 	importMap: ImportMap,
-	baseMetadata?: Metadata,
+	baseMetadata?: Metadata.Item,
 	returnValue?: { ok: boolean; data: unknown },
 	formState?: ReactFormState,
 	temporaryReferences?: unknown,
 ) {
-	const router = new Router(manifest, importMap)
+	const matcher = new Matcher(manifest, importMap)
 	const logger = new Logger()
 	const url = new URL(req.url)
-	const match = router.enhance(router.match(url.pathname))
+	const pathname =
+		url.pathname.endsWith('/') && url.pathname !== '/'
+			? url.pathname.slice(0, -1)
+			: url.pathname
+	const match = matcher.enhance(matcher.reconcile(pathname, req.match, req.error))
 
+	// if there's no match then no user supplied error boundary
+	// has been found, and we should server render a default
+	// error screen
 	if (!match) {
-		const error = new HttpException(404, 'Not found')
-		const title = `${error.status} - ${error.message}`
+		const error = req.error ?? new HttpException(404, 'Not found')
+		const title = `${'status' in error ? `${error.status} -` : ''}${error.message}`
 
 		const rscPayload: RSCPayload = {
 			root: (
@@ -72,10 +82,7 @@ export async function rsc(
 					</head>
 
 					<body>
-						<h1>{title}</h1>
-						<p>{error.message}</p>
-
-						{error.stack && <pre>{error.stack}</pre>}
+						<DefaultErr error={error} />
 					</body>
 				</html>
 			),
@@ -97,13 +104,24 @@ export async function rsc(
 		}
 	}
 
-	const collection = new MetadataCollection(baseMetadata)
+	const collection = new Metadata.Collection(baseMetadata)
 
 	const metadata = match
 		.metadata?.({ params: match.params, error: match.error })
-		.then(m =>
-			collection.add(...m.filter(r => r.status !== 'rejected').map(r => r.value)).run(),
-		)
+		.then(m => {
+			const values = m
+				.filter(
+					(
+						result,
+					): result is PromiseFulfilledResult<{
+						task: Promise<Metadata.Item>
+						priority: number
+					}> => result.status === 'fulfilled',
+				)
+				.map(result => result.value)
+
+			return collection.add(...values).run()
+		})
 
 	const rscPayload: RSCPayload = {
 		root: (
