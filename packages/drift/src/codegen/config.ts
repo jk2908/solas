@@ -1,6 +1,6 @@
 import type { PluginConfig } from '../types'
 
-import { Config } from '../config'
+import { Config } from '../_shared/config'
 
 import { AUTOGEN_MSG } from './utils'
 

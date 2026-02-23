@@ -1,4 +1,4 @@
-import type { HttpException } from '@jk2908/drift/shared/http-exception'
+import type { HttpException } from '@jk2908/drift/navigation'
 
 export const metadata = {
 	title: 'Error Page',

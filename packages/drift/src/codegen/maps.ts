@@ -1,10 +1,10 @@
-import { Config } from '../config'
+import { Config } from '../_shared/config'
 
-import type { Imports, Modules } from '../build'
+import type { Build } from '../build'
 
 import { AUTOGEN_MSG } from './utils'
 
-export function writeMaps(imports: Imports, modules: Modules) {
+export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 	const statics = [
 		...imports.endpoints.static.entries().map(([k, v]) => {
 			const [, method] = k.split('_')

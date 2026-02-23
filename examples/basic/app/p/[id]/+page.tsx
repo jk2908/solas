@@ -1,4 +1,4 @@
-import { abort } from '@jk2908/drift/shared/http-exception'
+import { abort } from '@jk2908/drift/navigation'
 
 export const metadata = async ({ params }: { params?: { id: string } }) => {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)

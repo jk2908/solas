@@ -38,57 +38,29 @@
 			"types": "./dist/types.d.ts",
 			"default": "./dist/index.js"
 		},
-		"./render/env/rsc": {
-			"types": "./dist/render/env/rsc.d.ts",
-			"default": "./dist/render/env/rsc.js"
+		"./env/rsc": {
+			"types": "./dist/env/rsc.d.ts",
+			"default": "./dist/env/rsc.js"
 		},
-		"./render/env/ssr": {
-			"types": "./dist/render/env/ssr.d.ts",
-			"default": "./dist/render/env/ssr.js"
+		"./env/ssr": {
+			"types": "./dist/env/ssr.d.ts",
+			"default": "./dist/env/ssr.js"
 		},
-		"./render/env/browser": {
-			"types": "./dist/env/render/browser.d.ts",
-			"default": "./dist/render/env/browser.js"
+		"./env/browser": {
+			"types": "./dist/env/browser.d.ts",
+			"default": "./dist/env/browser.js"
 		},
-		"./server/router": {
-			"types": "./dist/server/router.d.ts",
-			"default": "./dist/server/router.js"
+		"./router": {
+			"types": "./dist/router.d.ts",
+			"default": "./dist/router.js"
 		},
-		"./server/matcher": {
-			"types": "./dist/server/matcher.d.ts",
-			"default": "./dist/server/matcher.js"
+		"./navigation": {
+			"types": "./dist/navigation.d.ts",
+			"default": "./dist/navigation.js"
 		},
-		"./shared/redirect": {
-			"types": "./dist/shared/redirect.d.ts",
-			"default": "./dist/shared/redirect.js"
-		},
-		"./shared/http-exception": {
-			"types": "./dist/shared/http-exception.d.ts",
-			"default": "./dist/shared/http-exception.js"
-		},
-		"./shared/metadata": {
-			"types": "./dist/shared/metadata.d.ts",
-			"default": "./dist/shared/metadata.js"
-		},
-		"./shared/logger": {
-			"types": "./dist/shared/logger.d.ts",
-			"default": "./dist/shared/logger.js"
-		},
-		"./client/router": {
-			"types": "./dist/client/router.d.ts",
-			"default": "./dist/client/router.js"
-		},
-		"./config": {
-			"types": "./dist/config.d.ts",
-			"default": "./dist/config.js"
-		},
-		"./ui/components/link": {
-			"types": "./dist/ui/components/link.d.ts",
-			"default": "./dist/ui/components/link.js"
-		},
-		"./ui/components/error-boundary": {
-			"types": "./dist/ui/components/error-boundary.d.ts",
-			"default": "./dist/ui/components/error-boundary.js"
+		"./ui/error-boundary": {
+			"types": "./dist/error-boundary.d.ts",
+			"default": "./dist/error-boundary.js"
 		}
 	},
 	"files": [

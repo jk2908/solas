@@ -1,6 +1,6 @@
 'use client'
 
-import { useSearchParams } from '@jk2908/drift/client/router'
+import { useSearchParams } from '@jk2908/drift/navigation'
 
 export function Red() {
 	const params = useSearchParams()

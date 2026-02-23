@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import { redirect } from '@jk2908/drift/shared/redirect'
+import { redirect } from '@jk2908/drift/navigation'
 
 import { Blue } from '../blue'
 import { Yellow } from '../yellow'

@@ -1,4 +1,4 @@
-import { Link } from '@jk2908/drift/ui/components/link'
+import { Link } from '@jk2908/drift/navigation'
 
 import { Blue } from './blue'
 import { Red } from './red'
