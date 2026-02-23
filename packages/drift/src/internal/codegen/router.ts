@@ -1,6 +1,6 @@
 import type { Endpoint, Manifest, Segment } from '../../types'
 
-import { Config } from '../../config'
+import { Drift } from '../../drift'
 
 import { Build } from '../build'
 
@@ -29,7 +29,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 
     import type { Server } from 'bun'
 
-    import { Router } from '${Config.PKG_NAME}/router'
+	import { Router } from '${Drift.Config.PKG_NAME}/router'
 
     import { handler as rsc } from './entry.rsc'
     import { config } from './config'
@@ -49,11 +49,19 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 			)
 			.join('\n')}
 
+		function endpoint(
+			fn: (...args: [] | [Request]) => Response | Promise<Response>,
+			req: Request,
+		): Response | Promise<Response> {
+			if (fn.length === 0) return fn()
+			return fn(req)
+		}
+
     export function createRouter() {
       return new Router({
         trailingSlash: config.trailingSlash,
       })
-        .add('/assets/*', 'GET', Router.serveStatic(config))
+        .add('/assets/*', 'GET', Router.static(config))
         ${[...groups.entries()]
 					.map(([, group]) => {
 						if (!Array.isArray(group)) {
@@ -76,7 +84,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 
 							return group.__kind === Build.EntryKind.PAGE
 								? `.add('${group.__path}', '${method}', req => rsc(req), ${params}, ${mwArg})`
-								: `.add('${group.__path}', '${method}', req => ${group.__id}(req), ${params}, ${mwArg})`
+								: `.add('${group.__path}', '${method}',\nreq => endpoint(${group.__id}, req), ${params}, ${mwArg})`
 						}
 
 						// unified handler: page + endpoint pair only
@@ -89,11 +97,17 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 						const params = JSON.stringify(group[0].__params ?? [])
 
 						// resolve any middlewares from page or endpoint
+						const page = group.find(entry => entry.__kind === Build.EntryKind.PAGE)
+						const endpoint = group.find(
+							entry => entry.__kind === Build.EntryKind.ENDPOINT,
+						)
+
 						const mw = (
-							group.find(entry => entry.__kind === Build.EntryKind.PAGE)?.paths
-								.middlewares ??
-							(group[0] as Endpoint).middlewares ??
-							[]
+							page && 'paths' in page
+								? page.paths.middlewares
+								: endpoint && 'middlewares' in endpoint
+									? endpoint.middlewares
+									: []
 						)
 							.map(id => (id ? (mwByPath.get(id) ?? null) : null))
 							.filter(Boolean)
@@ -111,12 +125,11 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 							throw new Error('Unified handler missing implementation')
 						}
 
-						// @ts-ignore
-						return ${id}(req)
+						return endpoint(${id}, req)
 					}, ${params}, ${mwArg})`
 					})
 					.join('\n      ')}
-        .error((err, req) => rsc(req, err))
+        .error((_err, req) => rsc(req))
     }
 
     export type App = Server<ReturnType<typeof createRouter>>

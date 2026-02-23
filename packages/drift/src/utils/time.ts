@@ -12,4 +12,18 @@ export namespace Time {
 			}, wait)
 		}
 	}
+
+	export function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string) {
+		let timer: ReturnType<typeof setTimeout> | undefined
+
+		const timeout = new Promise<never>((_, reject) => {
+			timer = setTimeout(() => {
+				reject(new Error(`timed out after ${timeoutMs}ms (${label})`))
+			}, timeoutMs)
+		})
+
+		return Promise.race([task, timeout]).finally(() => {
+			if (timer) clearTimeout(timer)
+		})
+	}
 }

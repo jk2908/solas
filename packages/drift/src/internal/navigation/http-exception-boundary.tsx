@@ -32,7 +32,7 @@ export function HttpExceptionBoundary({
 						return (
 							<>
 								<meta name="robots" content="noindex,nofollow" />
-								{components?.[status] ? components[status] : null}
+								{components?.[status] ?? null}
 							</>
 						)
 					}

@@ -1,7 +1,6 @@
 import type { PluginConfig } from '../../types'
 
-import { Config } from '../../config'
-
+import { Drift } from '../../drift'
 import { AUTOGEN_MSG } from './utils'
 
 /**
@@ -13,7 +12,7 @@ export function writeConfig(config: PluginConfig) {
 	return `
     ${AUTOGEN_MSG}
 
-    import type { PluginConfig } from '${Config.PKG_NAME}'
+    import type { PluginConfig } from '${Drift.Config.PKG_NAME}'
     
     export const config = 
       ${JSON.stringify(config, null, 2)} as const satisfies PluginConfig

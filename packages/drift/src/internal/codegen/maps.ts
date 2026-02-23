@@ -1,7 +1,6 @@
-import { Config } from '../../config'
-
 import type { Build } from '../build'
 
+import { Drift } from '../../drift'
 import { AUTOGEN_MSG } from './utils'
 
 export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
@@ -59,7 +58,7 @@ export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 	return `
 	  ${AUTOGEN_MSG}
 
-		import type { ImportMap } from '${Config.PKG_NAME}'
+		import type { ImportMap } from '${Drift.Config.PKG_NAME}'
 
 	  ${statics.join('\n')}
 		

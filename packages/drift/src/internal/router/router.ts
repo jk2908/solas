@@ -1,18 +1,21 @@
 import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
-import { Config } from '../../config'
+import { Drift } from '../../drift'
 
 import { HttpException } from '../navigation/http-exception'
 
 export namespace Router {
 	export type Params = Record<string, string | string[]>
 
-	export type Handler = (req: Request) => Response | Promise<Response>
+	export type Handler = (req: DriftRequest) => Response | Promise<Response>
 
-	export type ErrorHandler = (err: Error, req: Request) => Response | Promise<Response>
+	export type ErrorHandler = (
+		err: Error,
+		req: DriftRequest,
+	) => Response | Promise<Response>
 
 	export type Middleware = (
-		req: Request,
+		req: DriftRequest,
 		next: () => Promise<Response>,
 	) => Response | Promise<Response>
 
@@ -182,6 +185,12 @@ export class Router {
 		// direct match - quick return
 		if (direct) return { route: direct, params: {} }
 
+		// HEAD falls back to GET when HEAD is not explicitly defined
+		if (method === 'HEAD') {
+			const directGet = this.#routes.static.get(`GET:${path}`)
+			if (directGet) return { route: directGet, params: {} }
+		}
+
 		// else dynamic/catch-all match
 		const segments = Router.#split(path)
 
@@ -197,7 +206,9 @@ export class Router {
 
 		for (const route of candidates) {
 			// method must match
-			if (route.method !== method) continue
+			if (route.method !== method && !(method === 'HEAD' && route.method === 'GET')) {
+				continue
+			}
 
 			const params = Router.#fit(route, segments)
 			if (!params) continue
@@ -214,7 +225,9 @@ export class Router {
 
 		// finally check catch-all routes
 		for (const route of this.#routes.catchAll) {
-			if (route.method !== method) continue
+			if (route.method !== method && !(method === 'HEAD' && route.method === 'GET')) {
+				continue
+			}
 
 			const params = Router.#fit(route, segments)
 			if (params) return { route, params }
@@ -229,36 +242,54 @@ export class Router {
 	 * @param req - the request to handle
 	 * @returns the response
 	 */
-	fetch(req: Request) {
+	async fetch(req: Request) {
 		const url = new URL(req.url)
 		const path = Router.#normalise(url.pathname, this.opts.trailingSlash)
+		let match: Router.Match | null = null
 
-		if (path !== url.pathname) {
-			url.pathname = path
-			req = new Request(url.toString(), req)
-		}
+		try {
+			if (path !== url.pathname) {
+				url.pathname = path
+				req = new Request(url.toString(), req)
+			}
 
-		const match = this.match(path, req.method.toUpperCase() as HttpMethod)
+			match = this.match(path, req.method.toUpperCase() as HttpMethod)
 
-		if (!match) {
-			const error = new HttpException(404, 'Not found')
+			if (!match) {
+				const error = new HttpException(404, 'Not found')
 
-			return (
-				this.#onError?.(
-					error,
-					Object.assign(req, { [Config.$]: { match: null, error } }),
-				) ?? new Response(error.message, { status: error.status })
+				return (
+					this.#onError?.(
+						error,
+						Object.assign(req, { [Drift.Config.$]: { match: null, error } }),
+					) ?? new Response(error.message, { status: error.status })
+				)
+			}
+
+			const matched = match
+			const request = Object.assign(req, { [Drift.Config.$]: { match: matched } })
+			const stack = [...this.#middleware.global, ...matched.route.middleware]
+
+			return await this.#run(
+				stack,
+				request,
+				() =>
+					matched.route.handler?.(request) ?? new Response('Not found', { status: 404 }),
 			)
+		} catch (err) {
+			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
+			const request = Object.assign(req, { [Drift.Config.$]: { match, error } })
+
+			if (this.#onError) {
+				return await this.#onError(error, request)
+			}
+
+			if (error instanceof HttpException) {
+				return new Response(error.message, { status: error.status })
+			}
+
+			return new Response('Internal Server Error', { status: 500 })
 		}
-
-		const request = Object.assign(req, { [Config.$]: { match } })
-		const stack = [...this.#middleware.global, ...match.route.middleware]
-
-		return this.#run(
-			stack,
-			request,
-			() => match.route.handler?.(request) ?? new Response('Not found', { status: 404 }),
-		)
 	}
 
 	/**
@@ -292,47 +323,69 @@ export class Router {
 	 * @param config - the plugin config
 	 * @returns a request handler for static assets
 	 */
-	static serveStatic(config: PluginConfig) {
+	static static(config: PluginConfig) {
 		return async (req: Request) => {
 			const pathname = new URL(req.url).pathname
-			const assetPath = pathname.startsWith('/assets/') ? pathname.slice(8) : pathname
 			const outDir = config.outDir?.replace(/\/$/, '') ?? ''
-			const filePath = `${outDir}/${assetPath}`
-			const accept = req.headers.get('accept-encoding') ?? ''
+			const filePath = `${outDir}/client${pathname}`
 
-			let file = Bun.file(filePath)
-			let encoding: string | null = null
+			return Router.serve(filePath, req, config.precompress, {
+				'Cache-Control': 'public, immutable, max-age=31536000',
+			})
+		}
+	}
 
-			if (config.precompress) {
-				if (accept.includes('br')) {
-					const brotli = Bun.file(`${filePath}.br`)
+	/**
+	 * Serve a file with optional compression content negotiation
+	 * @param filePath - absolute path to the file
+	 * @param req - the request (for Accept-Encoding header)
+	 * @param precompress - whether to look for .br variants
+	 * @param headers - additional headers to add
+	 * @returns response with the file or 404
+	 */
+	static async serve(
+		filePath: string,
+		req: Request,
+		precompress: boolean = false,
+		headers: Record<string, string> = {},
+	) {
+		const accept = req.headers.get('accept-encoding') ?? ''
 
-					if (await brotli.exists()) {
-						file = brotli
-						encoding = 'br'
-					}
-				}
+		let file = Bun.file(filePath)
+		let encoding: string | null = null
 
-				if (!encoding && accept.includes('gzip')) {
-					const gzip = Bun.file(`${filePath}.gz`)
+		if (precompress) {
+			if (accept.includes('br')) {
+				const brotli = Bun.file(`${filePath}.br`)
 
-					if (await gzip.exists()) {
-						file = gzip
-						encoding = 'gzip'
-					}
+				if (await brotli.exists()) {
+					file = brotli
+					encoding = 'br'
 				}
 			}
-
-			if (!(await file.exists())) return new Response('Not found', { status: 404 })
-
-			const res = new Response(file)
-			res.headers.set('Cache-Control', 'public, immutable, max-age=31536000')
-
-			if (encoding) res.headers.set('Content-Encoding', encoding)
-			if (file.type) res.headers.set('Content-Type', file.type)
-
-			return res
 		}
+
+		if (!(await file.exists())) {
+			return new Response('Not found', { status: 404 })
+		}
+
+		// get mime type from original path, not compressed variant
+		const mimeType = Bun.file(filePath).type
+
+		const res = new Response(file, {
+			headers: {
+				'Content-Type': headers['Content-Type'] ?? mimeType,
+			},
+		})
+
+		for (const [key, value] of Object.entries(headers)) {
+			res.headers.set(key, value)
+		}
+
+		if (precompress) res.headers.set('Vary', 'Accept-Encoding')
+		if (encoding) res.headers.set('Content-Encoding', encoding)
+
+		return res
 	}
 
 	/**

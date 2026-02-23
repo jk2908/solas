@@ -5,7 +5,9 @@ import { createContext, useCallback, useEffect, useMemo } from 'react'
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
 import { Events } from '../../utils/events'
+import { Logger } from '../../utils/logger'
 import type { RSCPayload } from '../env/rsc'
+import { Preload } from './preload'
 
 type GoConfig = {
 	replace?: boolean
@@ -16,7 +18,7 @@ const DEFAULT_GO_CONFIG = {
 	replace: false,
 } satisfies GoConfig
 
-const preloadCache = new Map<string, Promise<Response>>()
+const logger = new Logger()
 
 export const RouterContext = createContext<{
 	go: (to: string, config?: GoConfig) => Promise<string>
@@ -48,14 +50,20 @@ export function RouterProvider({
 		async (to: string, goConfig?: GoConfig) => {
 			const url = new URL(to, window.location.origin)
 			const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
-			const path = url.pathname + url.search + url.hash
+
+			if (goConfig?.query) {
+				for (const [key, value] of Object.entries(goConfig.query)) {
+					url.searchParams.set(key, String(value))
+				}
+			}
+
+			const path = Preload.toKey(url.toString(), window.location.origin)
 
 			try {
 				const promise =
-					preloadCache.get(path) ??
-					fetch(path, { headers: { accept: 'text/x-component' } })
+					Preload.get(path) ?? fetch(path, { headers: { accept: 'text/x-component' } })
 
-				if (!preloadCache.has(path)) preloadCache.set(path, promise)
+				if (!Preload.has(path)) Preload.set(path, promise)
 
 				const res = await createFromFetch<RSCPayload>(promise)
 
@@ -70,10 +78,14 @@ export function RouterProvider({
 				}
 
 				Events.dispatch('navigation', { path })
-			} catch {
-				// fail
+			} catch (err) {
+				logger.error('[navigation] failed', err)
+				Events.dispatch('navigation:error', {
+					path,
+					error: err instanceof Error ? err.message : String(err),
+				})
 			} finally {
-				preloadCache.delete(path)
+				Preload.remove(path)
 			}
 
 			return path
@@ -87,9 +99,10 @@ export function RouterProvider({
 	 * @returns a promise that resolves when the fetch completes
 	 */
 	const preload = useCallback((path: string) => {
-		if (preloadCache.has(path)) return
+		const key = Preload.toKey(path, window.location.origin)
 
-		preloadCache.set(path, fetch(path, { headers: { Accept: 'text/x-component' } }))
+		if (Preload.has(key)) return
+		Preload.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
 	}, [])
 
 	useEffect(() => {

@@ -22,7 +22,7 @@ import { ErrorBoundary } from '../ui/error-boundary'
 import { Logger } from '../../utils/logger'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Head } from '../render/head'
-import { RouterProvider } from '../router/router-provider'
+import { RouterProvider } from '../router/router-context'
 import type { RSCPayload } from './rsc'
 
 /**
@@ -30,7 +30,9 @@ import type { RSCPayload } from './rsc'
  */
 export async function browser() {
 	const logger = new Logger()
-	const payload = await createFromReadableStream<RSCPayload>(rscStream)
+	const payload = await createFromReadableStream<RSCPayload>(rscStream, {
+		unstable_allowPartialStream: true,
+	})
 
 	let setPayload: (payload: RSCPayload) => void = () => {}
 
@@ -76,7 +78,7 @@ export async function browser() {
 				method: 'POST',
 				body: await encodeReply(args, { temporaryReferences }),
 				headers: {
-					'x-rsc-action': id,
+					'x-rsc-action-id': id,
 				},
 			}),
 			{ temporaryReferences },

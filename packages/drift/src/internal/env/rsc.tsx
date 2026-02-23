@@ -11,10 +11,9 @@ import {
 
 import type { DriftRequest, ImportMap, Manifest } from '../../types'
 
-import { Config } from '../../config'
-
 import DefaultErr from '../ui/defaults/error'
 
+import { Drift } from '../../drift'
 import { Logger } from '../../utils/logger'
 import { Metadata } from '../metadata'
 import {
@@ -25,7 +24,8 @@ import {
 } from '../navigation/http-exception'
 import { Tree } from '../render/tree'
 import { Matcher } from '../router/matcher'
-import { getKnownDigest } from './utils'
+import { RequestContext } from './request-context'
+import { getKnownDigest, isKnownError } from './utils'
 
 export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -37,14 +37,13 @@ export type RSCPayload = {
 /**
  * RSC handler - returns a ReadableStream response for RSC requests
  * @param req - the incoming request
- * @param Shell - the app root (shell) component to render
  * @param manifest - the application manifest containing routes and metadata
  * @param importMap - the import map for route components and endpoints
  * @param baseMetadata - optional global metadata from config
  * @param returnValue - optional return value from an action
  * @param formState - optional React form state for hydration
  * @param temporaryReferences - optional temporary references for RSC
- * @returns a ReadableStream response for RSC requests
+ * @returns stream, status code, and ppr flag for the response
  */
 export async function rsc(
 	req: DriftRequest,
@@ -57,20 +56,21 @@ export async function rsc(
 ) {
 	const matcher = new Matcher(manifest, importMap)
 	const logger = new Logger()
+	const prerender = req.headers.get('x-drift-prerender') === '1'
 	const url = new URL(req.url)
 	const pathname =
 		url.pathname.endsWith('/') && url.pathname !== '/'
 			? url.pathname.slice(0, -1)
 			: url.pathname
 	const match = matcher.enhance(
-		matcher.reconcile(pathname, req[Config.$].match, req[Config.$].error),
+		matcher.reconcile(pathname, req[Drift.Config.$].match, req[Drift.Config.$].error),
 	)
 
 	// if there's no match then no user supplied error boundary
 	// has been found, and we should server render a default
 	// error screen
 	if (!match) {
-		const error = req[Config.$].error ?? new HttpException(404, 'Not found')
+		const error = req[Drift.Config.$].error ?? new HttpException(404, 'Not found')
 		const title = `${'status' in error ? `${error.status} -` : ''}${error.message}`
 
 		const rscPayload: RSCPayload = {
@@ -94,19 +94,33 @@ export async function rsc(
 		}
 
 		return {
-			stream: renderToReadableStream(rscPayload, {
-				temporaryReferences,
-				onError(err: unknown) {
-					const digest = getKnownDigest(err)
-					if (digest) return digest
+			// this path is a safety fallback when a prerender request
+			// hits an unmatched route. In build prerender we force
+			// mode to 'full' so the 404/error shell resolves
+			// immediately. In normal request-time rendering
+			// we keep mode as null (obvi)
+			stream: RequestContext.write({ prerender: prerender ? 'full' : null }, () =>
+				renderToReadableStream(rscPayload, {
+					temporaryReferences,
+					onError(err: unknown) {
+						if (err == null) return
 
-					logger.error('[rsc]', err)
-				},
-			}),
+						const digest = getKnownDigest(err)
+
+						if (digest) return digest
+						if (isKnownError(err)) return
+
+						logger.error('[rsc]', err)
+					},
+				}),
+			),
 			status: 404,
+			ppr: false,
 		}
 	}
 
+	// check if this route is a candidate for ppr
+	const ppr = match.prerender === 'ppr'
 	const collection = new Metadata.Collection(baseMetadata)
 
 	const metadata = match
@@ -146,17 +160,29 @@ export async function rsc(
 	const status = isHttpException(match.error) ? match.error.status : 200
 
 	try {
-		const stream = renderToReadableStream(rscPayload, {
-			temporaryReferences,
-			onError(err: unknown) {
-				const digest = getKnownDigest(err)
-				if (digest) return digest
+		// this is the main matched route render pass for page/layout
+		// tree output. Mode is null for normal ssr, 'full' for full
+		// prerender, and 'ppr' for ppr prerender. dynamic() only
+		// suspends when mode is 'ppr'
+		const stream = RequestContext.write(
+			{ prerender: prerender ? (ppr ? 'ppr' : 'full') : null },
+			() =>
+				renderToReadableStream(rscPayload, {
+					temporaryReferences,
+					onError(err: unknown) {
+						if (err == null) return
 
-				logger.error('rsc', err)
-			},
-		})
+						const digest = getKnownDigest(err)
 
-		return { stream, status }
+						if (digest) return digest
+						if (isKnownError(err)) return
+
+						logger.error('[rsc]', err)
+					},
+				}),
+		)
+
+		return { stream, status, ppr }
 	} catch (err) {
 		// shell failed to render - return minimal fallback
 		logger.error('rsc shell', err)
@@ -172,31 +198,38 @@ export async function rsc(
 		})
 
 		return {
-			stream: renderToReadableStream(
-				{
-					root: (
-						<html lang="en">
-							<head>
-								<meta charSet="UTF-8" />
-								<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-								<meta name="robots" content="noindex,nofollow" />
+			// this branch renders the minimal error shell after the
+			// main tree throws. We keep the same mode as the
+			// request so helpers see consistent state
+			// prevents mode drift on error paths
+			stream: RequestContext.write({ prerender: prerender ? 'full' : null }, () =>
+				renderToReadableStream(
+					{
+						root: (
+							<html lang="en">
+								<head>
+									<meta charSet="UTF-8" />
+									<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+									<meta name="robots" content="noindex,nofollow" />
 
-								<title>{title}</title>
-							</head>
+									<title>{title}</title>
+								</head>
 
-							<body>
-								<DefaultErr error={error} />
-							</body>
-						</html>
-					),
-					returnValue,
-					formState,
-				},
-				{
-					temporaryReferences,
-				},
+								<body>
+									<DefaultErr error={error} />
+								</body>
+							</html>
+						),
+						returnValue,
+						formState,
+					},
+					{
+						temporaryReferences,
+					},
+				),
 			),
 			status: 500,
+			ppr: false,
 		}
 	}
 }
@@ -209,7 +242,7 @@ export async function action(req: Request) {
 	const id = req.headers.get('x-rsc-action-id')
 
 	if (id) {
-		// x-rsc-action header exists when action is
+		// x-rsc-action-id header exists when action is
 		// called via ReactClient.setServerCallback
 		const body = req.headers.get('content-type')?.startsWith('multipart/form-data')
 			? await req.formData()
@@ -233,22 +266,6 @@ export async function action(req: Request) {
 
 	return { returnValue, formState, temporaryReferences }
 }
-
-const driftPayloadReducer = {
-	Error: (v: unknown) => {
-		if (!(v instanceof Error)) return false
-
-		return [
-			v.constructor.name,
-			v.message,
-			v.cause,
-			v.stack,
-			isHttpException(v) ? v.status : undefined,
-			isHttpException(v) ? v.payload : undefined,
-		]
-	},
-}
-
 export const driftPayloadReviver = {
 	Error: ([name, message, cause, stack, status, payload]: [
 		string,

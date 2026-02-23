@@ -3,13 +3,11 @@ import { Link } from '@jk2908/drift/navigation'
 import { Blue } from './blue'
 import { Red } from './red'
 
-//export const prerender = true
+// export const prerender = true
 
 export const metadata = {
 	title: 'Home',
 }
-
-const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
 
 export default async function Page() {
 	return (
@@ -25,11 +23,6 @@ export default async function Page() {
 			<Red />
 		</div>
 	)
-}
-
-async function SuspendedComponent() {
-	await wait(5000)
-	return <div>I am suspended!</div>
 }
 /*
 export default function HomePage({ params }: { params?: Record<string, string> }) {

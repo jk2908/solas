@@ -13,7 +13,7 @@ export default defineConfig(() => {
 		plugins: [
 			drift({
 				url: 'http://localhost:8787',
-				prerender: 'declarative',
+				prerender: false,
 				metadata: {
 					title: '%s - jk2908',
 					meta: [

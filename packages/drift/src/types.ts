@@ -1,6 +1,6 @@
 type BunRequest = Request & { params?: Record<string, string | string[]> }
 
-import { Config } from './config'
+import { Drift } from './drift'
 
 import type { Build } from './internal/build'
 
@@ -9,10 +9,13 @@ import type { HttpException } from './internal/navigation/http-exception'
 import type { Router } from './internal/router/router'
 import type { LogLevel } from './utils/logger'
 
+export type PrerenderMode = 'full' | 'ppr' | false
+export type SegmentPrerender = 'full' | 'ppr' | false
+
 export type PluginConfig = {
 	url?: `http://${string}` | `https://${string}`
 	precompress?: boolean
-	prerender?: 'full' | 'declarative'
+	prerender?: PrerenderMode
 	outDir?: string
 	metadata?: Metadata.Item
 	trailingSlash?: boolean
@@ -34,11 +37,11 @@ export type BuildContext = {
 		}
 	}
 	transpiler: InstanceType<typeof Bun.Transpiler>
-	prerenderableRoutes: Set<string>
+	prerenderedRoutes: Set<string>
 }
 
 export type DriftRequest = Request & {
-	[Config.$]: {
+	[Drift.Config.$]: {
 		error?: HttpException | Error
 		match: Router.Match | null
 	}
@@ -59,7 +62,7 @@ export type Segment = {
 		page?: string | null
 	}
 	error?: HttpException | Error
-	prerender: boolean
+	prerender: SegmentPrerender
 	dynamic: boolean
 	catch_all: boolean
 }
@@ -98,8 +101,14 @@ export type MapEntry = {
 
 export type ImportMap = Record<string, MapEntry>
 
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH'
+export type HttpMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS'
 
 export type Primitive = string | number | boolean | bigint | symbol | null | undefined
 
 export type LooseNumber<T extends number> = T | (number & {})
+
+export type BuildManifest = {
+	prerenderedRoutes: string[]
+	outDir: string
+	precompress: boolean
+}

@@ -1,4 +1,4 @@
-import { Config } from '../config'
+import { Drift } from '../drift'
 
 import { HttpException } from '../internal/navigation/http-exception'
 
@@ -65,7 +65,7 @@ export class Logger {
 		}
 
 		console.log(
-			`[${Config.NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`,
+			`[${Drift.Config.NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`,
 			error ? `\n${error.stack}` : '',
 		)
 	}
