@@ -1,6 +1,6 @@
-import type { DriftRequest, HttpMethod, PluginConfig } from '../types'
+import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
-import { Config } from '../_shared/config'
+import { Config } from '../../config'
 
 import { HttpException } from '../navigation/http-exception'
 

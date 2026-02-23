@@ -7,11 +7,11 @@ import type {
 	ManifestEntry,
 	Primitive,
 	View,
-} from '../types'
+} from '../../types'
 
 import { Build } from '../build'
 
-import { Logger } from '../_shared/utils/logger'
+import { Logger } from '../../utils/logger'
 import { Metadata } from '../metadata'
 import { HttpException, isHttpException } from '../navigation/http-exception'
 import type { Router } from './router'

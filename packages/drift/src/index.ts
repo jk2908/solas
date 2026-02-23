@@ -8,20 +8,24 @@ import rsc from '@vitejs/plugin-rsc'
 
 import type { BuildContext, PluginConfig } from './types'
 
-import { writeConfig } from './codegen/config'
-import { writeBrowserEntry, writeRSCEntry, writeSSREntry } from './codegen/environments'
-import { writeManifest } from './codegen/manifest'
-import { writeMaps } from './codegen/maps'
-import { writeRouter } from './codegen/router'
+import { writeConfig } from './internal/codegen/config'
+import {
+	writeBrowserEntry,
+	writeRSCEntry,
+	writeSSREntry,
+} from './internal/codegen/environments'
+import { writeManifest } from './internal/codegen/manifest'
+import { writeMaps } from './internal/codegen/maps'
+import { writeRouter } from './internal/codegen/router'
 
-import { Config } from './_shared/config'
+import { Config } from './config'
 
-import { Build } from './build'
+import { Build } from './internal/build'
 
-import { Compress } from './_shared/utils/compress'
-import { Format } from './_shared/utils/format'
-import { Logger } from './_shared/utils/logger'
-import { Time } from './_shared/utils/time'
+import { Compress } from './utils/compress'
+import { Format } from './utils/format'
+import { Logger } from './utils/logger'
+import { Time } from './utils/time'
 
 const DEFAULT_CONFIG = {
 	precompress: true,
@@ -33,27 +37,13 @@ const DEFAULT_CONFIG = {
 function drift(c: PluginConfig): PluginOption[] {
 	const config = { ...DEFAULT_CONFIG, ...c }
 
-	config.app = {
-		...(config.app ?? {}),
-		// @todo: runtime validation
-		// @ts-expect-error
-		url:
-			config.app?.url ??
-			process.env.VITE_APP_URL?.toString() ??
-			process.env.APP_URL?.toString(),
-	}
-
-	config.logger = {
-		...(config.logger ?? {}),
-		level:
-			(config.logger?.level ??
-			(import.meta.env.PROD || process.env.NODE_ENV === 'production'))
-				? 'error'
-				: 'debug',
-	}
+	// @todo: runtime validation
+	// @ts-expect-error
+	config.url =
+		config.url ?? process.env.VITE_APP_URL?.toString() ?? process.env.APP_URL?.toString()
 
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
-	const logger = new Logger(config.logger.level)
+	const logger = new Logger()
 
 	const buildContext: BuildContext = {
 		outDir: config.outDir,
@@ -68,7 +58,6 @@ function drift(c: PluginConfig): PluginOption[] {
 			},
 		},
 		transpiler,
-		logger,
 		prerenderableRoutes: new Set<string>(),
 	}
 
@@ -99,7 +88,7 @@ function drift(c: PluginConfig): PluginOption[] {
 		])
 
 		// format generated files, avoid stopping build on errors
-		await Format.run(Config.GENERATED_DIR, buildContext).catch(() => {})
+		await Format.run(Config.GENERATED_DIR).catch(() => {})
 	}
 
 	// debounced build to avoid multiple builds on file changes
@@ -156,7 +145,7 @@ function drift(c: PluginConfig): PluginOption[] {
 
 			try {
 				if (buildContext.prerenderableRoutes.size > 0) {
-					if (!config.app?.url) {
+					if (!config.url) {
 						logger.error(
 							'[closeBundle]',
 							'Skipping prerender: no app URL configured. Set the VITE_APP_URL env var or set the app.url in the plugin config',
@@ -182,7 +171,7 @@ function drift(c: PluginConfig): PluginOption[] {
 								const { value, done } = await Build.prerender(
 									(req: Request) => app.fetch(req),
 									route,
-									config.app.url,
+									config.url,
 									buildContext,
 								).next()
 

@@ -1,4 +1,4 @@
-import { Link } from '@jk2908/drift/client'
+import { Link } from '@jk2908/drift/navigation'
 
 export default async function Page() {
 	await new Promise(resolve => setTimeout(resolve, 2000))

@@ -1,6 +1,6 @@
 import { Config } from '../config'
 
-import { HttpException } from '../../navigation/http-exception'
+import { HttpException } from '../internal/navigation/http-exception'
 
 const LEVELS = {
 	debug: 0,

@@ -1,4 +1,4 @@
-import { Config } from '../_shared/config'
+import { Config } from '../../config'
 
 import { AUTOGEN_MSG } from './utils'
 

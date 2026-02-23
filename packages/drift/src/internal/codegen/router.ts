@@ -1,6 +1,6 @@
-import type { Endpoint, Manifest, Segment } from '../types'
+import type { Endpoint, Manifest, Segment } from '../../types'
 
-import { Config } from '../_shared/config'
+import { Config } from '../../config'
 
 import { Build } from '../build'
 

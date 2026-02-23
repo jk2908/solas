@@ -2,9 +2,11 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BuildContext, Endpoint, HttpMethod, PluginConfig, Segment } from './types'
+import type { BuildContext, Endpoint, HttpMethod, PluginConfig, Segment } from '../types'
 
-import { Config } from './_shared/config'
+import { Config } from '../config'
+
+import { Logger } from '../utils/logger'
 
 export namespace Build {
 	export type ScanResult = {
@@ -57,6 +59,8 @@ export namespace Build {
 		MIDDLEWARE: '$MW',
 		ENDPOINT: '$E',
 	} as const
+
+	const logger = new Logger()
 
 	/**
 	 * Finder class to process application routes
@@ -138,7 +142,7 @@ export namespace Build {
 			try {
 				return await this.process(await this.#scan(Config.APP_DIR))
 			} catch (err) {
-				this.buildContext?.logger.error('[run]: failed to build manifest', err)
+				logger.error('[run]: failed to build manifest', err)
 				throw err
 			}
 		}
@@ -308,7 +312,7 @@ export namespace Build {
 
 				// warn if segment has 404/loading but no page or layout
 				if (!currentPage && !currentLayout && (current404 || currentLoader)) {
-					this.buildContext?.logger.warn(
+					logger.warn(
 						`[#scan]: ${dir} has +error or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
 					)
 				}
@@ -337,10 +341,7 @@ export namespace Build {
 
 				return res satisfies ScanResult
 			} catch (err) {
-				this.buildContext?.logger.error(
-					`[#scan]: Failed to compose manifest from ${dir}`,
-					err,
-				)
+				logger.error(`[#scan]: Failed to compose manifest from ${dir}`, err)
 
 				return {
 					segments: [],
@@ -506,10 +507,7 @@ export namespace Build {
 							const exports = this.buildContext.transpiler.scan(code).exports
 
 							if (!exports.includes('middleware')) {
-								this.buildContext?.logger.warn(
-									'[process]',
-									`Missing export 'middleware' in ${middleware}`,
-								)
+								logger.warn('[process]', `Missing export 'middleware' in ${middleware}`)
 							}
 
 							imports.middlewares.static.set(middlewareId, middlewareImport)
@@ -542,7 +540,7 @@ export namespace Build {
 								)
 
 								if (!paramsList?.length) {
-									this.buildContext?.logger.warn(
+									logger.warn(
 										'[process]',
 										`No prerenderable params found for ${page}, skipping prerendering`,
 									)
@@ -554,7 +552,7 @@ export namespace Build {
 								)
 
 								if (!dynamicPrerenderableRoutes?.length) {
-									this.buildContext?.logger.warn(
+									logger.warn(
 										'[process]',
 										`No prerenderable routes found for ${page}, skipping prerendering`,
 									)
@@ -606,7 +604,7 @@ export namespace Build {
 						middlewareIds,
 					}
 				} catch (err) {
-					this.buildContext?.logger.error('[process]: failed to process segment', err)
+					logger.error('[process]: failed to process segment', err)
 				}
 			}
 
@@ -624,7 +622,7 @@ export namespace Build {
 
 					for (const method of exports) {
 						if (!HTTP_VERBS.includes(method as HttpMethod)) {
-							this.buildContext?.logger.warn(
+							logger.warn(
 								'[process]',
 								`Ignoring unsupported HTTP verb: ${method} in ${endpoint.file}`,
 							)
@@ -689,7 +687,7 @@ export namespace Build {
 						manifest[route] = entry
 					}
 				} catch (err) {
-					this.buildContext?.logger.error('[process]: failed to process route', err)
+					logger.error('[process]: failed to process route', err)
 				}
 			}
 
@@ -710,7 +708,7 @@ export namespace Build {
 
 			return exports.some(e => e === 'prerender')
 		} catch (err) {
-			buildContext.logger.error(`prerender:isPrerenderable ${path}`, err)
+			logger.error(`prerender:isPrerenderable ${path}`, err)
 			return false
 		}
 	}
@@ -726,7 +724,7 @@ export namespace Build {
 			const mod = await import(path)
 
 			if (!mod || !mod?.prerender || typeof mod.prerender !== 'function') {
-				buildContext.logger.warn(
+				logger.warn(
 					'[prerender:getPrerenderParamsList]',
 					`No exported prerender function found in ${path}`,
 				)
@@ -736,7 +734,7 @@ export namespace Build {
 
 			return await Promise.resolve(mod.prerender())
 		} catch (err) {
-			buildContext.logger.error(`prerender:getPrerenderParamsList ${path}`, err)
+			logger.error(`prerender:getPrerenderParamsList ${path}`, err)
 			return []
 		}
 	}
@@ -815,7 +813,7 @@ export namespace Build {
 				res,
 			}
 		} catch (err) {
-			buildContext?.logger.error(`[prerender*] ${target}`, err)
+			logger.error(`[prerender*] ${target}`, err)
 			throw err
 		}
 	}

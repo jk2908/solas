@@ -2,7 +2,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 import { brotliCompress } from 'node:zlib'
 
-import type { BuildContext } from '../../types'
+import type { BuildContext } from '../types'
+
+import { Logger } from './logger'
+
+const logger = new Logger()
 
 export namespace Compress {
 	/**
@@ -52,7 +56,7 @@ export namespace Compress {
 				}
 			}
 		} catch (err) {
-			ctx.logger.error(`[compress*:${input}]`, err)
+			logger.error(`[compress*:${input}]`, err)
 			throw err
 		}
 	}
