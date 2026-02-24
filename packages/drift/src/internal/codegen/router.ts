@@ -2,9 +2,9 @@ import type { Endpoint, Manifest, Segment } from '../../types'
 
 import { Drift } from '../../drift'
 
-import { Build } from '../build'
-
 import { AUTOGEN_MSG } from './utils'
+
+import { Build } from '../build'
 
 /**
  * Generates the exported server-side code for creating the router
@@ -29,7 +29,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 
     import type { Server } from 'bun'
 
-	import { Router } from '${Drift.Config.PKG_NAME}/router'
+		import { Router } from '${Drift.Config.PKG_NAME}/router'
 
     import { handler as rsc } from './entry.rsc'
     import { config } from './config'

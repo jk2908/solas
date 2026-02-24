@@ -8,7 +8,9 @@
 		"drift": "./dist/cli.js"
 	},
 	"scripts": {
-		"build": "rm -rf dist && tsc && chmod +x dist/cli.js"
+		"build": "rm -rf dist && tsc && chmod +x dist/cli.js",
+		"pack:dry": "npm pack --dry-run",
+		"prepublishOnly": "npm run build && npm run pack:dry"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.1.1",
@@ -64,9 +66,9 @@
 			"types": "./dist/error-boundary.d.ts",
 			"import": "./dist/error-boundary.js"
 		},
-		"./config": {
-			"types": "./dist/config.d.ts",
-			"import": "./dist/config.js"
+		"./drift": {
+			"types": "./dist/drift.d.ts",
+			"import": "./dist/drift.js"
 		}
 	},
 	"files": [

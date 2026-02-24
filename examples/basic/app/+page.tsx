@@ -1,5 +1,6 @@
 import { Link } from '@jk2908/drift/navigation'
 
+import { ServerCounterForm } from './action/form'
 import { Blue } from './blue'
 import { Red } from './red'
 
@@ -21,6 +22,7 @@ export default async function Page() {
 			</Link>
 			<Link href="/about">Go to About</Link>
 			<Red />
+			<ServerCounterForm />
 		</div>
 	)
 }

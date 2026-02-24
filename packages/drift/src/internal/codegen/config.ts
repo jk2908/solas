@@ -1,6 +1,7 @@
 import type { PluginConfig } from '../../types'
 
 import { Drift } from '../../drift'
+
 import { AUTOGEN_MSG } from './utils'
 
 /**

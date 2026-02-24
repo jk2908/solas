@@ -1,17 +1,16 @@
 #!/usr/bin/env bun
-// set production mode early
-process.env.NODE_ENV = 'production'
-
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import type { BuildManifest } from './types'
 
 import { Drift } from './drift'
-import { Prerender } from './internal/prerender'
+
 import { Compress } from './utils/compress'
 import { Logger } from './utils/logger'
 import { Time } from './utils/time'
+
+import { Prerender } from './internal/prerender'
 
 const logger = new Logger()
 const INTERNAL_ORIGIN = 'http://drift.local'
@@ -28,6 +27,8 @@ function getPrerenderTimeoutMs() {
 }
 
 async function build() {
+	process.env.NODE_ENV = 'production'
+
 	const cwd = process.cwd()
 	const manifestPath = path.join(cwd, Drift.Config.GENERATED_DIR, 'build.json')
 
@@ -209,12 +210,15 @@ async function dev() {
 		stdout: 'inherit',
 		stderr: 'inherit',
 		stdin: 'inherit',
+		env: { ...process.env, NODE_ENV: 'development' },
 	})
 
 	await proc.exited
 }
 
 async function preview() {
+	process.env.NODE_ENV = 'production'
+
 	const cwd = process.cwd()
 	const outDir = path.resolve(cwd, 'dist')
 	const rscDir = path.join(outDir, 'rsc')

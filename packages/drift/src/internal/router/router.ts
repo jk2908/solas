@@ -1,7 +1,7 @@
 import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
 import { Drift } from '../../drift'
-
+import { isAction } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
 
 export namespace Router {
@@ -246,6 +246,7 @@ export class Router {
 		const url = new URL(req.url)
 		const path = Router.#normalise(url.pathname, this.opts.trailingSlash)
 		let match: Router.Match | null = null
+		let action = false
 
 		try {
 			if (path !== url.pathname) {
@@ -253,7 +254,14 @@ export class Router {
 				req = new Request(url.toString(), req)
 			}
 
-			match = this.match(path, req.method.toUpperCase() as HttpMethod)
+			action = await isAction(req)
+			const method = req.method.toUpperCase() as HttpMethod
+
+			// action requests stay on the same pathname only the method is
+			// normalised to GET this lets page/layout routes match for
+			// rerender action execution still reads POST body and
+			// may redirect()
+			match = this.match(path, action ? 'GET' : method)
 
 			if (!match) {
 				const error = new HttpException(404, 'Not found')
@@ -261,13 +269,15 @@ export class Router {
 				return (
 					this.#onError?.(
 						error,
-						Object.assign(req, { [Drift.Config.$]: { match: null, error } }),
+						Object.assign(req, { [Drift.Config.$]: { match: null, error, action } }),
 					) ?? new Response(error.message, { status: error.status })
 				)
 			}
 
 			const matched = match
-			const request = Object.assign(req, { [Drift.Config.$]: { match: matched } })
+			const request = Object.assign(req, {
+				[Drift.Config.$]: { match: matched, action },
+			})
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
 
 			return await this.#run(
@@ -278,7 +288,7 @@ export class Router {
 			)
 		} catch (err) {
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
-			const request = Object.assign(req, { [Drift.Config.$]: { match, error } })
+			const request = Object.assign(req, { [Drift.Config.$]: { match, error, action } })
 
 			if (this.#onError) {
 				return await this.#onError(error, request)

@@ -2,12 +2,12 @@ type BunRequest = Request & { params?: Record<string, string | string[]> }
 
 import { Drift } from './drift'
 
-import type { Build } from './internal/build'
+import type { LogLevel } from './utils/logger'
 
+import type { Build } from './internal/build'
 import type { Metadata } from './internal/metadata'
 import type { HttpException } from './internal/navigation/http-exception'
 import type { Router } from './internal/router/router'
-import type { LogLevel } from './utils/logger'
 
 export type PrerenderMode = 'full' | 'ppr' | false
 export type SegmentPrerender = 'full' | 'ppr' | false
@@ -43,6 +43,7 @@ export type BuildContext = {
 export type DriftRequest = Request & {
 	[Drift.Config.$]: {
 		error?: HttpException | Error
+		action?: boolean
 		match: Router.Match | null
 	}
 }
