@@ -14,7 +14,7 @@ type Props = {
  * @param props - the props to pass to the link
  * @returns a link element that navigates to the given href
  */
-export function Link({ href, preload = 'intent', ...props }: Props) {
+export function Link({ children, href, preload = 'intent', ...props }: Props) {
 	const { go, preload: preloader } = useRouter()
 
 	return (
@@ -57,7 +57,8 @@ export function Link({ href, preload = 'intent', ...props }: Props) {
 
 				if (preload === 'none') return
 				preloader(href)
-			}}
-		/>
+			}}>
+			{children}
+		</a>
 	)
 }
