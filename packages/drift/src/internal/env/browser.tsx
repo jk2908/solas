@@ -17,19 +17,16 @@ import {
 } from '@vitejs/plugin-rsc/browser'
 import { rscStream } from 'rsc-html-stream/client'
 
-import { Logger } from '../../utils/logger'
-
+import type { RSCPayload } from './rsc'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Head } from '../render/head'
 import { RouterProvider } from '../router/router-context'
 import { ErrorBoundary } from '../ui/error-boundary'
-import type { RSCPayload } from './rsc'
 
 /**
  * Browser RSC hydration entry point
  */
 export async function browser() {
-	const logger = new Logger()
 	const payload = await createFromReadableStream<RSCPayload>(rscStream, {
 		unstable_allowPartialStream: true,
 	})
@@ -56,9 +53,7 @@ export async function browser() {
 		return (
 			<RedirectBoundary>
 				<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
-					<ErrorBoundary
-						fallback={null}
-						onError={err => logger.error('[browser:metadata]', err)}>
+					<ErrorBoundary fallback={null}>
 						<Suspense fallback={null}>
 							<Head metadata={p.metadata} />
 						</Suspense>

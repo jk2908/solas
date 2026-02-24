@@ -1,6 +1,5 @@
 {
 	"compilerOptions": {
-		"baseUrl": ".",
 		"target": "ESNext",
 		"lib": ["ESNext", "DOM"],
 		"module": "ESNext",
@@ -11,6 +10,7 @@
 		"allowSyntheticDefaultImports": true,
 		"skipLibCheck": true,
 		"paths": {
+			"*": ["./*"],
 			"#/*": ["./*"]
 		},
 		"types": ["vite/client", "bun", "@vitejs/plugin-rsc/types"]

@@ -1,4 +1,5 @@
 import type { Dirent } from 'node:fs'
+
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
@@ -12,7 +13,9 @@ import type {
 } from '../types'
 
 import { Drift } from '../drift'
+
 import { Logger } from '../utils/logger'
+
 import { Prerender } from './prerender'
 
 export namespace Build {

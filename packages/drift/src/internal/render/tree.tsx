@@ -1,10 +1,9 @@
 import { Suspense } from 'react'
 
-import DefaultErr from '../ui/defaults/error'
-
+import type { Matcher } from '../router/matcher'
 import { HttpException, isHttpException } from '../navigation/http-exception'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary'
-import type { Matcher } from '../router/matcher'
+import DefaultErr from '../ui/defaults/error'
 
 type Match = NonNullable<Matcher.EnhancedMatch>
 

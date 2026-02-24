@@ -9,12 +9,12 @@ import type {
 	View,
 } from '../../types'
 
-import { Build } from '../build'
-
 import { Logger } from '../../utils/logger'
+
+import type { Router } from './router'
+import { Build } from '../build'
 import { Metadata } from '../metadata'
 import { HttpException, isHttpException } from '../navigation/http-exception'
-import type { Router } from './router'
 
 export namespace Matcher {
 	export type Match = ReturnType<Matcher['reconcile']>

@@ -6,6 +6,7 @@ import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
 import { Events } from '../../utils/events'
 import { Logger } from '../../utils/logger'
+
 import type { RSCPayload } from '../env/rsc'
 import { Preload } from './preload'
 

@@ -1,0 +1,26 @@
+{
+	"$schema": "./node_modules/oxlint/configuration_schema.json",
+	"plugins": ["react", "react-perf", "jsx-a11y"],
+	"categories": {
+		"correctness": "error",
+		"suspicious": "warn"
+	},
+	"rules": {
+		"rules-of-hooks": "error",
+		"exhaustive-deps": "warn",
+		"no-shadow": "off",
+		"react-in-jsx-scope": "off",
+		"jsx-uses-react": "off",
+		"jsx-key": "error",
+		"jsx-no-constructed-context-values": "warn",
+		"no-array-index-key": "warn",
+		"jsx-no-new-function-as-prop": "warn",
+		"jsx-no-new-object-as-prop": "warn",
+		"jsx-no-new-array-as-prop": "warn",
+		"jsx-no-jsx-as-prop": "warn",
+		"button-has-type": "warn",
+		"img-redundant-alt": "warn",
+		"no-autofocus": "warn"
+	},
+	"ignorePatterns": ["**/dist/**", "**/.drift/**", "**/node_modules/**"]
+}

@@ -11,12 +11,12 @@ import { Drift } from '../../drift'
 import { Logger } from '../../utils/logger'
 import { getKnownDigest } from './utils'
 
+import type { RSCPayload } from './rsc'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Prerender } from '../prerender'
 import { Head } from '../render/head'
 import { RouterProvider } from '../router/router-context'
 import { ErrorBoundary } from '../ui/error-boundary'
-import type { RSCPayload } from './rsc'
 
 type Opts = {
 	formState?: ReactFormState
@@ -33,9 +33,7 @@ function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
 	return (
 		<RedirectBoundary>
 			<RouterProvider>
-				<ErrorBoundary
-					fallback={null}
-					onError={err => logger.error('[ssr:metadata]', err)}>
+				<ErrorBoundary fallback={null}>
 					<Suspense fallback={null}>
 						<Head metadata={payload.metadata} />
 					</Suspense>

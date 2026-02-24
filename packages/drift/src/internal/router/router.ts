@@ -1,6 +1,7 @@
 import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
 import { Drift } from '../../drift'
+
 import { isAction } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
 

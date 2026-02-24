@@ -1,0 +1,72 @@
+{
+	"useTabs": true,
+	"tabWidth": 2,
+	"printWidth": 90,
+	"singleQuote": true,
+	"jsxSingleQuote": false,
+	"quoteProps": "as-needed",
+	"trailingComma": "all",
+	"semi": false,
+	"arrowParens": "avoid",
+	"bracketSameLine": true,
+	"bracketSpacing": true,
+	"singleAttributePerLine": false,
+	"sortImports": {
+		"newlinesBetween": false,
+		"customGroups": [
+			{
+				"groupName": "vite",
+				"elementNamePattern": ["vite"]
+			},
+			{
+				"groupName": "react",
+				"elementNamePattern": ["react", "react/**", "react-dom", "react-dom/**"]
+			},
+			{
+				"groupName": "drift-packages",
+				"elementNamePattern": ["@jk2908/drift", "@jk2908/drift/**", ".drift", ".drift/**"]
+			},
+			{
+				"groupName": "types",
+				"elementNamePattern": ["**/types", "**/types/**"]
+			},
+			{
+				"groupName": "drift",
+				"elementNamePattern": ["**/drift", "**/drift/**"]
+			},
+			{
+				"groupName": "utils",
+				"elementNamePattern": ["**/utils", "**/utils/**"]
+			},
+			{
+				"groupName": "internal",
+				"elementNamePattern": ["**/internal", "**/internal/**"]
+			}
+		],
+		"groups": [
+			"type-import",
+			{ "newlinesBetween": true },
+			"value-builtin",
+			{ "newlinesBetween": true },
+			"vite",
+			{ "newlinesBetween": true },
+			"react",
+			{ "newlinesBetween": true },
+			"drift-packages",
+			"value-external",
+			{ "newlinesBetween": true },
+			"types",
+			{ "newlinesBetween": true },
+			"drift",
+			{ "newlinesBetween": true },
+			"utils",
+			{ "newlinesBetween": true },
+			"internal",
+			{ "newlinesBetween": true },
+			["type-parent", "type-sibling", "type-index"],
+			["value-parent", "value-sibling", "value-index"],
+			"unknown"
+		]
+	},
+	"ignorePatterns": ["**/dist/**", "**/.drift/**", "**/node_modules/**"]
+}
