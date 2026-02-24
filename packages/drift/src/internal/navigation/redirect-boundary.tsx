@@ -1,7 +1,6 @@
 'use client'
 
 import { ErrorBoundary } from '../ui/error-boundary'
-
 import { isRedirect, REDIRECT_DIGEST_PREFIX } from './redirect'
 
 export function RedirectBoundary({ children }: { children: React.ReactNode }) {

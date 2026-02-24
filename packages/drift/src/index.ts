@@ -9,6 +9,13 @@ import rsc from '@vitejs/plugin-rsc'
 
 import type { BuildContext, PluginConfig } from './types'
 
+import { Drift } from './drift'
+
+import { Format } from './utils/format'
+import { Logger } from './utils/logger'
+import { Time } from './utils/time'
+
+import { Build } from './internal/build'
 import { writeConfig } from './internal/codegen/config'
 import {
 	writeBrowserEntry,
@@ -18,13 +25,6 @@ import {
 import { writeManifest } from './internal/codegen/manifest'
 import { writeMaps } from './internal/codegen/maps'
 import { writeRouter } from './internal/codegen/router'
-
-import { Build } from './internal/build'
-
-import { Drift } from './drift'
-import { Format } from './utils/format'
-import { Logger } from './utils/logger'
-import { Time } from './utils/time'
 
 const DRIFT_VERSION = (() => {
 	const value = JSON.parse(
@@ -190,5 +190,7 @@ function drift(c: PluginConfig): PluginOption[] {
 export default drift
 
 export * from './types'
+
+export { Drift } from './drift'
 
 export type * from './drift.d.ts'

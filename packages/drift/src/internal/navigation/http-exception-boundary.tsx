@@ -1,7 +1,6 @@
 'use client'
 
 import { ErrorBoundary } from '../ui/error-boundary'
-
 import {
 	HTTP_EXCEPTION_DIGEST_PREFIX,
 	type HttpExceptionStatusCode,

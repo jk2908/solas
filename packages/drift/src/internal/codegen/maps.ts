@@ -1,7 +1,8 @@
-import type { Build } from '../build'
-
 import { Drift } from '../../drift'
+
 import { AUTOGEN_MSG } from './utils'
+
+import type { Build } from '../build'
 
 export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 	const statics = [

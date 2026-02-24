@@ -11,21 +11,17 @@ import {
 
 import type { DriftRequest, ImportMap, Manifest } from '../../types'
 
-import DefaultErr from '../ui/defaults/error'
-
 import { Drift } from '../../drift'
+
 import { Logger } from '../../utils/logger'
+import { getKnownDigest, isKnownError } from './utils'
+
 import { Metadata } from '../metadata'
-import {
-	HttpException,
-	type Payload as HttpExceptionPayload,
-	type HttpExceptionStatusCode,
-	isHttpException,
-} from '../navigation/http-exception'
+import { HttpException, isHttpException } from '../navigation/http-exception'
 import { Tree } from '../render/tree'
 import { Matcher } from '../router/matcher'
+import DefaultErr from '../ui/defaults/error'
 import { RequestContext } from './request-context'
-import { getKnownDigest, isKnownError } from './utils'
 
 export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -254,10 +250,16 @@ export async function action(req: Request) {
 		})
 
 		const action = await loadServerAction(id)
-		returnValue = await action.apply(null, args)
+
+		try {
+			const data = await action.apply(null, args)
+			returnValue = { ok: true, data }
+		} catch (err) {
+			returnValue = { ok: false, data: err }
+		}
 	} else {
 		// otherwise server function is called via
-		// <form action={...}> aka without js
+		// <form action={...}>
 		const formData = await req.formData()
 		const decodedAction = await decodeAction(formData)
 		const result = await decodedAction()
@@ -266,25 +268,29 @@ export async function action(req: Request) {
 
 	return { returnValue, formState, temporaryReferences }
 }
-export const driftPayloadReviver = {
-	Error: ([name, message, cause, stack, status, payload]: [
-		string,
-		string,
-		unknown,
-		string | undefined,
-		HttpExceptionStatusCode | undefined,
-		HttpExceptionPayload | undefined,
-	]) => {
-		if (name === 'HttpException' && status !== undefined) {
-			const error = new HttpException(status, message, { payload, cause })
-			if (stack) error.stack = stack
 
-			return error
-		} else {
-			const error = new Error(message, { cause })
-			if (stack) error.stack = stack
+export async function isAction(req: Request) {
+	if (req.method !== 'POST') return false
+	if (req.headers.has('x-rsc-action-id')) return true
 
-			return error
+	const contentType = req.headers.get('content-type') ?? ''
+	if (!contentType.startsWith('multipart/form-data')) return false
+
+	try {
+		const formData = await req.clone().formData()
+
+		for (const key of formData.keys()) {
+			if (
+				key === '$ACTION_KEY' ||
+				key.startsWith('$ACTION_') ||
+				key.startsWith('$ACTION_REF_')
+			) {
+				return true
+			}
 		}
-	},
+	} catch {
+		return false
+	}
+
+	return false
 }

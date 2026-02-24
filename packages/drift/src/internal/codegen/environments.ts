@@ -1,4 +1,5 @@
 import { Drift } from '../../drift'
+
 import { AUTOGEN_MSG } from './utils'
 
 /**
@@ -9,12 +10,13 @@ export function writeRSCEntry() {
 	return `
     ${AUTOGEN_MSG}
 
-  import type { ReactFormState } from 'react-dom/client'
+    import type { ReactFormState } from 'react-dom/client'
 
-  import type { DriftRequest } from '${Drift.Config.PKG_NAME}'
-  import { rsc, action } from '${Drift.Config.PKG_NAME}/env/rsc'
-  import { Prerender } from '${Drift.Config.PKG_NAME}/server'
-  import { Router } from '${Drift.Config.PKG_NAME}/router'
+    import { Drift } from '${Drift.Config.PKG_NAME}'
+    import type { DriftRequest } from '${Drift.Config.PKG_NAME}'
+    import { rsc, action } from '${Drift.Config.PKG_NAME}/env/rsc'
+    import { Prerender } from '${Drift.Config.PKG_NAME}/server'
+    import { Router } from '${Drift.Config.PKG_NAME}/router'
 
     import { manifest } from './manifest'
     import { importMap } from './maps'
@@ -43,7 +45,7 @@ export function writeRSCEntry() {
         returnValue: undefined,
       }
 
-      if (req.method === 'POST') opts = await action(req)
+      if (req[Drift.Config.$].action) opts = await action(req)
 
       const { stream: rscStream, status, ppr } = await rsc(
         req,
@@ -72,6 +74,7 @@ export function writeRSCEntry() {
       )
 
       const pathname = new URL(req.url).pathname
+      const runtimePpr = !import.meta.env.DEV && ppr
 
       if (
         req.headers.get('x-drift-prerender') === '1' &&
@@ -79,7 +82,7 @@ export function writeRSCEntry() {
       ) {
         const artifact = await mod.ssr.prerender(await rscStream, {
           formState: opts.formState,
-          ppr,
+          ppr: runtimePpr,
           route: pathname,
         })
 
@@ -93,7 +96,7 @@ export function writeRSCEntry() {
         })
       }
 
-      const postponedState = ppr
+      const postponedState = runtimePpr
         ? await Prerender.loadPostponedState(config.outDir, pathname)
         : null
 
@@ -131,7 +134,7 @@ export function writeRSCEntry() {
 
       const htmlStream = await mod.ssr(rscStream, {
         formState: opts.formState,
-        ppr,
+        ppr: runtimePpr,
       })
 
       return new Response(htmlStream, {
@@ -157,6 +160,7 @@ export function writeRSCEntry() {
         // build-time artifact requests must bypass this path and hit the router
         // handler so the cli receives the JSON artifacts instead of html
         if (
+          !import.meta.env.DEV &&
           accept.includes('text/html') &&
           req.headers.get('x-drift-prerender-artifact') !== '1'
         ) {

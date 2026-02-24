@@ -17,12 +17,12 @@ import {
 } from '@vitejs/plugin-rsc/browser'
 import { rscStream } from 'rsc-html-stream/client'
 
-import { ErrorBoundary } from '../ui/error-boundary'
-
 import { Logger } from '../../utils/logger'
+
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Head } from '../render/head'
 import { RouterProvider } from '../router/router-context'
+import { ErrorBoundary } from '../ui/error-boundary'
 import type { RSCPayload } from './rsc'
 
 /**
