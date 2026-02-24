@@ -8,23 +8,11 @@ import { Drift } from './drift'
 
 import { Compress } from './utils/compress'
 import { Logger } from './utils/logger'
-import { Time } from './utils/time'
 
 import { Prerender } from './internal/prerender'
 
 const logger = new Logger()
-const INTERNAL_ORIGIN = 'http://drift.local'
-const DEFAULT_PRERENDER_TIMEOUT_MS = 15_000
-
-function getPrerenderTimeoutMs() {
-	const v = Number(process.env.DRIFT_PRERENDER_TIMEOUT_MS)
-
-	if (!Number.isFinite(v) || v <= 0) {
-		return DEFAULT_PRERENDER_TIMEOUT_MS
-	}
-
-	return v
-}
+const DEFAULT_PREVIEW_PORT = 4173
 
 async function build() {
 	process.env.NODE_ENV = 'production'
@@ -61,11 +49,12 @@ async function build() {
 
 	// prerender routes
 	if (manifest.prerenderedRoutes.length > 0) {
-		const prerenderTimeoutMs = getPrerenderTimeoutMs()
+		const timeout = Prerender.getTimeout()
+		const concurrency = Prerender.getConcurrency()
 
 		logger.info(
 			'[prerender]',
-			`prerendering ${manifest.prerenderedRoutes.length} routes (timeout: ${prerenderTimeoutMs}ms)...`,
+			`prerendering ${manifest.prerenderedRoutes.length} routes (timeout: ${timeout}ms, concurrency: ${concurrency})...`,
 		)
 
 		// ensure production mode for React
@@ -74,40 +63,25 @@ async function build() {
 		const rscEntry = path.join(rscDir, 'index.js')
 		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
-		// @todo: move into prerender namespace
+		for await (const result of Prerender.run(app, manifest.prerenderedRoutes, {
+			timeout,
+			concurrency,
+		})) {
+			const route = result.route
 
-		for (const route of manifest.prerenderedRoutes) {
 			try {
 				const routeDir = route === '/' ? '' : route.replace(/^\//, '')
 
-				// synthetic url only - request is handled in-process by app.fetch
-				const url = `${INTERNAL_ORIGIN}${route}`
-				const maybeRes = await Time.withTimeout(
-					app.fetch(
-						new Request(url, {
-							headers: {
-								Accept: 'text/html',
-								'x-drift-prerender': '1',
-								'x-drift-prerender-artifact': '1',
-							},
-						}),
-					),
-					prerenderTimeoutMs,
-					`route ${route}`,
-				)
-
-				if (!(maybeRes instanceof Response)) {
-					throw new Error(`invalid prerender response for ${route}`)
+				if ('error' in result) {
+					throw result.error
 				}
 
-				const res = maybeRes
-
-				if (!res.ok) {
-					logger.warn('[prerender]', `skipped ${route}: ${res.status}`)
+				if ('status' in result) {
+					logger.warn('[prerender]', `skipped ${route}: ${result.status}`)
 					continue
 				}
 
-				const artifact = (await res.json()) as Prerender.Artifact
+				const artifact = result.artifact
 
 				if (artifact.mode === 'ppr') {
 					const baseDir = Prerender.getArtifactPath(outDir, route)
@@ -222,26 +196,47 @@ async function preview() {
 	const cwd = process.cwd()
 	const outDir = path.resolve(cwd, 'dist')
 	const rscDir = path.join(outDir, 'rsc')
+	const rscEntry = path.join(rscDir, 'index.js')
+
+	const portFlagIndex = args.findIndex(arg => arg === '--port' || arg === '-p')
+	const parsedPort =
+		portFlagIndex >= 0 && args[portFlagIndex + 1]
+			? Number(args[portFlagIndex + 1])
+			: DEFAULT_PREVIEW_PORT
+
+	if (!Number.isInteger(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
+		logger.error('[preview]', `invalid port: ${args[portFlagIndex + 1] ?? 'undefined'}`)
+		process.exit(1)
+	}
 
 	// import RSC server (handles prerendered HTML, static assets, and SSR).
-	const rscEntry = path.join(rscDir, 'index.js')
+	try {
+		await fs.access(rscEntry)
+	} catch {
+		logger.error('[preview]', 'missing dist/rsc/index.js - run `drift build` first')
+		process.exit(1)
+	}
+
 	const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
-	const port = 4173
+	try {
+		Bun.serve({
+			port: parsedPort,
+			fetch: app.fetch,
+		})
+	} catch (err) {
+		logger.error('[preview]', `failed to start on port ${parsedPort}: ${err}`)
+		process.exit(1)
+	}
 
-	Bun.serve({
-		port,
-		fetch: app.fetch,
-	})
-
-	logger.info('[preview]', `server running at http://localhost:${port}`)
+	logger.info('[preview]', `server running at http://localhost:${parsedPort}`)
 
 	// keep alive
 	await new Promise(() => {})
 }
 
 // cli entry point
-const [, , command] = process.argv
+const [, , command, ...args] = process.argv
 
 switch (command) {
 	case 'build':

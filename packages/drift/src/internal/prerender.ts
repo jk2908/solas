@@ -4,7 +4,48 @@ import type { BuildContext } from '../types'
 
 import { Drift } from '../drift'
 
+import { Time } from '../utils/time'
+
 export namespace Prerender {
+	const DEFAULT_TIMEOUT_MS = 15_000
+	const DEFAULT_CONCURRENCY = 4
+
+	/**
+	 * Get the timeout for prerendering a single route in milliseconds.
+	 * @description this can be configured via the DRIFT_PRERENDER_TIMEOUT_MS environment variable. If the value is not a positive number, a default of 15000ms (15 seconds) will be used
+	 * @returns the timeout in milliseconds
+	 */
+	export function getTimeout() {
+		const v = Number(process.env.DRIFT_PRERENDER_TIMEOUT_MS)
+
+		if (!Number.isFinite(v) || v <= 0) {
+			return DEFAULT_TIMEOUT_MS
+		}
+
+		return v
+	}
+
+	/**
+	 * Get the maximum number of concurrent prerender requests to make when running Prerender.run
+	 * @description this can be configured via the DRIFT_PRERENDER_CONCURRENCY environment variable.
+	 * If the value is not a positive integer, a default of 4 will be used
+	 * @returns the concurrency limit as a number
+	 */
+	export function getConcurrency() {
+		const v = Number(process.env.DRIFT_PRERENDER_CONCURRENCY)
+
+		if (!Number.isInteger(v) || v <= 0) {
+			return DEFAULT_CONCURRENCY
+		}
+
+		return v
+	}
+
+	export type Result =
+		| { route: string; artifact: Artifact }
+		| { route: string; status: number }
+		| { route: string; error: unknown }
+
 	export type Artifact = {
 		schema: string
 		route: string
@@ -279,5 +320,127 @@ export namespace Prerender {
 			)
 			.filter(r => !r.includes(':') && !r.includes('*'))
 	}
+
+	/**
+	 * Request a prerender artifact for a single route
+	 * @param app - object with fetch method for making requests to the app server
+	 * @param route - route pathname to prerender
+	 * @param opts - options including timeout and optional origin override
+	 * @returns prerender result with either artifact or error/status
+	 * @throws when the request fails or returns invalid data
+	 */
+	export async function route(
+		app: { fetch: (req: Request) => Promise<Response> },
+		route: string,
+		opts: { timeout: number; origin?: string },
+	) {
+		// build an internal url for this route. origin is overridable for testing
+		// or custom adapters, and defaults to drift local origin
+		const url = `${opts.origin ?? 'http://drift.local'}${route}`
+
+		// ask the app for prerender output and enforce a timeout so one slow route
+		// does not block the full prerender pipeline
+		const res = await Time.withTimeout(
+			app.fetch(
+				new Request(url, {
+					// request html and tell the app to return prerender artifact payload
+					headers: {
+						Accept: 'text/html',
+						'x-drift-prerender': '1',
+						'x-drift-prerender-artifact': '1',
+					},
+				}),
+			),
+			opts.timeout,
+			`route ${route}`,
+		)
+
+		// app.fetch should always resolve to a Response
+		if (!(res instanceof Response)) {
+			throw new Error(`invalid prerender response for ${route}`)
+		}
+
+		// non-2xx means skip writing artifacts for this route
+		if (!res.ok) return { route, status: res.status } satisfies Result
+
+		// parse and return the prerender artifact payload
+		const artifact = (await res.json()) as Artifact
+
+		return { route, artifact } satisfies Result
+	}
+
+	/**
+	 * Concurrent prerender result stream
+	 * @param app - object with fetch method for making requests to the app server
+	 * @param routes - array of route pathnames to prerender
+	 * @param opts - options including timeout, concurrency limit, and optional origin override
+	 * @returns async generator yielding prerender results as they complete
+	 * @throws when a prerender request fails or returns invalid data
+	 */
+	export async function* run(
+		app: { fetch: (req: Request) => Promise<Response> },
+		routes: string[],
+		opts: { timeout: number; concurrency?: number; origin?: string },
+	) {
+		// decide how many routes can run at once
+		// - minimum 1 so we always make progress
+		// - maximum route count so we never over-schedule
+		const limit = Math.max(1, Math.min(opts.concurrency ?? 4, routes.length || 1))
+
+		// points to the next route that has not been queued yet
+		let index = 0
+
+		// stores active prerender promises keyed by their queue index. We
+		// keep the index so we can remove the exact task that settles
+		const pending = new Map<
+			number,
+			Promise<{
+				index: number
+				result: Result
+			}>
+		>()
+
+		function enqueue() {
+			// fill available worker slots until we hit the concurrency limit
+			// or until every route has been queued
+			while (index < routes.length && pending.size < limit) {
+				const i = index++
+				const value = routes[i]
+
+				// start prerendering this route now. Always return a Result shape
+				// so callers can handle success and errors uniformly
+				pending.set(
+					i,
+					Prerender.route(app, value, {
+						timeout: opts.timeout,
+						origin: opts.origin,
+					})
+						.then(result => ({ index: i, result }))
+						.catch(err => ({
+							index: i,
+							result: { route: value, error: err } as Result,
+						})),
+				)
+			}
+		}
+
+		// prime the first batch of work
+		enqueue()
+
+		// stream results as tasks finish (completion order, not route order)
+		while (pending.size > 0) {
+			// wait for at least one prerender to finish so we can yield its
+			// result and free up its slot in the active work set
+			const settled = await Promise.race(pending.values())
+
+			// remove the finished task from active work
+			pending.delete(settled.index)
+
+			// yield one completed prerender result to the caller
+			yield settled.result
+
+			// keep throughput steady by scheduling the next route immediately
+			enqueue()
+		}
+	}
 }
- 

@@ -14,7 +14,7 @@ export namespace Drift {
 	let version: string | undefined
 
 	/**
-	 * Get the Drift framework version from this package's package.json
+	 * Get the Drift framework version from package.json
 	 */
 	export function getVersion() {
 		if (version) return version
@@ -30,7 +30,7 @@ export namespace Drift {
 	}
 
 	/**
-	 * Set the Drift framework version.
+	 * Set the Drift framework version
 	 */
 	export function setVersion(value: string) {
 		if (!value) throw new Error('Missing package.json version')
