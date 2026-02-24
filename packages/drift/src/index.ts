@@ -26,18 +26,6 @@ import { writeManifest } from './internal/codegen/manifest'
 import { writeMaps } from './internal/codegen/maps'
 import { writeRouter } from './internal/codegen/router'
 
-const DRIFT_VERSION = (() => {
-	const value = JSON.parse(
-		fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
-	) as { version?: unknown }
-
-	if (typeof value.version !== 'string' || value.version.length === 0) {
-		throw new Error('Missing drift package version')
-	}
-
-	return value.version
-})()
-
 const DEFAULT_CONFIG = {
 	precompress: true,
 	prerender: false,
@@ -111,6 +99,20 @@ function drift(c: PluginConfig): PluginOption[] {
 		async config(viteConfig: UserConfig) {
 			await build()
 
+			try {
+				Drift.getVersion()
+			} catch {
+				const value = JSON.parse(
+					fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
+				) as { version?: unknown }
+
+				if (typeof value.version !== 'string' || value.version.length === 0) {
+					throw new Error('Missing drift package version')
+				}
+
+				Drift.setVersion(value.version)
+			}
+
 			viteConfig.build ??= {}
 			viteConfig.build.outDir = config.outDir
 
@@ -122,7 +124,9 @@ function drift(c: PluginConfig): PluginOption[] {
 			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(
 				process.env.VITE_APP_URL,
 			)
-			viteConfig.define['import.meta.env.DRIFT_VERSION'] = JSON.stringify(DRIFT_VERSION)
+			viteConfig.define['import.meta.env.DRIFT_VERSION'] = JSON.stringify(
+				Drift.getVersion(),
+			)
 
 			viteConfig.resolve ??= {}
 			viteConfig.resolve.alias = {

@@ -8,8 +8,9 @@ const NEVER: Promise<never> = new Promise(() => {})
  * boundary renders its fallback into the static shell. In request mode this
  * resolves immediately
  */
-export async function dynamic() {
+export function dynamic() {
 	const { prerender } = RequestContext.use()
 	if (prerender !== 'ppr') return
-	await NEVER
+
+	throw NEVER
 }

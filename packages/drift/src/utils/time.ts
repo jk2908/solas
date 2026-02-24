@@ -1,8 +1,8 @@
 export namespace Time {
-	export function debounce(fn: (...args: any[]) => any, wait: number) {
+	export function debounce<T extends unknown[]>(fn: (...args: T) => void, wait: number) {
 		let timeoutId: ReturnType<typeof setTimeout> | null = null
 
-		return (...args: any[]) => {
+		return (...args: T) => {
 			if (timeoutId) {
 				clearTimeout(timeoutId)
 			}
@@ -18,7 +18,7 @@ export namespace Time {
 
 		const timeout = new Promise<never>((_, reject) => {
 			timer = setTimeout(() => {
-				reject(new Error(`timed out after ${timeoutMs}ms (${label})`))
+				reject(new Error(`Timed out after ${timeoutMs}ms (${label})`))
 			}, timeoutMs)
 		})
 

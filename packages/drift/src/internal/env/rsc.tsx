@@ -95,20 +95,25 @@ export async function rsc(
 			// mode to 'full' so the 404/error shell resolves
 			// immediately. In normal request-time rendering
 			// we keep mode as null (obvi)
-			stream: RequestContext.write({ prerender: prerender ? 'full' : null }, () =>
-				renderToReadableStream(rscPayload, {
-					temporaryReferences,
-					onError(err: unknown) {
-						if (err == null) return
+			stream: RequestContext.write(
+				{
+					req,
+					prerender: prerender ? 'full' : null,
+				},
+				() =>
+					renderToReadableStream(rscPayload, {
+						temporaryReferences,
+						onError(err: unknown) {
+							if (err == null) return
 
-						const digest = getKnownDigest(err)
+							const digest = getKnownDigest(err)
 
-						if (digest) return digest
-						if (isKnownError(err)) return
+							if (digest) return digest
+							if (isKnownError(err)) return
 
-						logger.error('[rsc]', err)
-					},
-				}),
+							logger.error('[rsc]', err)
+						},
+					}),
 			),
 			status: 404,
 			ppr: false,
@@ -161,7 +166,10 @@ export async function rsc(
 		// prerender, and 'ppr' for ppr prerender. dynamic() only
 		// suspends when mode is 'ppr'
 		const stream = RequestContext.write(
-			{ prerender: prerender ? (ppr ? 'ppr' : 'full') : null },
+			{
+				req,
+				prerender: prerender ? (ppr ? 'ppr' : 'full') : null,
+			},
 			() =>
 				renderToReadableStream(rscPayload, {
 					temporaryReferences,
@@ -198,31 +206,39 @@ export async function rsc(
 			// main tree throws. We keep the same mode as the
 			// request so helpers see consistent state
 			// prevents mode drift on error paths
-			stream: RequestContext.write({ prerender: prerender ? 'full' : null }, () =>
-				renderToReadableStream(
-					{
-						root: (
-							<html lang="en">
-								<head>
-									<meta charSet="UTF-8" />
-									<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-									<meta name="robots" content="noindex,nofollow" />
+			stream: RequestContext.write(
+				{
+					req,
+					prerender: prerender ? 'full' : null,
+				},
+				() =>
+					renderToReadableStream(
+						{
+							root: (
+								<html lang="en">
+									<head>
+										<meta charSet="UTF-8" />
+										<meta
+											name="viewport"
+											content="width=device-width, initial-scale=1.0"
+										/>
+										<meta name="robots" content="noindex,nofollow" />
 
-									<title>{title}</title>
-								</head>
+										<title>{title}</title>
+									</head>
 
-								<body>
-									<DefaultErr error={error} />
-								</body>
-							</html>
-						),
-						returnValue,
-						formState,
-					},
-					{
-						temporaryReferences,
-					},
-				),
+									<body>
+										<DefaultErr error={error} />
+									</body>
+								</html>
+							),
+							returnValue,
+							formState,
+						},
+						{
+							temporaryReferences,
+						},
+					),
 			),
 			status: 500,
 			ppr: false,

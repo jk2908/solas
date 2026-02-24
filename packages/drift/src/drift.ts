@@ -28,4 +28,12 @@ export namespace Drift {
 		version = value
 		return version
 	}
+
+	/**
+	 * Set the Drift framework version.
+	 */
+	export function setVersion(value: string) {
+		if (!value) throw new Error('Missing package.json version')
+		version = value
+	}
 }
