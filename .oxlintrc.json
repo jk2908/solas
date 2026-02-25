@@ -22,5 +22,13 @@
 		"img-redundant-alt": "warn",
 		"no-autofocus": "warn"
 	},
+	"overrides": [
+		{
+			"files": ["packages/drift/src/internal/server/**/*.ts"],
+			"rules": {
+				"rules-of-hooks": "off"
+			}
+		}
+	],
 	"ignorePatterns": ["**/dist/**", "**/.drift/**", "**/node_modules/**"]
 }

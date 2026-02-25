@@ -1,6 +1,24 @@
 {
 	"name": "@jk2908/drift",
 	"version": "0.1.0",
+	"description": "A React Server Components meta-framework powered by Vite.",
+	"keywords": [
+		"framework",
+		"ppr",
+		"react",
+		"rsc",
+		"ssr",
+		"vite"
+	],
+	"homepage": "https://github.com/jk2908/drift#readme",
+	"bugs": {
+		"url": "https://github.com/jk2908/drift/issues"
+	},
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/jk2908/drift.git"
+	},
 	"bin": {
 		"drift": "./dist/cli.js"
 	},
@@ -55,6 +73,7 @@
 		"format": "bunx oxfmt --write .",
 		"format:check": "bunx oxfmt --check .",
 		"pack:dry": "npm pack --dry-run",
+		"release:check": "npm run prepublishOnly",
 		"prepublishOnly": "npm run build && npm run pack:dry"
 	},
 	"dependencies": {
@@ -82,5 +101,9 @@
 		"react-server-dom-webpack": {
 			"optional": true
 		}
+	},
+	"engines": {
+		"bun": ">=1.2.0",
+		"node": ">=20.0.0"
 	}
 }

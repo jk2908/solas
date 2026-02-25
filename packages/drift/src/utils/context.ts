@@ -1,5 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
+import { Logger } from './logger'
+
+const logger = new Logger()
+
 export namespace Context {
 	export function create<T>(name: string) {
 		const storage = new AsyncLocalStorage<T>()
@@ -9,7 +13,10 @@ export namespace Context {
 				const r = storage.getStore()
 
 				if (!r) {
-					throw new Error(`No ${name} context available`)
+					const error = new Error(`No ${name} context available`)
+					logger.error(`[Context:create] ${error.message}`, error)
+
+					throw error
 				}
 
 				return r

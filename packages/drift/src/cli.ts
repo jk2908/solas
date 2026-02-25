@@ -30,7 +30,7 @@ async function build() {
 	})
 
 	if (vite.exitCode !== 0) {
-		logger.error('[build]', 'vite build failed')
+		logger.error('[build] vite build failed')
 		process.exit(1)
 	}
 
@@ -40,7 +40,7 @@ async function build() {
 		const raw = await fs.readFile(manifestPath, 'utf-8')
 		manifest = JSON.parse(raw)
 	} catch {
-		logger.error('[build]', 'failed to read build manifest')
+		logger.error('[build] failed to read build manifest')
 		process.exit(1)
 	}
 
@@ -205,7 +205,7 @@ async function preview() {
 			: DEFAULT_PREVIEW_PORT
 
 	if (!Number.isInteger(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
-		logger.error('[preview]', `invalid port: ${args[portFlagIndex + 1] ?? 'undefined'}`)
+		logger.error(`[preview] invalid port: ${args[portFlagIndex + 1] ?? 'undefined'}`)
 		process.exit(1)
 	}
 
@@ -213,7 +213,7 @@ async function preview() {
 	try {
 		await fs.access(rscEntry)
 	} catch {
-		logger.error('[preview]', 'missing dist/rsc/index.js - run `drift build` first')
+		logger.error('[preview] missing dist/rsc/index.js - run `drift build` first')
 		process.exit(1)
 	}
 
@@ -225,7 +225,7 @@ async function preview() {
 			fetch: app.fetch,
 		})
 	} catch (err) {
-		logger.error('[preview]', `failed to start on port ${parsedPort}: ${err}`)
+		logger.error(`[preview] failed to start on port ${parsedPort}: ${err}`)
 		process.exit(1)
 	}
 

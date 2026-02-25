@@ -152,7 +152,7 @@ export namespace Build {
 			try {
 				return await this.process(await this.#scan(Drift.Config.APP_DIR))
 			} catch (err) {
-				logger.error('[run]: failed to build manifest', err)
+				logger.error('[Build:Finder:run]: failed to build manifest', err)
 				throw err
 			}
 		}
@@ -323,7 +323,7 @@ export namespace Build {
 				// warn if segment has 404/loading but no page or layout
 				if (!currentPage && !currentLayout && (current404 || currentLoader)) {
 					logger.warn(
-						`[#scan]: ${dir} has +error or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
+						`[Build:Finder:#scan]: ${dir} has +error or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
 					)
 				}
 
@@ -351,7 +351,7 @@ export namespace Build {
 
 				return res satisfies ScanResult
 			} catch (err) {
-				logger.error(`[#scan]: Failed to compose manifest from ${dir}`, err)
+				logger.error(`[Build:Finder:#scan]: Failed to compose manifest from ${dir}`, err)
 
 				return {
 					segments: [],
@@ -509,7 +509,10 @@ export namespace Build {
 							const exports = this.buildContext.transpiler.scan(code).exports
 
 							if (!exports.includes('middleware')) {
-								logger.warn('[process]', `Missing export 'middleware' in ${middleware}`)
+								logger.warn(
+									'[Build:Finder:process]',
+									`Missing export 'middleware' in ${middleware}`,
+								)
 							}
 
 							imports.middlewares.static.set(middlewareId, middlewareImport)
@@ -588,7 +591,7 @@ export namespace Build {
 						middlewareIds,
 					}
 				} catch (err) {
-					logger.error('[process]: failed to process segment', err)
+					logger.error('[Build:Finder:process]: failed to process segment', err)
 				}
 			}
 
@@ -607,7 +610,7 @@ export namespace Build {
 					for (const method of exports) {
 						if (!HTTP_VERBS.includes(method as HttpMethod)) {
 							logger.warn(
-								'[process]',
+								'[Build:Finder:process]',
 								`Ignoring unsupported HTTP verb: ${method} in ${endpoint.file}`,
 							)
 							continue
@@ -671,7 +674,7 @@ export namespace Build {
 						manifest[route] = entry
 					}
 				} catch (err) {
-					logger.error('[process]: failed to process route', err)
+					logger.error('[Build:Finder:process]: failed to process route', err)
 				}
 			}
 

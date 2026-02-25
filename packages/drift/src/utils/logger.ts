@@ -31,10 +31,60 @@ type LogEntry = {
  * @param level - the severity level of the logger
  */
 export class Logger {
-	#level: LogLevel = 'info'
+	#level: LogLevel
 
-	constructor(level: LogLevel = 'info') {
+	constructor(level: LogLevel = Logger.#getEnvLevel()) {
 		this.#level = level
+	}
+
+	/**
+	 * Check if a value is a valid log level
+	 * @param value - the value to check
+	 * @returns true if the value is a valid log level, false otherwise
+	 */
+	static #isValidLevel(value: unknown): value is LogLevel {
+		return typeof value === 'string' && value in LEVELS
+	}
+
+	/**
+	 * Get the log level from environment variables, defaulting to 'info' if not set or invalid
+	 * @returns the log level
+	 */
+	static #getEnvLevel() {
+		if (typeof process === 'undefined') return 'info'
+
+		const value = process.env.DRIFT_LOG_LEVEL ?? process.env.LOG_LEVEL
+		if (!value) return 'info'
+
+		const normalised = value.toLowerCase()
+
+		return Logger.#isValidLevel(normalised) ? normalised : 'info'
+	}
+
+	/**
+	 * Convert a value to an Error instance
+	 * @param err - the value to convert
+	 * @returns the Error instance
+	 */
+	static toError(err: unknown) {
+		return err instanceof Error ? err : new Error(String(err), { cause: err })
+	}
+
+	/**
+	 * Stringify the error for logging
+	 * @param err - the error to print
+	 * @returns the printed error
+	 */
+	static print(err: unknown) {
+		if (err instanceof Error || err instanceof HttpException) {
+			return err.message + (err.stack ? `\n${err.stack}` : '')
+		}
+
+		if (typeof err === 'object' && err !== null) {
+			return JSON.stringify(err, null, 2)
+		}
+
+		return String(err)
 	}
 
 	set level(level: LogLevel) {
@@ -64,10 +114,20 @@ export class Logger {
 			entry.error = error ? Logger.toError(error) : new Error(message)
 		}
 
-		console.log(
-			`[${Drift.Config.NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`,
-			error ? `\n${error.stack}` : '',
-		)
+		const line = `[${Drift.Config.NAME}] [${entry.ts}] [${level.toUpperCase()}] ${message}`
+		const extra = entry.error ? `\n${Logger.print(entry.error)}` : ''
+
+		if (level === 'warn') {
+			console.warn(line, extra)
+			return
+		}
+
+		if (level === 'error' || level === 'fatal') {
+			console.error(line, extra)
+			return
+		}
+
+		console.log(line, extra)
 	}
 
 	/**
@@ -100,7 +160,7 @@ export class Logger {
 	 * @param error - the error object
 	 */
 	error(message: string, error?: unknown) {
-		this.log('error', message, Logger.toError(error))
+		this.log('error', message, error === undefined ? undefined : Logger.toError(error))
 	}
 
 	/**
@@ -109,32 +169,6 @@ export class Logger {
 	 * @param error - the error object
 	 */
 	fatal(message: string, error?: unknown) {
-		this.log('fatal', message, Logger.toError(error))
-	}
-
-	/**
-	 * Convert a value to an Error instance
-	 * @param err - the value to convert
-	 * @returns the Error instance
-	 */
-	static toError(err: unknown) {
-		return err instanceof Error ? err : new Error(String(err), { cause: err })
-	}
-
-	/**
-	 * Stringify the error for logging
-	 * @param err - the error to print
-	 * @returns the printed error
-	 */
-	static print(err: unknown) {
-		if (err instanceof Error || err instanceof HttpException) {
-			return err.message + (err.stack ? `\n${err.stack}` : '')
-		}
-
-		if (typeof err === 'object' && err !== null) {
-			return JSON.stringify(err, null, 2)
-		}
-
-		return String(err)
+		this.log('fatal', message, error === undefined ? undefined : Logger.toError(error))
 	}
 }
