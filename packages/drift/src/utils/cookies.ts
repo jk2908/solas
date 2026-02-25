@@ -4,7 +4,7 @@ export namespace Cookies {
 			// some clients encode spaces as '+'
 			return decodeURIComponent(value.replace(/\+/g, ' '))
 		} catch {
-			// keep raw value on malformed percent-encoding
+			// keep raw value if decoding fails
 			return value
 		}
 	}

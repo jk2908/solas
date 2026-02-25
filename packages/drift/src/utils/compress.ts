@@ -4,10 +4,6 @@ import { brotliCompress } from 'node:zlib'
 
 import type { BuildContext } from '../types'
 
-import { Logger } from './logger'
-
-const logger = new Logger()
-
 export namespace Compress {
 	/**
 	 * Compress a file or directory
@@ -28,36 +24,31 @@ export namespace Compress {
 		input: string
 		compressed: Uint8Array
 	}> {
-		try {
-			const { filter = f => /\.(js|css|html|svg|json|txt)$/.test(f) } = config
-			const stat = await fs.stat(input)
+		const { filter = f => /\.(js|css|html|svg|json|txt)$/.test(f) } = config
+		const stat = await fs.stat(input)
 
-			if (stat.isDirectory()) {
-				for (const entry of await fs.readdir(input)) {
-					yield* run(path.join(input, entry), ctx, config)
-				}
-			} else if (filter(input)) {
-				const file = Bun.file(input)
-				const buffer = Buffer.from(await file.arrayBuffer())
-
-				const compressed: Buffer = await new Promise((fulfill, reject) => {
-					brotliCompress(buffer, (err, res) => {
-						if (err) {
-							reject(err)
-						} else {
-							fulfill(res)
-						}
-					})
-				})
-
-				yield {
-					input,
-					compressed: new Uint8Array(compressed.buffer),
-				}
+		if (stat.isDirectory()) {
+			for (const entry of await fs.readdir(input)) {
+				yield* run(path.join(input, entry), ctx, config)
 			}
-		} catch (err) {
-			logger.error(`[compress*:${input}]`, err)
-			throw err
+		} else if (filter(input)) {
+			const file = Bun.file(input)
+			const buffer = Buffer.from(await file.arrayBuffer())
+
+			const compressed: Buffer = await new Promise((fulfill, reject) => {
+				brotliCompress(buffer, (err, res) => {
+					if (err) {
+						reject(err)
+					} else {
+						fulfill(res)
+					}
+				})
+			})
+
+			yield {
+				input,
+				compressed: new Uint8Array(compressed.buffer),
+			}
 		}
 	}
 }
