@@ -15,7 +15,7 @@ import type { RSCPayload } from './rsc'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Prerender } from '../prerender'
 import { Head } from '../render/head'
-import { RouterProvider } from '../router/router-context'
+import { RouterProvider } from '../router/router-provider'
 import { ErrorBoundary } from '../ui/error-boundary'
 
 type Opts = {
@@ -120,7 +120,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		// abort on a macrotask so sync and microtask work still lands in prelude
 		// unresolved work is captured as postponed state for resume
 		setTimeout(() => {
-			controller.abort(new Prerender.Postponed())
+			controller.abort(new Prerender.Runtime.Postponed())
 		}, 0)
 
 		const { prelude, postponed } = await reactPrerender(
@@ -129,7 +129,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 				bootstrapScriptContent,
 				signal: controller.signal,
 				onError(err) {
-					if (Prerender.isPostponed(err)) return
+					if (Prerender.Runtime.isPostponed(err)) return
 
 					const digest = getKnownDigest(err)
 					if (digest) return digest
@@ -202,6 +202,11 @@ async function resume(
 }
 
 Object.assign(ssr, { prerender, resume }) satisfies typeof ssr & {
+	prerender: typeof prerender
+	resume: typeof resume
+}
+
+export type SSR = typeof ssr & {
 	prerender: typeof prerender
 	resume: typeof resume
 }

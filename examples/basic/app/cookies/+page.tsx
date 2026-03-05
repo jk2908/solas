@@ -1,7 +1,7 @@
 import { cookies } from '@jk2908/drift/server'
 
-export default async function Page() {
-	const c = await cookies()
+export default function Page() {
+	const c = cookies()
 	const entries = Array.from(c.entries())
 
 	return (

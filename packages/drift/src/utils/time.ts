@@ -13,7 +13,7 @@ export namespace Time {
 		}
 	}
 
-	export function withTimeout<T>(task: Promise<T>, timeoutMs: number, label: string) {
+	export function timeout<T>(task: Promise<T>, timeoutMs: number, label: string) {
 		let timer: ReturnType<typeof setTimeout> | undefined
 
 		const timeout = new Promise<never>((_, reject) => {

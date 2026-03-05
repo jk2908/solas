@@ -53,6 +53,10 @@
 			"types": "./dist/navigation.d.ts",
 			"import": "./dist/navigation.js"
 		},
+		"./prerender": {
+			"types": "./dist/prerender.d.ts",
+			"import": "./dist/prerender.js"
+		},
 		"./server": {
 			"types": "./dist/server.d.ts",
 			"import": "./dist/server.js"

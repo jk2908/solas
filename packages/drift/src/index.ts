@@ -60,6 +60,17 @@ function drift(c: PluginConfig): PluginOption[] {
 		prerenderedRoutes: new Set<string>(),
 	}
 
+	function maybeWrite(filePath: string, content: string) {
+		return fs
+			.readFile(filePath, 'utf-8')
+			.catch(() => null)
+			.then(current => {
+				if (current === content) return false
+
+				return Bun.write(filePath, content).then(() => true)
+			})
+	}
+
 	async function build() {
 		const cwd = process.cwd()
 		const routesDir = path.join(cwd, Drift.Config.APP_DIR)
@@ -76,22 +87,89 @@ function drift(c: PluginConfig): PluginOption[] {
 		// set prerenderable routes in context for use in closeBundle
 		buildContext.prerenderedRoutes = prerenderedRoutes
 
-		await Promise.all([
-			Bun.write(path.join(generatedDir, 'config.ts'), writeConfig(config)),
-			Bun.write(path.join(generatedDir, 'manifest.ts'), writeManifest(manifest)),
-			Bun.write(path.join(generatedDir, 'maps.ts'), writeMaps(imports, modules)),
-			Bun.write(path.join(generatedDir, 'router.tsx'), writeRouter(manifest, imports)),
-			Bun.write(path.join(generatedDir, Drift.Config.ENTRY_RSC), writeRSCEntry()),
-			Bun.write(path.join(generatedDir, Drift.Config.ENTRY_SSR), writeSSREntry()),
-			Bun.write(path.join(generatedDir, Drift.Config.ENTRY_BROWSER), writeBrowserEntry()),
-		])
+		const files: [string, string][] = [
+			['config.ts', writeConfig(config)],
+			['manifest.ts', writeManifest(manifest)],
+			['maps.ts', writeMaps(imports, modules)],
+			['router.tsx', writeRouter(manifest, imports)],
+			[Drift.Config.ENTRY_RSC, writeRSCEntry()],
+			[Drift.Config.ENTRY_SSR, writeSSREntry()],
+			[Drift.Config.ENTRY_BROWSER, writeBrowserEntry()],
+		]
 
-		// format generated files, avoid stopping build on errors
-		await Format.run(Drift.Config.GENERATED_DIR).catch(() => {})
+		const writes = await Promise.all(
+			files.map(([file, content]) => maybeWrite(path.join(generatedDir, file), content)),
+		)
+
+		const changed = writes.some(Boolean)
+
+		// skip when no file changed
+		if (changed) await Format.run(Drift.Config.GENERATED_DIR).catch(() => {})
+
+		return changed
 	}
 
-	// debounced build to avoid multiple builds on file changes
-	const rebuild = Time.debounce(build, 1000)
+	let rebuildRunning = false
+	let rebuildQueued = false
+	let rebuildReason = 'change'
+
+	const watchCwd = process.cwd().replace(/\\/g, '/')
+	const watchAppRoot = `${watchCwd}/${Drift.Config.APP_DIR}/`
+
+	const normaliseWatchPath = (p: string) => p.replace(/\\/g, '/')
+	const toAbsoluteWatchPath = (p: string) =>
+		normaliseWatchPath(path.isAbsolute(p) ? p : path.join(watchCwd, p))
+	const inAppDir = (p: string) => toAbsoluteWatchPath(p).startsWith(watchAppRoot)
+
+	const routeFile = /\/\+(layout|page|404|loading|middleware|endpoint)\.(t|j)sx?$/
+	const endpointFile = /\/\+endpoint\.(t|j)sx?$/
+
+	const rebuild = Time.debounce((event: string, p: string) => {
+		const queue = () => {
+			void (async () => {
+				if (rebuildRunning) {
+					rebuildQueued = true
+					return
+				}
+
+				rebuildRunning = true
+
+				do {
+					rebuildQueued = false
+
+					try {
+						const changed = await build()
+
+						if (changed) {
+							logger.info('[watch]', `route graph rebuilt (${rebuildReason})`)
+						}
+					} catch (err) {
+						logger.error('[watch] route rebuild failed', err)
+					}
+				} while (rebuildQueued)
+
+				rebuildRunning = false
+			})()
+		}
+
+		if (!inAppDir(p)) return
+
+		const file = toAbsoluteWatchPath(p)
+
+		if (event === 'addDir' || event === 'unlinkDir') {
+			rebuildReason = `${event}: ${path.relative(watchCwd, file)}`
+			queue()
+			return
+		}
+
+		if (!routeFile.test(file)) return
+
+		// content changes only matter for route graph when endpoint verbs change
+		if (event === 'change' && !endpointFile.test(file)) return
+
+		rebuildReason = `${event}: ${path.relative(watchCwd, file)}`
+		queue()
+	}, 75)
 
 	const plugin = {
 		name: 'drift',
@@ -115,6 +193,7 @@ function drift(c: PluginConfig): PluginOption[] {
 
 			viteConfig.build ??= {}
 			viteConfig.build.outDir = config.outDir
+			viteConfig.build.emptyOutDir = true
 
 			viteConfig.server ??= {}
 			viteConfig.server.port = 8787
@@ -149,15 +228,11 @@ function drift(c: PluginConfig): PluginOption[] {
 			)
 
 			server.watcher
-				.on('add', (p: string) => {
-					if (p.includes(Drift.Config.APP_DIR)) rebuild()
-				})
-				.on('change', (p: string) => {
-					if (p.includes(Drift.Config.APP_DIR)) rebuild()
-				})
-				.on('unlink', (p: string) => {
-					if (p.includes(Drift.Config.APP_DIR)) rebuild()
-				})
+				.on('add', (p: string) => rebuild('add', p))
+				.on('change', (p: string) => rebuild('change', p))
+				.on('unlink', (p: string) => rebuild('unlink', p))
+				.on('addDir', (p: string) => rebuild('addDir', p))
+				.on('unlinkDir', (p: string) => rebuild('unlinkDir', p))
 		},
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return

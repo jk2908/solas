@@ -4,42 +4,14 @@ import type { BuildContext } from '../types'
 
 import { Drift } from '../drift'
 
+import { Logger } from '../utils/logger'
 import { Time } from '../utils/time'
+
+const logger = new Logger()
 
 export namespace Prerender {
 	const DEFAULT_TIMEOUT_MS = 15_000
 	const DEFAULT_CONCURRENCY = 4
-
-	/**
-	 * Get the timeout for prerendering a single route in milliseconds.
-	 * @description this can be configured via the DRIFT_PRERENDER_TIMEOUT_MS environment variable. If the value is not a positive number, a default of 15000ms (15 seconds) will be used
-	 * @returns the timeout in milliseconds
-	 */
-	export function getTimeout() {
-		const v = Number(process.env.DRIFT_PRERENDER_TIMEOUT_MS)
-
-		if (!Number.isFinite(v) || v <= 0) {
-			return DEFAULT_TIMEOUT_MS
-		}
-
-		return v
-	}
-
-	/**
-	 * Get the maximum number of concurrent prerender requests to make when running Prerender.run
-	 * @description this can be configured via the DRIFT_PRERENDER_CONCURRENCY environment variable.
-	 * If the value is not a positive integer, a default of 4 will be used
-	 * @returns the concurrency limit as a number
-	 */
-	export function getConcurrency() {
-		const v = Number(process.env.DRIFT_PRERENDER_CONCURRENCY)
-
-		if (!Number.isInteger(v) || v <= 0) {
-			return DEFAULT_CONCURRENCY
-		}
-
-		return v
-	}
 
 	export type Result =
 		| { route: string; artifact: Artifact }
@@ -58,389 +30,395 @@ export namespace Prerender {
 	export type ArtifactMetadata = Pick<Artifact, 'schema' | 'route' | 'createdAt' | 'mode'>
 
 	/**
-	 * Marker error used to intentionally abort prerender work and
-	 * force unresolved sections into postponed state
-	 */
-	export class Postponed extends Error {
-		constructor(message: string = 'postponed') {
-			super(message)
-			this.name = 'Postponed'
-		}
-	}
-
-	/**
-	 * Check if an error came from intentional prerender postponing
-	 * @param error - unknown error value
-	 * @returns true when error is a known postpone signal
-	 */
-	export function isPostponed(error: unknown) {
-		if (error instanceof Postponed) return true
-
-		if (
-			error instanceof Error &&
-			(error.name === 'AbortError' || error.name === 'TimeoutError')
-		) {
-			const cause = (error as Error & { cause?: unknown }).cause
-			if (cause instanceof Postponed) return true
-		}
-
-		return false
-	}
-
-	/**
-	 * Convert a route pathname to a stable artifact key
-	 * @param pathname - route pathname
-	 * @returns normalised key
-	 */
-	function toRouteDir(pathname: string) {
-		if (pathname === '/') return 'index'
-
-		return pathname.replace(/^\//, '')
-	}
-
-	/**
-	 * Get the artifact directory for a route
-	 * @param outDir - output directory
-	 * @param pathname - route pathname
-	 * @returns artifact directory path
+	 * Get the file system path for storing prerender artifacts for a given route
+	 * @param outDir - the base output directory for build artifacts
+	 * @param pathname - the url pathname for which to get the artifact path
+	 * @returns the file system path where prerender artifacts for the given route should be stored
 	 */
 	export function getArtifactPath(outDir: string, pathname: string) {
-		return path.join(outDir, Drift.Config.GENERATED_DIR, 'ppr', toRouteDir(pathname))
+		const dir = pathname === '/' ? 'index' : pathname.replace(/^\//, '')
+
+		return path.join(outDir, Drift.Config.GENERATED_DIR, 'ppr', dir)
 	}
 
-	/**
-	 * Load postponed state generated at build time for a route
-	 * @param outDir - output directory
-	 * @param pathname - route pathname
-	 * @returns parsed postponed state, or null
-	 */
-	export async function loadPostponedState(outDir: string, pathname: string) {
-		const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'postponed.json'))
-		if (!(await file.exists())) return null
-
-		try {
-			return JSON.parse(await file.text())
-		} catch {
-			return null
-		}
-	}
-
-	/**
-	 * Load prelude HTML generated at build time for a route
-	 * @param outDir - output directory
-	 * @param pathname - route pathname
-	 * @returns prelude html, or null
-	 */
-	export async function loadPrelude(outDir: string, pathname: string) {
-		const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'prelude.html'))
-		if (!(await file.exists())) return null
-
-		try {
-			return await file.text()
-		} catch {
-			return null
-		}
-	}
-
-	/**
-	 * Load prerender artifact metadata generated at build time for a route
-	 * @param outDir - output directory
-	 * @param pathname - route pathname
-	 * @returns parsed metadata, or null
-	 */
-	export async function loadArtifactMetadata(outDir: string, pathname: string) {
-		const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'metadata.json'))
-		if (!(await file.exists())) return null
-
-		try {
-			const value = JSON.parse(await file.text())
-			if (!value || typeof value !== 'object') return null
-
-			const schema = (value as { schema?: unknown }).schema
-			const route = (value as { route?: unknown }).route
-			const createdAt = (value as { createdAt?: unknown }).createdAt
-			const mode = (value as { mode?: unknown }).mode
-
-			if (typeof schema !== 'string') return null
-			if (typeof route !== 'string') return null
-			if (typeof createdAt !== 'number') return null
-			if (mode !== 'full' && mode !== 'ppr') return null
-
-			return { schema, route, createdAt, mode } satisfies ArtifactMetadata
-		} catch {
-			return null
-		}
-	}
-
-	/**
-	 * Validate artifact metadata against expected route/mode and current Drift schema
-	 * @param metadata - parsed artifact metadata
-	 * @param pathname - expected route pathname
-	 * @param mode - expected prerender mode
-	 * @returns true when metadata is compatible
-	 */
-	export function isArtifactCompatible(
-		artifactMetadata: ArtifactMetadata,
-		pathname: string,
-		mode: Artifact['mode'],
-	) {
-		const schema = Drift.getVersion()
-
-		return (
-			artifactMetadata.schema === schema &&
-			artifactMetadata.route === pathname &&
-			artifactMetadata.mode === mode
-		)
-	}
-
-	/**
-	 * Compose ppr html response by streaming prelude first then resume chunks
-	 * @param prelude - prerendered html shell
-	 * @param resumeStream - request-time resume stream
-	 * @returns composed html stream
-	 */
-	export function composePreludeAndResume(
-		prelude: string,
-		resumeStream: ReadableStream<Uint8Array>,
-	) {
-		// find the final document close so we can insert resume output
-		// before </body></html> rather than after a fully closed doc
-		const lower = prelude.toLowerCase()
-		const bodyClose = lower.lastIndexOf('</body>')
-		const htmlClose = lower.lastIndexOf('</html>')
-		const splitAt = bodyClose >= 0 && htmlClose > bodyClose ? bodyClose : prelude.length
-
-		return new ReadableStream<Uint8Array>({
-			async start(controller) {
-				// reuse encoders for converting between streamed bytes and text
-				const encoder = new TextEncoder()
-				const decoder = new TextDecoder()
-
-				// emit the prelude up to (but not including) the closing tags
-				// so resume content lands inside the same document
-				controller.enqueue(new TextEncoder().encode(prelude.slice(0, splitAt)))
-
-				const reader = resumeStream.getReader()
-				// React.resume may start with </body></html> because it assumes
-				// ownership of the whole document - strip once when present
-				let strippedLeadingClose = false
-
-				try {
-					while (true) {
-						const { value, done } = await reader.read()
-
-						if (done) break
-						if (!value) continue
-
-						if (!strippedLeadingClose) {
-							strippedLeadingClose = true
-
-							// decode first chunk as text so we can remove leading closes
-							const text = decoder.decode(value)
-							const trimmed = text.replace(/^\s*<\/body>\s*<\/html>/i, '')
-
-							// only re-enqueue when something remains after trimming
-							if (trimmed.length > 0) controller.enqueue(encoder.encode(trimmed))
-
-							continue
-						}
-
-						// forward all remaining resume bytes unchanged
-						controller.enqueue(value)
-					}
-				} finally {
-					// release resources and finish the composite stream
-					reader.releaseLock()
-					controller.close()
-				}
-			},
-		})
-	}
-
-	/**
-	 * Read a route file's prerender export
-	 * @param filePath - file path to check
-	 * @returns explicit mode when exported, undefined otherwise
-	 */
-	export async function getStaticFlag(filePath: string) {
-		const code = await Bun.file(filePath).text()
-
-		const match = code.match(
-			/\bexport\s+const\s+prerender\s*=\s*(?:(['"`])(?<mode>full|ppr)\1|(?<disabled>false))(?=\s|;|$)/,
-		)
-
-		if (!match?.groups) return
-		if (match.groups.disabled === 'false') return false
-
-		const mode = match.groups.mode
-		if (mode === 'full' || mode === 'ppr') return mode
-
-		return
-	}
-
-	/**
-	 * Get static params from prerender function export
-	 * @param filePath - file path to check
-	 * @param buildContext - build context
-	 * @returns params array or empty array if no prerender export
-	 * or prerender is not a function
-	 */
-	export async function getStaticParams(filePath: string, buildContext: BuildContext) {
-		const code = await Bun.file(filePath).text()
-		const exports = buildContext.transpiler.scan(code).exports
-
-		if (!exports.includes('prerender')) return []
-
-		const abs = path.resolve(process.cwd(), filePath)
-		const mod = await import(/* @vite-ignore */ abs)
-
-		if (typeof mod.prerender !== 'function') return []
-		return Promise.try(() => mod.prerender())
-	}
-
-	/**
-	 * Expand a dynamic route with params into concrete paths
-	 * @param route - route pattern like /posts/:id
-	 * @param params - array of param objects
-	 * @returns expanded routes
-	 */
-	export function getDynamicRouteList(
-		route: string,
-		params: Record<string, string | number>[],
-	) {
-		if (!params.length) return []
-
-		return params
-			.map(p =>
-				Object.entries(p).reduce(
-					(acc, [key, value]) =>
-						acc.replace(`:${key}`, encodeURIComponent(String(value))),
-					route,
-				),
-			)
-			.filter(r => !r.includes(':') && !r.includes('*'))
-	}
-
-	/**
-	 * Request a prerender artifact for a single route
-	 * @param app - object with fetch method for making requests to the app server
-	 * @param route - route pathname to prerender
-	 * @param opts - options including timeout and optional origin override
-	 * @returns prerender result with either artifact or error/status
-	 * @throws when the request fails or returns invalid data
-	 */
-	export async function route(
-		app: { fetch: (req: Request) => Promise<Response> },
-		route: string,
-		opts: { timeout: number; origin?: string },
-	) {
-		// build an internal url for this route. origin is overridable for testing
-		// or custom adapters, and defaults to drift local origin
-		const url = `${opts.origin ?? 'http://drift.local'}${route}`
-
-		// ask the app for prerender output and enforce a timeout so one slow route
-		// does not block the full prerender pipeline
-		const res = await Time.withTimeout(
-			app.fetch(
-				new Request(url, {
-					// request html and tell the app to return prerender artifact payload
-					headers: {
-						Accept: 'text/html',
-						'x-drift-prerender': '1',
-						'x-drift-prerender-artifact': '1',
-					},
-				}),
-			),
-			opts.timeout,
-			`route ${route}`,
-		)
-
-		// app.fetch should always resolve to a Response
-		if (!(res instanceof Response)) {
-			throw new Error(`invalid prerender response for ${route}`)
-		}
-
-		// non-2xx means skip writing artifacts for this route
-		if (!res.ok) return { route, status: res.status } satisfies Result
-
-		// parse and return the prerender artifact payload
-		const artifact = (await res.json()) as Artifact
-
-		return { route, artifact } satisfies Result
-	}
-
-	/**
-	 * Concurrent prerender result stream
-	 * @param app - object with fetch method for making requests to the app server
-	 * @param routes - array of route pathnames to prerender
-	 * @param opts - options including timeout, concurrency limit, and optional origin override
-	 * @returns async generator yielding prerender results as they complete
-	 * @throws when a prerender request fails or returns invalid data
-	 */
-	export async function* run(
-		app: { fetch: (req: Request) => Promise<Response> },
-		routes: string[],
-		opts: { timeout: number; concurrency?: number; origin?: string },
-	) {
-		// decide how many routes can run at once
-		// - minimum 1 so we always make progress
-		// - maximum route count so we never over-schedule
-		const limit = Math.max(1, Math.min(opts.concurrency ?? 4, routes.length || 1))
-
-		// points to the next route that has not been queued yet
-		let index = 0
-
-		// stores active prerender promises keyed by their queue index. We
-		// keep the index so we can remove the exact task that settles
-		const pending = new Map<
-			number,
-			Promise<{
-				index: number
-				result: Result
-			}>
-		>()
-
-		function enqueue() {
-			// fill available worker slots until we hit the concurrency limit
-			// or until every route has been queued
-			while (index < routes.length && pending.size < limit) {
-				const i = index++
-				const value = routes[i]
-
-				// start prerendering this route now. Always return a Result shape
-				// so callers can handle success and errors uniformly
-				pending.set(
-					i,
-					Prerender.route(app, value, {
-						timeout: opts.timeout,
-						origin: opts.origin,
-					})
-						.then(result => ({ index: i, result }))
-						.catch(err => ({
-							index: i,
-							result: { route: value, error: err } as Result,
-						})),
-				)
+	export namespace Runtime {
+		/**
+		 * Custom error class to indicate that prerendering has been postponed to request-time
+		 */
+		export class Postponed extends Error {
+			constructor(message: string = 'postponed') {
+				super(message)
+				this.name = 'Postponed'
 			}
 		}
 
-		// prime the first batch of work
-		enqueue()
+		/**
+		 * Type guard to check if an error is a Postponed error, including wrapped errors like
+		 * AbortError or TimeoutError
+		 * @param error - the error to check
+		 * @returns true if the error is a Postponed error or caused by a Postponed error, false otherwise
+		 */
+		export function isPostponed(error: unknown) {
+			if (error instanceof Postponed) return true
 
-		// stream results as tasks finish (completion order, not route order)
-		while (pending.size > 0) {
-			// wait for at least one prerender to finish so we can yield its
-			// result and free up its slot in the active work set
-			const settled = await Promise.race(pending.values())
+			if (
+				error instanceof Error &&
+				(error.name === 'AbortError' || error.name === 'TimeoutError')
+			) {
+				if (error.cause instanceof Postponed) return true
+			}
 
-			// remove the finished task from active work
-			pending.delete(settled.index)
+			return false
+		}
 
-			// yield one completed prerender result to the caller
-			yield settled.result
+		/**
+		 * Load the postponed state for a given route from the file system, if it exists
+		 * @param outDir - the base output directory for build artifacts
+		 * @param pathname - the url pathname for which to load the postponed state
+		 * @returns the postponed state object if it exists and is valid, or null if it doesn't exist or is invalid
+		 */
+		export async function loadPostponedState(outDir: string, pathname: string) {
+			const file = Bun.file(
+				path.join(getArtifactPath(outDir, pathname), 'postponed.json'),
+			)
+			if (!(await file.exists())) return null
 
-			// keep throughput steady by scheduling the next route immediately
+			try {
+				return JSON.parse(await file.text())
+			} catch {
+				return null
+			}
+		}
+
+		/**
+		 * Load the prelude HTML for a given route from the file system, if it exists
+		 * @param outDir - the base output directory for build artifacts
+		 * @param pathname - the url pathname for which to load the prelude HTML
+		 * @returns the prelude HTML string if it exists, or null if it doesn't exist or can't be read
+		 */
+		export async function loadPrelude(outDir: string, pathname: string) {
+			const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'prelude.html'))
+			if (!(await file.exists())) return null
+
+			try {
+				return await file.text()
+			} catch {
+				return null
+			}
+		}
+
+		/**
+		 * Load the prerender artifact metadata for a given route from the file system, if it exists and is valid
+		 * @param outDir - the base output directory for build artifacts
+		 * @param pathname - the url pathname for which to load the artifact metadata
+		 * @returns the artifact metadata object if it exists and is valid, or null if it doesn't exist or is invalid
+		 */
+		export async function loadArtifactMetadata(outDir: string, pathname: string) {
+			const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'metadata.json'))
+			if (!(await file.exists())) return null
+
+			try {
+				const value = JSON.parse(await file.text())
+				if (!value || typeof value !== 'object') return null
+
+				const schema = (value as { schema?: unknown }).schema
+				const route = (value as { route?: unknown }).route
+				const createdAt = (value as { createdAt?: unknown }).createdAt
+				const mode = (value as { mode?: unknown }).mode
+
+				if (typeof schema !== 'string') return null
+				if (typeof route !== 'string') return null
+				if (typeof createdAt !== 'number') return null
+				if (mode !== 'full' && mode !== 'ppr') return null
+
+				return { schema, route, createdAt, mode } satisfies ArtifactMetadata
+			} catch {
+				return null
+			}
+		}
+
+		/**
+		 * Check if a prerender artifact is compatible with the current application version and route,
+		 * based on its metadata
+		 * @param artifactMetadata - the metadata of the prerender artifact to check
+		 * @param pathname - the url pathname for which to check compatibility
+		 * @param mode - the prerendering mode ('full' or 'ppr') for which to check compatibility
+		 * @returns true if the artifact is compatible with the current application version and route,
+		 * false otherwise
+		 */
+		export function isArtifactCompatible(
+			artifactMetadata: ArtifactMetadata,
+			pathname: string,
+			mode: Artifact['mode'],
+		) {
+			const schema = Drift.getVersion()
+
+			return (
+				artifactMetadata.schema === schema &&
+				artifactMetadata.route === pathname &&
+				artifactMetadata.mode === mode
+			)
+		}
+
+		/**
+		 * Compose the prelude HTML and the resume stream into a single HTML stream, by injecting the resume stream
+		 * into the prelude at the appropriate location (before </body> or </html>)
+		 * @param prelude - the prelude HTML string
+		 * @param resumeStream - the ReadableStream containing the HTML from react-resume
+		 * @returns a ReadableStream that outputs the combined HTML of the prelude and the resume stream
+		 */
+		export function composePreludeAndResume(
+			prelude: string,
+			resumeStream: ReadableStream<Uint8Array>,
+		) {
+			const lower = prelude.toLowerCase()
+			const bodyClose = lower.lastIndexOf('</body>')
+			const htmlClose = lower.lastIndexOf('</html>')
+			const splitAt = bodyClose >= 0 && htmlClose > bodyClose ? bodyClose : prelude.length
+
+			return new ReadableStream<Uint8Array>({
+				async start(controller) {
+					const encoder = new TextEncoder()
+					const decoder = new TextDecoder()
+
+					controller.enqueue(new TextEncoder().encode(prelude.slice(0, splitAt)))
+
+					const reader = resumeStream.getReader()
+					let strippedLeadingClose = false
+
+					try {
+						while (true) {
+							const { value, done } = await reader.read()
+
+							if (done) break
+							if (!value) continue
+
+							if (!strippedLeadingClose) {
+								strippedLeadingClose = true
+
+								const text = decoder.decode(value)
+								const trimmed = text.replace(/^\s*<\/body>\s*<\/html>/i, '')
+
+								if (trimmed.length > 0) controller.enqueue(encoder.encode(trimmed))
+
+								continue
+							}
+
+							controller.enqueue(value)
+						}
+					} finally {
+						reader.releaseLock()
+						controller.close()
+					}
+				},
+			})
+		}
+	}
+
+	export namespace Build {
+		/**
+		 * Get the prerender timeout value from the environment variable, or return the default
+		 * if it's not set or invalid
+		 * @returns the prerender timeout in milliseconds
+		 */
+		export function getTimeout() {
+			const v = Number(process.env.DRIFT_PRERENDER_TIMEOUT_MS)
+
+			if (!Number.isFinite(v) || v <= 0) {
+				return DEFAULT_TIMEOUT_MS
+			}
+
+			return v
+		}
+
+		/**
+		 * Get the prerender concurrency value from the environment variable, or return the default
+		 * if it's not set or invalid
+		 * @returns the prerender concurrency as a number
+		 */
+		export function getConcurrency() {
+			const v = Number(process.env.DRIFT_PRERENDER_CONCURRENCY)
+
+			if (!Number.isInteger(v) || v <= 0) {
+				return DEFAULT_CONCURRENCY
+			}
+
+			return v
+		}
+
+		/**
+		 * Extract the prerendering mode ('full', 'ppr', or false) from the source code of a route module, by
+		 * looking for an exported `prerender` constant
+		 * @param filePath - the file system path to the route module
+		 * @returns 'full' or 'ppr' if the prerender mode is specified in the module, false if prerendering is
+		 * explicitly disabled, or undefined if no prerender mode is specified
+		 * @throws if the file cannot be read or if the exported `prerender` constant has an invalid value
+		 */
+		export async function getStaticFlag(filePath: string) {
+			const code = await Bun.file(filePath).text()
+
+			const match = code.match(
+				/\bexport\s+const\s+prerender\s*=\s*(?:(['"`])(?<mode>full|ppr)\1|(?<disabled>false))(?=\s|;|$)/,
+			)
+
+			if (!match?.groups) return
+			if (match.groups.disabled === 'false') return false
+
+			const mode = match.groups.mode
+			if (mode === 'full' || mode === 'ppr') return mode
+
+			return
+		}
+
+		/**
+		 * Get the list of static parameters for a dynamic route, by looking for an exported `params` function
+		 * in the route module and calling it to get the list of parameter objects
+		 * @param filePath - the file system path to the route module
+		 * @param buildContext - the build context object, used to transpile and execute the route module code
+		 * @returns an array of parameter objects returned by the 'params' function, or an empty array if there is
+		 * no 'params' function or if it doesn't return a valid array
+		 * @throws if the file cannot be read, if the code cannot be transpiled or executed, or if the 'params'
+		 * function throws an error
+		 */
+		export async function getStaticParams(filePath: string, buildContext: BuildContext) {
+			const code = await Bun.file(filePath).text()
+			const exports = buildContext.transpiler.scan(code).exports
+
+			if (!exports.includes('params')) return []
+
+			const abs = path.resolve(process.cwd(), filePath)
+			const mod = await import(/* @vite-ignore */ abs)
+
+			if (typeof mod.params !== 'function') return []
+			return Promise.try(() => mod.params())
+		}
+
+		/**
+		 * Generate the list of prerenderable routes for a dynamic route, by combining the static parameters obtained from
+		 * the route module with the route pattern, and filtering out any routes that still contain dynamic segments
+		 * @param route - the route pattern, e.g. '/blog/:slug'
+		 * @param params - the list of parameter objects, e.g. [{ slug: 'post-1' }, { slug: 'post-2' }]
+		 * @returns an array of prerenderable route paths generated by replacing the dynamic segments in the route pattern
+		 * with the corresponding values from the parameter objects, and filtering out any paths that still contain
+		 * dynamic segments (i.e. segments that start with ':' or '*')
+		 */
+		export function getDynamicRouteList(
+			route: string,
+			params: Record<string, string | number>[],
+		) {
+			if (!params.length) return []
+
+			return params
+				.map(p =>
+					Object.entries(p).reduce(
+						(acc, [key, value]) =>
+							acc.replace(`:${key}`, encodeURIComponent(String(value))),
+						route,
+					),
+				)
+				.filter(r => !r.includes(':') && !r.includes('*'))
+		}
+
+		/**
+		 * Function to prerender a single route by making a request to the route with special headers, and returning the
+		 * result which includes either the prerender artifact or an error/status code if the prerendering failed or was
+		 * postponed to request-time
+		 * @param app - an object with a 'fetch' method that can be used to make requests to the application routes
+		 * @param route - the url route to prerender, e.g. '/blog/post-1'
+		 * @param opts - options for the prerendering process, including the timeout duration and an optional origin to
+		 * use for the request
+		 * @return a promise that resolves to an object containing the prerendering result
+		 */
+		export async function get(
+			app: { fetch: (req: Request) => Promise<Response> },
+			route: string,
+			opts: { timeout: number; origin?: string },
+		) {
+			const url = `${opts.origin ?? 'http://drift.local'}${route}`
+
+			const res = await Time.timeout(
+				app.fetch(
+					new Request(url, {
+						headers: {
+							Accept: 'text/html',
+							'x-drift-prerender': '1',
+							'x-drift-prerender-artifact': '1',
+						},
+					}),
+				),
+				opts.timeout,
+				`route ${route}`,
+			)
+
+			if (!(res instanceof Response)) {
+				const error = new Error(`Invalid response for ${route}`)
+				logger.error(`[prerender:get] ${error.message}`, error)
+
+				throw error
+			}
+
+			if (!res.ok) return { route, status: res.status } satisfies Result
+
+			return { route, artifact: await res.json() } satisfies Result
+		}
+
+		/**
+		 * Run the prerendering process for a list of routes, with a specified concurrency limit and timeout for
+		 * each route, by calling the 'get' function for each route and yielding the results as they
+		 * become available
+		 * @param app - an object with a 'fetch' method that can be used to make requests to the application routes
+		 * @param routes - an array of url routes to prerender, e.g. ['/blog/post-1', '/blog/post-2']
+		 * @param opts - options for the prerendering process, including the timeout duration, concurrency limit,
+		 * and an optional origin to use for the requests
+		 * @returns an async generator that yields the prerendering results for each route as they become available
+		 */
+		export async function* run(
+			app: { fetch: (req: Request) => Promise<Response> },
+			routes: string[],
+			opts: { timeout: number; concurrency?: number; origin?: string },
+		) {
+			const limit = Math.max(1, Math.min(opts.concurrency ?? 4, routes.length || 1))
+
+			let index = 0
+
+			const pending = new Map<
+				number,
+				Promise<{
+					index: number
+					result: Result
+				}>
+			>()
+
+			function enqueue() {
+				while (index < routes.length && pending.size < limit) {
+					const i = index++
+					const value = routes[i]
+
+					pending.set(
+						i,
+						get(app, value, {
+							timeout: opts.timeout,
+							origin: opts.origin,
+						})
+							.then(result => ({ index: i, result }))
+							.catch(err => ({
+								index: i,
+								result: { route: value, error: err } as Result,
+							})),
+					)
+				}
+			}
+
 			enqueue()
+
+			while (pending.size > 0) {
+				const settled = await Promise.race(pending.values())
+
+				pending.delete(settled.index)
+				yield settled.result
+
+				enqueue()
+			}
 		}
 	}
 }

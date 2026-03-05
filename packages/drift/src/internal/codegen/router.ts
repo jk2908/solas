@@ -28,10 +28,10 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
     /// <reference types="bun" />
 
     import type { Server } from 'bun'
+		import type { DriftRequest } from '${Drift.Config.PKG_NAME}'
 
 		import { Router } from '${Drift.Config.PKG_NAME}/router'
 
-    import { handler as rsc } from './entry.rsc'
     import { config } from './config'
 
 		${[...imports.endpoints.static.entries()]
@@ -57,7 +57,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 			return fn(req)
 		}
 
-    export function createRouter() {
+		export function createRouter(rsc: (req: DriftRequest) => Response | Promise<Response>) {
       return new Router({
         trailingSlash: config.trailingSlash,
       })

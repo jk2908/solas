@@ -10,7 +10,12 @@ const NEVER: Promise<never> = new Promise(() => {})
  */
 export function dynamic() {
 	const { prerender } = RequestContext.use()
-	if (prerender !== 'ppr') return
+
+	if (!prerender) return
+
+	if (prerender !== 'ppr') {
+		throw new Error('dynamic() is only supported in ppr prerender mode')
+	}
 
 	throw NEVER
 }

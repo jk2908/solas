@@ -194,7 +194,7 @@ export namespace Metadata {
 				.filter(r => r.status === 'fulfilled')
 				.map(r => r.value)
 				.sort((a, b) => a.priority - b.priority)
-				.map(r => r.item)
+				.map(r => r.item)				
 
 			if (ok.length) merged = Collection.#merge(merged, ...ok)
 

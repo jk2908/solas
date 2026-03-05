@@ -20,7 +20,7 @@ import { rscStream } from 'rsc-html-stream/client'
 import type { RSCPayload } from './rsc'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Head } from '../render/head'
-import { RouterProvider } from '../router/router-context'
+import { RouterProvider } from '../router/router-provider'
 import { ErrorBoundary } from '../ui/error-boundary'
 
 /**
@@ -98,6 +98,9 @@ export async function browser() {
 	)
 
 	import.meta.hot?.on?.('rsc:update', async () => {
-		setPayload(await createFromFetch<RSCPayload>(fetch(window.location.href)))
+		const p = await createFromFetch<RSCPayload>(
+			fetch(window.location.href, { headers: { Accept: 'text/x-component' } }),
+		)
+		setPayload(p)
 	})
 }

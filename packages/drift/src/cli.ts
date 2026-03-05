@@ -22,6 +22,7 @@ async function build() {
 
 	// run vite build
 	logger.info('[build]', 'running vite build...')
+
 	const vite = Bun.spawnSync(['bunx', '--bun', 'vite', 'build', '--mode', 'production'], {
 		cwd,
 		stdout: 'inherit',
@@ -36,6 +37,7 @@ async function build() {
 
 	// read build manifest
 	let manifest: BuildManifest
+
 	try {
 		const raw = await fs.readFile(manifestPath, 'utf-8')
 		manifest = JSON.parse(raw)
@@ -49,8 +51,8 @@ async function build() {
 
 	// prerender routes
 	if (manifest.prerenderedRoutes.length > 0) {
-		const timeout = Prerender.getTimeout()
-		const concurrency = Prerender.getConcurrency()
+		const timeout = Prerender.Build.getTimeout()
+		const concurrency = Prerender.Build.getConcurrency()
 
 		logger.info(
 			'[prerender]',
@@ -63,7 +65,7 @@ async function build() {
 		const rscEntry = path.join(rscDir, 'index.js')
 		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
-		for await (const result of Prerender.run(app, manifest.prerenderedRoutes, {
+		for await (const result of Prerender.Build.run(app, manifest.prerenderedRoutes, {
 			timeout,
 			concurrency,
 		})) {
@@ -72,9 +74,7 @@ async function build() {
 			try {
 				const routeDir = route === '/' ? '' : route.replace(/^\//, '')
 
-				if ('error' in result) {
-					throw result.error
-				}
+				if ('error' in result) throw result.error
 
 				if ('status' in result) {
 					logger.warn('[prerender]', `skipped ${route}: ${result.status}`)
@@ -140,6 +140,7 @@ async function build() {
 
 				await fs.mkdir(path.dirname(outPath), { recursive: true })
 				await Bun.write(outPath, artifact.html)
+
 				logger.info('[prerender]', `${route} (full)`)
 			} catch (err) {
 				logger.error(
@@ -209,7 +210,7 @@ async function preview() {
 		process.exit(1)
 	}
 
-	// import RSC server (handles prerendered HTML, static assets, and SSR).
+	// import RSC server (handles prerendered HTML, static assets, and ssr)
 	try {
 		await fs.access(rscEntry)
 	} catch {
@@ -250,7 +251,7 @@ switch (command) {
 		break
 	default:
 		console.log(`
-			drift - metaframework cli
+			drift - cli
 
 			Commands:
 				build    Build for production (vite build + prerender + compress)

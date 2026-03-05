@@ -1,0 +1,19 @@
+{
+	"compilerOptions": {
+		"target": "ESNext",
+		"lib": ["ESNext", "DOM"],
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "react",
+		"allowSyntheticDefaultImports": true,
+		"skipLibCheck": true,
+		"paths": {
+			"*": ["./*"],
+			"#/*": ["./*"]
+		},
+		"types": ["vite/client", "bun", "@vitejs/plugin-rsc/types"]
+	},
+	"include": ["app", ".drift/*"]
+}

@@ -281,7 +281,7 @@ export class Router {
 			})
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
 
-			return await this.#run(
+			return this.#run(
 				stack,
 				request,
 				() =>
@@ -291,9 +291,7 @@ export class Router {
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
 			const request = Object.assign(req, { [Drift.Config.$]: { match, error, action } })
 
-			if (this.#onError) {
-				return await this.#onError(error, request)
-			}
+			if (this.#onError) return this.#onError(error, request)
 
 			if (error instanceof HttpException) {
 				return new Response(error.message, { status: error.status })

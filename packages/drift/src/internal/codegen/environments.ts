@@ -15,7 +15,8 @@ export function writeRSCEntry() {
     import { Drift } from '${Drift.Config.PKG_NAME}'
     import type { DriftRequest } from '${Drift.Config.PKG_NAME}'
     import { rsc, action } from '${Drift.Config.PKG_NAME}/env/rsc'
-    import { Prerender } from '${Drift.Config.PKG_NAME}/server'
+    import type { SSR } from '${Drift.Config.PKG_NAME}/env/ssr'
+    import { Prerender } from '${Drift.Config.PKG_NAME}/prerender'
     import { Router } from '${Drift.Config.PKG_NAME}/router'
 
     import { manifest } from './manifest'
@@ -57,8 +58,10 @@ export function writeRSCEntry() {
         opts.temporaryReferences,
       )
 
+      const stream = await rscStream
+
       if (!req.headers.get('accept')?.includes('text/html')) {
-        return new Response(rscStream, {
+        return new Response(stream, {
           headers: {
             'Cache-Control': 'private, no-store',
             'Content-Type': 'text/x-component; charset=utf-8',
@@ -68,7 +71,7 @@ export function writeRSCEntry() {
         })
       }
 
-      const mod = await import.meta.viteRsc.loadModule<typeof import('./entry.ssr.tsx')>(
+      const mod = await import.meta.viteRsc.loadModule<{ ssr: SSR }>(
         'ssr',
         'index',
       )
@@ -80,7 +83,7 @@ export function writeRSCEntry() {
         req.headers.get('x-drift-prerender') === '1' &&
         req.headers.get('x-drift-prerender-artifact') === '1'
       ) {
-        const artifact = await mod.ssr.prerender(await rscStream, {
+        const artifact = await mod.ssr.prerender(stream, {
           formState: opts.formState,
           ppr: runtimePpr,
           route: pathname,
@@ -97,42 +100,56 @@ export function writeRSCEntry() {
       }
 
       const postponedState = runtimePpr
-        ? await Prerender.loadPostponedState(config.outDir, pathname)
+        ? await Prerender.Runtime.loadPostponedState(config.outDir, pathname)
         : null
 
-      const artifactMetadata = postponedState
-        ? await Prerender.loadArtifactMetadata(config.outDir, pathname)
+      const artifactMetadata = runtimePpr
+        ? await Prerender.Runtime.loadArtifactMetadata(config.outDir, pathname)
         : null
 
-      const canResume =
-        !!postponedState &&
-        (artifactMetadata
-          ? Prerender.isArtifactCompatible(artifactMetadata, pathname, 'ppr')
-          : true)
+      const tryPrelude =
+        !!artifactMetadata &&
+        Prerender.Runtime.isArtifactCompatible(artifactMetadata, pathname, 'ppr')
 
-      if (canResume) {
-        const prelude = await Prerender.loadPrelude(config.outDir, pathname)
-          
-        const resumeStream = await mod.ssr.resume(await rscStream, postponedState, {
-          nonce: undefined,
-          injectPayload: false,
-        })
+      if (tryPrelude) {
+        const prelude = await Prerender.Runtime.loadPrelude(config.outDir, pathname)
 
-        const body = prelude
-          ? Prerender.composePreludeAndResume(prelude, resumeStream)
-          : resumeStream
+        // if we have a prelude and no postponed state, we can respond with the 
+        // prelude immediately
+        if (prelude && !postponedState) {
+          return new Response(prelude, {
+            headers: {
+              'Cache-Control': 'private, no-store',
+              'Content-Type': 'text/html',
+              Vary: 'accept',
+            },
+            status,
+          })
+        }
 
-        return new Response(body, {
-          headers: {
-            'Cache-Control': 'private, no-store',
-            'Content-Type': 'text/html',
-            Vary: 'accept',
-          },
-          status,
-        })
+        // otherwise, attempt to resume with the prelude and the postponed state
+        if (postponedState) {
+          const resumeStream = await mod.ssr.resume(stream, postponedState, {
+            nonce: undefined,
+            injectPayload: false,
+          })
+
+          const body = prelude
+            ? Prerender.Runtime.composePreludeAndResume(prelude, resumeStream)
+            : resumeStream
+
+          return new Response(body, {
+            headers: {
+              'Cache-Control': 'private, no-store',
+              'Content-Type': 'text/html',
+              Vary: 'accept',
+            },
+            status,
+          })
+        }
       }
 
-      const htmlStream = await mod.ssr(rscStream, {
+      const htmlStream = await mod.ssr(stream, {
         formState: opts.formState,
         ppr: runtimePpr,
       })
@@ -147,7 +164,7 @@ export function writeRSCEntry() {
       })
     }
 
-    const router = createRouter()
+    const router = createRouter(handler)
 
     export default {
       async fetch(req: Request) {

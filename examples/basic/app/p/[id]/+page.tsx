@@ -1,4 +1,7 @@
+import { Suspense } from 'react'
+
 import { abort } from '@jk2908/drift/navigation'
+import { dynamic } from '@jk2908/drift/server'
 
 export const metadata = async ({ params }: { params?: { id: string } }) => {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)
@@ -19,14 +22,27 @@ export default function Post({ params }: { params?: { id: string } }) {
 
 	if (!post) abort(404, 'Post not found')
 
-	return <>Post {JSON.stringify(post)}</>
+	return (
+		<>
+			<div>Post {JSON.stringify(post)}</div>
+
+			<Suspense fallback={<div>Loading...</div>}>
+				<Timestamp slug={post.__mdsrc.slug} />
+			</Suspense>
+		</>
+	)
 }
 
-// export const prerender = true
-// or for dynamic routes with static params:
-// export function prerender() {
-// 	return allPosts.map(p => ({ id: p.__mdsrc.slug }))
-// }
+async function Timestamp({ slug }: { slug: string }) {
+	if (slug === 'post-2') {
+		dynamic()
+	}
+
+	return <div>{Date.now()}</div>
+}
+
+export const params = () => allPosts.map(p => ({ id: p.__mdsrc.slug }))
+export const prerender = 'ppr'
 
 const allPosts = [
 	{

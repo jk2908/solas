@@ -49,6 +49,7 @@ export namespace Matcher {
 }
 
 const logger = new Logger()
+const IS_DEV = import.meta.env.DEV
 
 /**
  * Reconcile router matches with the application manifest and import map
@@ -128,6 +129,12 @@ export class Matcher {
 	 * @returns the module entry
 	 */
 	static #load(loader: DynamicImport) {
+		if (IS_DEV) {
+			return {
+				promise: loader(),
+			}
+		}
+
 		let entry = Matcher.#moduleCache.get(loader)
 		if (entry) return entry
 
@@ -227,7 +234,7 @@ export class Matcher {
 		if (!match) return null
 
 		const { __id } = match
-		const cached = Matcher.#enhancedMatchCache.get(__id)
+		const cached = IS_DEV ? undefined : Matcher.#enhancedMatchCache.get(__id)
 
 		if (cached) {
 			logger.debug('[enhance]', __id, 'CACHED')
@@ -462,7 +469,7 @@ export class Matcher {
 			return Promise.allSettled(tasks)
 		}
 
-		Matcher.#enhancedMatchCache.set(__id, enhanced)
+		if (!IS_DEV) Matcher.#enhancedMatchCache.set(__id, enhanced)
 
 		return enhanced
 	}

@@ -427,7 +427,7 @@ export namespace Build {
 
 					// check shell prerender
 					if (!processed.has(shell)) {
-						prerenderCache.set(shell, await Prerender.getStaticFlag(shell))
+						prerenderCache.set(shell, await Prerender.Build.getStaticFlag(shell))
 						imports.components.static.set(shellId, shellImport)
 						processed.add(shell)
 					}
@@ -444,7 +444,7 @@ export namespace Build {
 						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
 
 						if (!processed.has(layout)) {
-							prerenderCache.set(layout, await Prerender.getStaticFlag(layout))
+							prerenderCache.set(layout, await Prerender.Build.getStaticFlag(layout))
 							imports.components.dynamic.set(layoutId, layoutImport)
 							processed.add(layout)
 						}
@@ -526,7 +526,7 @@ export namespace Build {
 						: `${EntryKind.PAGE}${Bun.hash(route)}`
 
 					if (page) {
-						const pagePrerender = await Prerender.getStaticFlag(page)
+						const pagePrerender = await Prerender.Build.getStaticFlag(page)
 						applyPrerenderMode(pagePrerender)
 
 						imports.components.dynamic.set(entryId, Finder.getImportPath(page))
@@ -542,12 +542,12 @@ export namespace Build {
 						if (!isDynamic && !isCatchAll) {
 							prerenderedRoutes.add(route)
 						} else if (page) {
-							const staticParams = await Prerender.getStaticParams(
+							const staticParams = await Prerender.Build.getStaticParams(
 								page,
 								this.buildContext,
 							)
 
-							for (const r of Prerender.getDynamicRouteList(route, staticParams)) {
+							for (const r of Prerender.Build.getDynamicRouteList(route, staticParams)) {
 								prerenderedRoutes.add(r)
 							}
 						}
