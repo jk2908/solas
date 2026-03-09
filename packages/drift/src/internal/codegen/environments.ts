@@ -99,43 +99,39 @@ export function writeRSCEntry() {
         })
       }
 
-      const postponedState = runtimePpr
-        ? await Prerender.Runtime.loadPostponedState(config.outDir, pathname)
+      const artifactManifest = runtimePpr
+        ? await Prerender.Artifact.loadManifest(config.outDir)
         : null
+      const artifactManifestEntry = artifactManifest?.routes[pathname] ?? null
 
-      const artifactMetadata = runtimePpr
-        ? await Prerender.Runtime.loadArtifactMetadata(config.outDir, pathname)
-        : null
+      let tryPrelude = false
 
-      const tryPrelude =
-        !!artifactMetadata &&
-        Prerender.Runtime.isArtifactCompatible(artifactMetadata, pathname, 'ppr')
+      if (artifactManifestEntry) {
+        tryPrelude = artifactManifestEntry.mode === 'ppr'
+      } else if (runtimePpr) {
+        const artifactMetadata = await Prerender.Artifact.loadMetadata(config.outDir, pathname)
+
+        tryPrelude =
+          !!artifactMetadata &&
+          Prerender.Artifact.isCompatible(artifactMetadata, pathname, 'ppr')
+      }
 
       if (tryPrelude) {
-        const prelude = await Prerender.Runtime.loadPrelude(config.outDir, pathname)
-
-        // if we have a prelude and no postponed state, we can respond with the 
-        // prelude immediately
-        if (prelude && !postponedState) {
-          return new Response(prelude, {
-            headers: {
-              'Cache-Control': 'private, no-store',
-              'Content-Type': 'text/html',
-              Vary: 'accept',
-            },
-            status,
-          })
-        }
+        const postponedState = await Prerender.Artifact.loadPostponedState(
+          config.outDir,
+          pathname,
+        )
+        const prelude = await Prerender.Artifact.loadPrelude(config.outDir, pathname)
 
         // otherwise, attempt to resume with the prelude and the postponed state
         if (postponedState) {
           const resumeStream = await mod.ssr.resume(stream, postponedState, {
             nonce: undefined,
-            injectPayload: false,
+            injectPayload: true,
           })
 
           const body = prelude
-            ? Prerender.Runtime.composePreludeAndResume(prelude, resumeStream)
+            ? Prerender.Artifact.composePreludeAndResume(prelude, resumeStream)
             : resumeStream
 
           return new Response(body, {
@@ -182,11 +178,38 @@ export function writeRSCEntry() {
           req.headers.get('x-drift-prerender-artifact') !== '1'
         ) {
           const pathname = url.pathname
-          const prerenderPath = !fullyPrerenderedRoutes.has(pathname)
-            ? null
-            : pathname === '/'
-              ? config.outDir + '/index.html'
-              : config.outDir + pathname + '/index.html'
+          let prerenderPath: string | null = null
+          const artifactManifest = await Prerender.Artifact.loadManifest(config.outDir)
+          const artifactManifestEntry = artifactManifest?.routes[pathname] ?? null
+
+          if (fullyPrerenderedRoutes.has(pathname)) {
+            prerenderPath =
+              pathname === '/'
+                ? config.outDir + '/index.html'
+                : config.outDir + pathname + '/index.html'
+          } else if (artifactManifestEntry) {
+            if (artifactManifestEntry.mode === 'full') {
+              prerenderPath =
+                pathname === '/'
+                  ? config.outDir + '/index.html'
+                  : config.outDir + pathname + '/index.html'
+            }
+          } else {
+            const artifactMetadata = await Prerender.Artifact.loadMetadata(
+              config.outDir,
+              pathname,
+            )
+
+            if (
+              artifactMetadata &&
+              Prerender.Artifact.isCompatible(artifactMetadata, pathname, 'full')
+            ) {
+              prerenderPath =
+                pathname === '/'
+                  ? config.outDir + '/index.html'
+                  : config.outDir + pathname + '/index.html'
+            }
+          }
 
           if (prerenderPath) {
             const res = await Router.serve(prerenderPath, req, config.precompress, {

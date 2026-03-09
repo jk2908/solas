@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
-import fs from 'node:fs/promises'
-import path from 'node:path'
+import fs from 'node:fs/promises';
+import path from 'node:path';
 
-import type { BuildManifest } from './types'
+import type { BuildManifest } from './types';
 
-import { Drift } from './drift'
+import { Drift } from './drift';
 
-import { Compress } from './utils/compress'
-import { Logger } from './utils/logger'
+import { Compress } from './utils/compress';
+import { Logger } from './utils/logger';
 
-import { Prerender } from './internal/prerender'
+import { Prerender } from './internal/prerender';
 
 const logger = new Logger()
 const DEFAULT_PREVIEW_PORT = 4173
@@ -48,11 +48,17 @@ async function build() {
 
 	const outDir = path.resolve(cwd, manifest.outDir)
 	const rscDir = path.join(outDir, 'rsc')
+	const artifactRoot = Prerender.Artifact.getRootPath(outDir)
+
+	// clear old prerender artifacts so routes that have switched modes
+	// do not keep stale metadata from a previous build
+	await fs.rm(artifactRoot, { recursive: true, force: true })
 
 	// prerender routes
 	if (manifest.prerenderedRoutes.length > 0) {
 		const timeout = Prerender.Build.getTimeout()
 		const concurrency = Prerender.Build.getConcurrency()
+		const artifactManifestRoutes: Prerender.Artifact.Manifest['routes'] = {}
 
 		logger.info(
 			'[prerender]',
@@ -73,6 +79,8 @@ async function build() {
 
 			try {
 				const routeDir = route === '/' ? '' : route.replace(/^\//, '')
+				// folder for this route's build notes/files
+				const artifactDir = Prerender.Artifact.getPath(outDir, route)
 
 				if ('error' in result) throw result.error
 
@@ -84,14 +92,13 @@ async function build() {
 				const artifact = result.artifact
 
 				if (artifact.mode === 'ppr') {
-					const baseDir = Prerender.getArtifactPath(outDir, route)
-
-					await fs.mkdir(baseDir, { recursive: true })
+					// for ppr we save the shell now, and the delayed part for later
+					await fs.mkdir(artifactDir, { recursive: true })
 
 					const writes: Promise<number>[] = [
-						Bun.write(path.join(baseDir, 'prelude.html'), artifact.html),
+						Bun.write(path.join(artifactDir, 'prelude.html'), artifact.html),
 						Bun.write(
-							path.join(baseDir, 'metadata.json'),
+							path.join(artifactDir, 'metadata.json'),
 							JSON.stringify({
 								schema: artifact.schema,
 								route: artifact.route,
@@ -104,13 +111,22 @@ async function build() {
 					if (artifact.postponed !== undefined) {
 						writes.push(
 							Bun.write(
-								path.join(baseDir, 'postponed.json'),
+								path.join(artifactDir, 'postponed.json'),
 								JSON.stringify(artifact.postponed),
 							),
 						)
 					}
 
 					await Promise.all(writes)
+
+					artifactManifestRoutes[route] = {
+						mode: artifact.mode,
+						createdAt: artifact.createdAt,
+						files:
+							artifact.postponed !== undefined
+								? ['metadata', 'prelude', 'postponed']
+								: ['metadata', 'prelude'],
+					}
 
 					logger.info(
 						'[prerender:artifacts]',
@@ -133,6 +149,19 @@ async function build() {
 
 				// @todo: hash files
 
+				// even for full pages, write metadata so preview/runtime knows to serve built html
+				await fs.mkdir(artifactDir, { recursive: true })
+
+				await Bun.write(
+					path.join(artifactDir, 'metadata.json'),
+					JSON.stringify({
+						schema: artifact.schema,
+						route: artifact.route,
+						createdAt: artifact.createdAt,
+						mode: artifact.mode,
+					}),
+				)
+
 				const outPath =
 					route === '/'
 						? path.join(outDir, 'index.html')
@@ -140,6 +169,12 @@ async function build() {
 
 				await fs.mkdir(path.dirname(outPath), { recursive: true })
 				await Bun.write(outPath, artifact.html)
+
+				artifactManifestRoutes[route] = {
+					mode: artifact.mode,
+					createdAt: artifact.createdAt,
+					files: ['metadata', 'html'],
+				}
 
 				logger.info('[prerender]', `${route} (full)`)
 			} catch (err) {
@@ -149,23 +184,23 @@ async function build() {
 				)
 			}
 		}
+
+		await fs.mkdir(artifactRoot, { recursive: true })
+
+		await Bun.write(
+			Prerender.Artifact.getManifestPath(outDir),
+			JSON.stringify({
+				generatedAt: Date.now(),
+				routes: artifactManifestRoutes,
+			}),
+		)
 	}
 
 	// precompress
 	if (manifest.precompress) {
 		logger.info('[precompress]', 'compressing assets...')
 
-		const buildContext = {
-			outDir: manifest.outDir,
-			bundle: {
-				server: { entryPath: null, outDir: null },
-				client: { entryPath: null, outDir: null },
-			},
-			transpiler: new Bun.Transpiler({ loader: 'tsx' }),
-			prerenderedRoutes: new Set<string>(),
-		}
-
-		for await (const { input, compressed } of Compress.run(outDir, buildContext, {
+		for await (const { input, compressed } of Compress.run(outDir, {
 			filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
 		})) {
 			await Bun.write(`${input}.br`, compressed)

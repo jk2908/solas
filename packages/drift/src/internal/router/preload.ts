@@ -5,7 +5,25 @@ export namespace Preload {
 	}
 
 	const TTL_MS = 60_000
+	const MAX_SIZE = 32
 	const cache = new Map<string, Entry>()
+
+	function evict(mode: 'oldest' | 'random' = 'oldest') {
+		if (cache.size === 0) return
+
+		const candidate =
+			mode === 'oldest'
+				? [...cache.entries()].reduce((oldest, entry) =>
+						entry[1].promise < oldest[1].promise ? entry : oldest,
+					)
+				: [...cache.entries()][Math.floor(Math.random() * cache.size)]
+
+		if (!candidate) return
+		const [key, entry] = candidate
+
+		clearTimeout(entry.timeoutId)
+		cache.delete(key)
+	}
 
 	/**
 	 * Converts a url path to a cache key by normalising it
@@ -49,6 +67,9 @@ export namespace Preload {
 
 		if (existing) {
 			clearTimeout(existing.timeoutId)
+			cache.delete(path)
+		} else if (cache.size >= MAX_SIZE) {
+			evict()
 		}
 
 		const timeoutId = setTimeout(() => {

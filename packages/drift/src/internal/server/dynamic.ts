@@ -1,5 +1,8 @@
+import { Logger } from '../../utils/logger'
+
 import { RequestContext } from '../env/request-context'
 
+const logger = new Logger()
 const NEVER: Promise<never> = new Promise(() => {})
 
 /**
@@ -14,7 +17,12 @@ export function dynamic() {
 	if (!prerender) return
 
 	if (prerender !== 'ppr') {
-		throw new Error('dynamic() is only supported in ppr prerender mode')
+		logger.warn(
+			'[dynamic]',
+			"dynamic() was called but prerender mode is not 'ppr'. This means the component will be rendered at build time, which may not be what you intended.",
+		)
+
+		return
 	}
 
 	throw NEVER

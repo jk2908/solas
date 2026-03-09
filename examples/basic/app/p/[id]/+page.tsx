@@ -42,7 +42,7 @@ async function Timestamp({ slug }: { slug: string }) {
 }
 
 export const params = () => allPosts.map(p => ({ id: p.__mdsrc.slug }))
-export const prerender = 'ppr'
+export const prerender = false
 
 const allPosts = [
 	{

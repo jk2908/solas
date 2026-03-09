@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
 import { Drift } from '../../drift'
@@ -335,8 +337,23 @@ export class Router {
 	static static(config: PluginConfig) {
 		return async (req: Request) => {
 			const pathname = new URL(req.url).pathname
-			const outDir = config.outDir?.replace(/\/$/, '') ?? ''
-			const filePath = `${outDir}/client${pathname}`
+			const outDir = path.resolve(config.outDir ?? 'dist')
+			const staticRoot = path.resolve(outDir, 'client')
+
+			let decodedPathname = pathname
+
+			try {
+				decodedPathname = decodeURIComponent(pathname)
+			} catch {
+				return new Response('Bad Request', { status: 400 })
+			}
+
+			const relativePath = decodedPathname.replace(/^\/+/, '')
+			const filePath = path.resolve(staticRoot, relativePath)
+
+			if (filePath !== staticRoot && !filePath.startsWith(`${staticRoot}${path.sep}`)) {
+				return new Response('Forbidden', { status: 403 })
+			}
 
 			return Router.serve(filePath, req, config.precompress, {
 				'Cache-Control': 'public, immutable, max-age=31536000',

@@ -1,11 +1,11 @@
-import path from 'node:path'
+import path from 'node:path';
 
-import type { BuildContext } from '../types'
+import type { BuildContext } from '../types';
 
-import { Drift } from '../drift'
+import { Drift } from '../drift';
 
-import { Logger } from '../utils/logger'
-import { Time } from '../utils/time'
+import { Logger } from '../utils/logger';
+import { Time } from '../utils/time';
 
 const logger = new Logger()
 
@@ -13,62 +13,158 @@ export namespace Prerender {
 	const DEFAULT_TIMEOUT_MS = 15_000
 	const DEFAULT_CONCURRENCY = 4
 
-	export type Result =
-		| { route: string; artifact: Artifact }
-		| { route: string; status: number }
-		| { route: string; error: unknown }
+	export namespace Artifact {
+		const manifestCache = new Map<string, Manifest | null>()
 
-	export type Artifact = {
-		schema: string
-		route: string
-		createdAt: number
-		mode: 'full' | 'ppr'
-		html: string
-		postponed?: unknown
-	}
+		export type Mode = 'full' | 'ppr'
+		export type File = 'html' | 'prelude' | 'postponed' | 'metadata'
 
-	export type ArtifactMetadata = Pick<Artifact, 'schema' | 'route' | 'createdAt' | 'mode'>
+		export type Value = {
+			schema: string
+			route: string
+			createdAt: number
+			mode: Mode
+			html: string
+			postponed?: unknown
+		}
 
-	/**
-	 * Get the file system path for storing prerender artifacts for a given route
-	 * @param outDir - the base output directory for build artifacts
-	 * @param pathname - the url pathname for which to get the artifact path
-	 * @returns the file system path where prerender artifacts for the given route should be stored
-	 */
-	export function getArtifactPath(outDir: string, pathname: string) {
-		const dir = pathname === '/' ? 'index' : pathname.replace(/^\//, '')
+		export type Metadata = Pick<Value, 'schema' | 'route' | 'createdAt' | 'mode'>
 
-		return path.join(outDir, Drift.Config.GENERATED_DIR, 'ppr', dir)
-	}
+		export type ManifestEntry = {
+			mode: Mode
+			createdAt: number
+			files?: File[]
+		}
 
-	export namespace Runtime {
-		/**
-		 * Custom error class to indicate that prerendering has been postponed to request-time
-		 */
-		export class Postponed extends Error {
-			constructor(message: string = 'postponed') {
-				super(message)
-				this.name = 'Postponed'
-			}
+		export type Manifest = {
+			generatedAt: number
+			routes: Record<string, ManifestEntry>
 		}
 
 		/**
-		 * Type guard to check if an error is a Postponed error, including wrapped errors like
-		 * AbortError or TimeoutError
-		 * @param error - the error to check
-		 * @returns true if the error is a Postponed error or caused by a Postponed error, false otherwise
+		 * Get the root directory path where prerender artifacts are stored, 
+		 * based on the output directory specified in the configuration
+		 * @param outDir - the base output directory for build artifacts
+		 * @returns the path where prerender artifacts are stored
 		 */
-		export function isPostponed(error: unknown) {
-			if (error instanceof Postponed) return true
+		export function getRootPath(outDir: string) {
+			return path.join(outDir, Drift.Config.GENERATED_DIR, 'ppr')
+		}
 
-			if (
-				error instanceof Error &&
-				(error.name === 'AbortError' || error.name === 'TimeoutError')
-			) {
-				if (error.cause instanceof Postponed) return true
+		/**
+		 * Get the file system path for the prerender artifact manifest, which 
+		 * contains metadata about all prerendered routes and their artifacts
+		 * @param outDir - the base output directory for build artifacts
+		 * @returns the file system path where the prerender artifact manifest is stored
+		 */
+		export function getManifestPath(outDir: string) {
+			return path.join(getRootPath(outDir), 'manifest.json')
+		}
+
+		/**
+		 * Get the file system path for storing prerender artifacts for a given route
+		 * @param outDir - the base output directory for build artifacts
+		 * @param pathname - the url pathname for which to get the artifact path
+		 * @returns the file system path where prerender artifacts for the given route should be stored
+		 */
+		export function getPath(outDir: string, pathname: string) {
+			const dir = pathname === '/' ? 'index' : pathname.replace(/^\//, '')
+
+			return path.join(getRootPath(outDir), dir)
+		}
+
+		/**
+		 * Load the prerender artifact manifest for faster runtime route mode checks
+		 * @param outDir - the base output directory for build artifacts
+		 * @returns the manifest object if it exists and is valid, or null
+		 */
+		export async function loadManifest(outDir: string) {
+			// if we already loaded this outDir, return cached result
+			// (either a valid manifest or null when it was missing/invalid)
+			if (manifestCache.has(outDir)) {
+				return manifestCache.get(outDir) ?? null
 			}
 
-			return false
+			const file = Bun.file(getManifestPath(outDir))
+			
+			// no manifest means no prerender metadata to use
+			if (!(await file.exists())) {
+				manifestCache.set(outDir, null)
+				return null
+			}
+
+			try {
+				// parse once, then validate the shape before trusting any fields
+				const value = JSON.parse(await file.text())
+
+				if (!value || typeof value !== 'object') {
+					manifestCache.set(outDir, null)
+					return null
+				}
+
+				const generatedAt = (value as { generatedAt?: unknown }).generatedAt
+				const routes = (value as { routes?: unknown }).routes
+
+				if (typeof generatedAt !== 'number') {
+					manifestCache.set(outDir, null)
+					return null
+				}
+
+				if (!routes || typeof routes !== 'object') {
+					manifestCache.set(outDir, null)
+					return null
+				}
+
+				// verify each route entry so runtime can rely on mode/files safely
+				for (const entry of Object.values(routes)) {
+					if (!entry || typeof entry !== 'object') {
+						manifestCache.set(outDir, null)
+						return null
+					}
+
+					const { mode, createdAt, files } = entry
+
+					// only allow known modes
+					if (mode !== 'full' && mode !== 'ppr') {
+						manifestCache.set(outDir, null)
+						return null
+					}
+
+					if (typeof createdAt !== 'number') {
+						manifestCache.set(outDir, null)
+						return null
+					}
+
+					if (files !== undefined) {
+						if (!Array.isArray(files)) {
+							manifestCache.set(outDir, null)
+							return null
+						}
+
+						// only allow known artifact file labels
+						for (const f of files) {
+							if (
+								f !== 'html' &&
+								f !== 'prelude' &&
+								f !== 'postponed' &&
+								f !== 'metadata'
+							) {
+								manifestCache.set(outDir, null)
+								return null
+							}
+						}
+					}
+				}
+
+				const manifest = { generatedAt, routes } as Manifest
+				// cache validated manifest to avoid reparsing on every request
+				manifestCache.set(outDir, manifest)
+
+				return manifest
+			} catch {
+				manifestCache.set(outDir, null)
+				return null
+			}
 		}
 
 		/**
@@ -78,9 +174,7 @@ export namespace Prerender {
 		 * @returns the postponed state object if it exists and is valid, or null if it doesn't exist or is invalid
 		 */
 		export async function loadPostponedState(outDir: string, pathname: string) {
-			const file = Bun.file(
-				path.join(getArtifactPath(outDir, pathname), 'postponed.json'),
-			)
+			const file = Bun.file(path.join(getPath(outDir, pathname), 'postponed.json'))
 			if (!(await file.exists())) return null
 
 			try {
@@ -97,7 +191,7 @@ export namespace Prerender {
 		 * @returns the prelude HTML string if it exists, or null if it doesn't exist or can't be read
 		 */
 		export async function loadPrelude(outDir: string, pathname: string) {
-			const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'prelude.html'))
+			const file = Bun.file(path.join(getPath(outDir, pathname), 'prelude.html'))
 			if (!(await file.exists())) return null
 
 			try {
@@ -113,8 +207,8 @@ export namespace Prerender {
 		 * @param pathname - the url pathname for which to load the artifact metadata
 		 * @returns the artifact metadata object if it exists and is valid, or null if it doesn't exist or is invalid
 		 */
-		export async function loadArtifactMetadata(outDir: string, pathname: string) {
-			const file = Bun.file(path.join(getArtifactPath(outDir, pathname), 'metadata.json'))
+		export async function loadMetadata(outDir: string, pathname: string) {
+			const file = Bun.file(path.join(getPath(outDir, pathname), 'metadata.json'))
 			if (!(await file.exists())) return null
 
 			try {
@@ -131,7 +225,7 @@ export namespace Prerender {
 				if (typeof createdAt !== 'number') return null
 				if (mode !== 'full' && mode !== 'ppr') return null
 
-				return { schema, route, createdAt, mode } satisfies ArtifactMetadata
+				return { schema, route, createdAt, mode } satisfies Metadata
 			} catch {
 				return null
 			}
@@ -146,10 +240,10 @@ export namespace Prerender {
 		 * @returns true if the artifact is compatible with the current application version and route,
 		 * false otherwise
 		 */
-		export function isArtifactCompatible(
-			artifactMetadata: ArtifactMetadata,
+		export function isCompatible(
+			artifactMetadata: Metadata,
 			pathname: string,
-			mode: Artifact['mode'],
+			mode: Mode,
 		) {
 			const schema = Drift.getVersion()
 
@@ -212,6 +306,42 @@ export namespace Prerender {
 					}
 				},
 			})
+		}
+	}
+
+	export type Result =
+		| { route: string; artifact: Artifact.Value }
+		| { route: string; status: number }
+		| { route: string; error: unknown }
+
+	export namespace Runtime {
+		/**
+		 * Custom error class to indicate that prerendering has been postponed to request-time
+		 */
+		export class Postponed extends Error {
+			constructor(message: string = 'postponed') {
+				super(message)
+				this.name = 'Postponed'
+			}
+		}
+
+		/**
+		 * Type guard to check if an error is a Postponed error, including wrapped errors like
+		 * AbortError or TimeoutError
+		 * @param error - the error to check
+		 * @returns true if the error is a Postponed error or caused by a Postponed error, false otherwise
+		 */
+		export function isPostponed(error: unknown) {
+			if (error instanceof Postponed) return true
+
+			if (
+				error instanceof Error &&
+				(error.name === 'AbortError' || error.name === 'TimeoutError')
+			) {
+				if (error.cause instanceof Postponed) return true
+			}
+
+			return false
 		}
 	}
 

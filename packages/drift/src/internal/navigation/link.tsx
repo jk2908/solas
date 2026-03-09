@@ -1,5 +1,7 @@
 'use client'
 
+import { useRef } from 'react'
+
 import { useRouter } from '../router/use-router'
 
 type Props = {
@@ -16,6 +18,7 @@ type Props = {
  */
 export function Link({ children, href, preload = 'intent', ...props }: Props) {
 	const { go, preload: preloader } = useRouter()
+	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
 	return (
 		<a
@@ -54,9 +57,19 @@ export function Link({ children, href, preload = 'intent', ...props }: Props) {
 			onMouseEnter={e => {
 				props.onMouseEnter?.(e)
 				if (e.defaultPrevented) return
+				if (preload !== 'hover') return
 
-				if (preload === 'none') return
-				preloader(href)
+				timer.current = setTimeout(() => {
+					preloader(href)
+				}, 100)
+			}}
+			onMouseLeave={e => {
+				props.onMouseLeave?.(e)
+
+				if (timer.current) {
+					clearTimeout(timer.current)
+					timer.current = null
+				}
 			}}>
 			{children}
 		</a>

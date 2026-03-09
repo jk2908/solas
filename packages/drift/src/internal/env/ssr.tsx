@@ -139,13 +139,27 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 			},
 		)
 
+		// if prerender produced no postponed state, this route is effectively
+		// fully prerenderable. Emit full HTML with embedded RSC payload
+		if (postponed == null) {
+			return {
+				schema,
+				route,
+				createdAt: Date.now(),
+				mode: 'full',
+				html: await new Response(
+					prelude.pipeThrough(injectRSCPayload(s2, { nonce })),
+				).text(),
+			}
+		}
+
 		return {
 			schema,
 			route,
 			createdAt: Date.now(),
 			mode: 'ppr',
 			html: await new Response(prelude).text(),
-			postponed: postponed ?? undefined,
+			postponed,
 		}
 	}
 

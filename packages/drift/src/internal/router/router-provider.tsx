@@ -86,6 +86,21 @@ export function RouterProvider({
 	 * @returns a promise that resolves when the fetch completes
 	 */
 	const preload = useCallback((path: string) => {
+		const connection = (
+			navigator as Navigator & {
+				connection?: {
+					saveData?: boolean
+					effectiveType?: string
+				}
+			}
+		).connection
+
+		if (document.visibilityState === 'hidden') return
+		if (connection?.saveData) return
+		if (connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') {
+			return
+		}
+
 		const key = Preload.toKey(path, window.location.origin)
 
 		if (Preload.has(key)) return
