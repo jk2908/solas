@@ -6,7 +6,7 @@ import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
 import { Drift } from '../../drift'
 
-import { isAction } from '../env/rsc'
+import { maybeActionWithParsedFormData } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
 import { toPathPattern } from './pattern'
 
@@ -233,7 +233,9 @@ export class Router {
 				req = new Request(url.toString(), req)
 			}
 
-			action = await isAction(req)
+			const { action: isAction, formData } = await maybeActionWithParsedFormData(req)
+			action = isAction
+
 			const method = req.method.toUpperCase() as HttpMethod
 
 			// action requests stay on the same pathname only the method is
@@ -255,7 +257,7 @@ export class Router {
 
 			const matched = match
 			const request = Object.assign(req, {
-				[Drift.Config.$]: { match: matched, action },
+				[Drift.Config.$]: { match: matched, action, formData },
 			})
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
 

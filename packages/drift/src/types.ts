@@ -44,6 +44,7 @@ export type DriftRequest = Request & {
 		error?: HttpException | Error
 		action?: boolean
 		match: Router.Match | null
+		formData?: FormData | null
 	}
 }
 

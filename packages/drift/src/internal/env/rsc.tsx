@@ -238,7 +238,7 @@ export async function rsc(
 	}
 }
 
-export async function action(req: Request) {
+export async function action(req: DriftRequest) {
 	let returnValue: { ok: boolean; data: unknown } | undefined
 	let formState: ReactFormState | undefined
 	let temporaryReferences: unknown
@@ -268,7 +268,13 @@ export async function action(req: Request) {
 	} else {
 		// otherwise server function is called via
 		// <form action={...}>
-		const formData = await req.formData()
+
+		// we might have already parsed FormData in the router for multipart action
+		// detection should be attached to the DriftRequest, so we can reuse that
+		// to avoid parsing twice
+		const parsedFormData = req[Drift.Config.$].formData
+
+		const formData = parsedFormData ?? (await req.formData())
 		const decodedAction = await decodeAction(formData)
 		const result = await decodedAction()
 		formState = await decodeFormState(result, formData)
@@ -277,12 +283,17 @@ export async function action(req: Request) {
 	return { returnValue, formState, temporaryReferences }
 }
 
-export async function isAction(req: Request) {
-	if (req.method !== 'POST') return false
-	if (req.headers.has('x-rsc-action-id')) return true
+/**
+ * Check if a request is an action request and reuse parsed FormData
+ * when multipart action detection already had to inspect the body
+ */
+export async function maybeActionWithParsedFormData(req: Request) {
+	if (req.method !== 'POST') return { action: false, formData: null }
+	if (req.headers.has('x-rsc-action-id')) return { action: true, formData: null }
 
 	const contentType = req.headers.get('content-type') ?? ''
-	if (!contentType.startsWith('multipart/form-data')) return false
+	if (!contentType.startsWith('multipart/form-data'))
+		return { action: false, formData: null }
 
 	try {
 		const formData = await req.clone().formData()
@@ -293,12 +304,12 @@ export async function isAction(req: Request) {
 				key.startsWith('$ACTION_') ||
 				key.startsWith('$ACTION_REF_')
 			) {
-				return true
+				return { action: true, formData }
 			}
 		}
 	} catch {
-		return false
+		return { action: false, formData: null }
 	}
 
-	return false
+	return { action: false, formData: null }
 }
