@@ -80,14 +80,7 @@ export function RouterProvider({
 	 * Preload a route's assets by fetching the RSC payload
 	 */
 	const preload = useCallback((path: string) => {
-		const connection = (
-			navigator as Navigator & {
-				connection?: {
-					saveData?: boolean
-					effectiveType?: string
-				}
-			}
-		).connection
+		const connection = window.navigator.connection
 
 		if (document.visibilityState === 'hidden') return
 		if (connection?.saveData) return

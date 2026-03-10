@@ -9,7 +9,12 @@
 		"jsx": "react-jsx",
 		"jsxImportSource": "react",
 		"allowSyntheticDefaultImports": true,
-		"types": ["vite/client", "bun", "@vitejs/plugin-rsc/types"],
+		"types": [
+			"vite/client",
+			"bun",
+			"@vitejs/plugin-rsc/types",
+			"network-information-types"
+		],
 		"declaration": true,
 		"rootDir": "src",
 		"outDir": "dist"
