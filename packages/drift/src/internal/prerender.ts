@@ -9,6 +9,7 @@ import { Drift } from '../drift'
 import { Logger } from '../utils/logger'
 import { ModuleExports } from '../utils/module-exports'
 import { Time } from '../utils/time'
+
 import { toPathPattern } from './router/pattern'
 
 const logger = new Logger()
