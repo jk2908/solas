@@ -16,8 +16,8 @@ import { Build } from '../build'
 import { Metadata } from '../metadata'
 import { HttpException, isHttpException } from '../navigation/http-exception'
 
-export namespace Matcher {
-	export type Match = ReturnType<Matcher['reconcile']>
+export namespace Resolver {
+	export type Match = ReturnType<Resolver['reconcile']>
 
 	export type EnhancedMatch = Match & {
 		ui: {
@@ -52,13 +52,13 @@ const logger = new Logger()
 const IS_DEV = import.meta.env.DEV
 
 /**
- * Reconcile router matches with the application manifest and import map
+ * Resolve router matches against the application manifest and import map
  */
-export class Matcher {
+export class Resolver {
 	/**
 	 * Cache of enhanced matches
 	 */
-	static #enhancedMatchCache = new Map<string, Matcher.EnhancedMatch>()
+	static #enhancedMatchCache = new Map<string, Resolver.EnhancedMatch>()
 
 	/**
 	 * Cache of loaded modules from dynamic imports
@@ -107,7 +107,7 @@ export class Matcher {
 	/**
 	 * Get the status code for a matched route that may or may not have errored
 	 */
-	static getMatchStatusCode(match: Matcher.Match | Matcher.EnhancedMatch | null) {
+	static getMatchStatusCode(match: Resolver.Match | Resolver.EnhancedMatch | null) {
 		if (!match) return 404
 
 		if ('error' in match) {
@@ -127,23 +127,23 @@ export class Matcher {
 			}
 		}
 
-		let entry = Matcher.#moduleCache.get(loader)
+		let entry = Resolver.#moduleCache.get(loader)
 		if (entry) return entry
 
 		const promise = loader()
 			.then(mod => {
-				const entry = Matcher.#moduleCache.get(loader)
+				const entry = Resolver.#moduleCache.get(loader)
 				if (entry) entry.module = mod
 
 				return mod
 			})
 			.catch(err => {
-				Matcher.#moduleCache.delete(loader)
+				Resolver.#moduleCache.delete(loader)
 				throw err
 			})
 
 		entry = { promise }
-		Matcher.#moduleCache.set(loader, entry)
+		Resolver.#moduleCache.set(loader, entry)
 
 		return entry
 	}
@@ -154,7 +154,7 @@ export class Matcher {
 	static #view<T extends React.ComponentType<any>>(
 		loader: DynamicImport,
 	): View<React.ComponentProps<T>> {
-		const entry = Matcher.#load(loader)
+		const entry = Resolver.#load(loader)
 
 		logger.debug(
 			'[#view]',
@@ -182,7 +182,7 @@ export class Matcher {
 	 */
 	reconcile(path: string, match: Router.Match | null, error?: Error) {
 		if (match) {
-			const entry = Matcher.narrow(this.#manifest[match.route.path])
+			const entry = Resolver.narrow(this.#manifest[match.route.path])
 
 			if (entry) {
 				return {
@@ -214,11 +214,11 @@ export class Matcher {
 	/**
 	 * Enhance a matched route with its associated components
 	 */
-	enhance(match: Matcher.Match | null) {
+	enhance(match: Resolver.Match | null) {
 		if (!match) return null
 
 		const { __id } = match
-		const cached = IS_DEV ? undefined : Matcher.#enhancedMatchCache.get(__id)
+		const cached = IS_DEV ? undefined : Resolver.#enhancedMatchCache.get(__id)
 
 		if (cached) {
 			logger.debug('[enhance]', __id, 'CACHED')
@@ -234,7 +234,7 @@ export class Matcher {
 		const entry = this.#importMap[__id]
 		if (!entry) return null
 
-		const enhanced: Matcher.EnhancedMatch = {
+		const enhanced: Resolver.EnhancedMatch = {
 			ui: {
 				layouts: [],
 				Page: null,
@@ -247,30 +247,32 @@ export class Matcher {
 		// shell is a static import, layouts[0] in the enhanced match
 		if (entry.shell) {
 			enhanced.ui.layouts = [
-				entry.shell.default as Matcher.EnhancedMatch['ui']['layouts'][0],
+				entry.shell.default as Resolver.EnhancedMatch['ui']['layouts'][0],
 			]
 		}
 
 		if (entry.layouts?.length) {
 			const dynamicLayouts = entry.layouts.map(l =>
 				l
-					? Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['layouts'][number]>>(l)
+					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['layouts'][number]>>(
+							l,
+						)
 					: null,
 			)
 			enhanced.ui.layouts = [...enhanced.ui.layouts, ...dynamicLayouts]
 		}
 
 		if (entry.page) {
-			enhanced.ui.Page = Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['Page']>>(
-				entry.page,
-			)
+			enhanced.ui.Page = Resolver.#view<
+				NonNullable<Resolver.EnhancedMatch['ui']['Page']>
+			>(entry.page)
 		}
 
 		// load 404 boundaries
 		if (entry['404s']?.length) {
 			enhanced.ui['404s'] = entry['404s'].map(e =>
 				e
-					? Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['404s'][number]>>(e)
+					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['404s'][number]>>(e)
 					: null,
 			)
 		}
@@ -280,7 +282,9 @@ export class Matcher {
 		if (entry.loaders?.length) {
 			enhanced.ui.loaders = entry.loaders.map(l =>
 				l
-					? Matcher.#view<NonNullable<Matcher.EnhancedMatch['ui']['loaders'][number]>>(l)
+					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['loaders'][number]>>(
+							l,
+						)
 					: null,
 			)
 		}
@@ -321,7 +325,7 @@ export class Matcher {
 				for (const layout of entry.layouts) {
 					if (!layout) continue
 
-					const e = Matcher.#load(layout)
+					const e = Resolver.#load(layout)
 
 					if (e.module && 'metadata' in e.module) {
 						const metadata = e.module.metadata
@@ -364,7 +368,7 @@ export class Matcher {
 			}
 
 			if (entry.page) {
-				const e = Matcher.#load(entry.page)
+				const e = Resolver.#load(entry.page)
 
 				if (e.module && 'metadata' in e.module) {
 					const metadata = e.module.metadata
@@ -408,7 +412,7 @@ export class Matcher {
 			if (entry['404s'] && error) {
 				for (const errLoader of entry['404s']) {
 					if (!errLoader) continue
-					const e = Matcher.#load(errLoader)
+					const e = Resolver.#load(errLoader)
 
 					if (e.module && 'metadata' in e.module) {
 						const metadata = e.module.metadata
@@ -453,7 +457,7 @@ export class Matcher {
 			return Promise.allSettled(tasks)
 		}
 
-		if (!IS_DEV) Matcher.#enhancedMatchCache.set(__id, enhanced)
+		if (!IS_DEV) Resolver.#enhancedMatchCache.set(__id, enhanced)
 
 		return enhanced
 	}
@@ -470,7 +474,7 @@ export class Matcher {
 			const entry = this.#manifest[testPath]
 			if (!entry) continue
 
-			const pageEntry = Matcher.narrow(entry)
+			const pageEntry = Resolver.narrow(entry)
 			if (!pageEntry) continue
 
 			let curr: unknown = pageEntry

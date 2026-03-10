@@ -1,11 +1,11 @@
 import { Suspense } from 'react'
 
-import type { Matcher } from '../router/matcher'
+import type { Resolver } from '../router/resolver'
 import { HttpException, isHttpException } from '../navigation/http-exception'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary'
 import DefaultErr from '../ui/defaults/error'
 
-type Match = NonNullable<Matcher.EnhancedMatch>
+type Match = NonNullable<Resolver.EnhancedMatch>
 
 /**
  * Route tree renderer

@@ -19,7 +19,7 @@ import { getKnownDigest, isKnownError } from './utils'
 import { Metadata } from '../metadata'
 import { HttpException, isHttpException } from '../navigation/http-exception'
 import { Tree } from '../render/tree'
-import { Matcher } from '../router/matcher'
+import { Resolver } from '../router/resolver'
 import DefaultErr from '../ui/defaults/error'
 import { RequestContext } from './request-context'
 
@@ -42,7 +42,7 @@ export async function rsc(
 	formState?: ReactFormState,
 	temporaryReferences?: unknown,
 ) {
-	const matcher = new Matcher(manifest, importMap)
+	const resolver = new Resolver(manifest, importMap)
 	const logger = new Logger()
 	const prerender = req.headers.get('x-drift-prerender') === '1'
 	const url = new URL(req.url)
@@ -50,8 +50,8 @@ export async function rsc(
 		url.pathname.endsWith('/') && url.pathname !== '/'
 			? url.pathname.slice(0, -1)
 			: url.pathname
-	const match = matcher.enhance(
-		matcher.reconcile(pathname, req[Drift.Config.$].match, req[Drift.Config.$].error),
+	const match = resolver.enhance(
+		resolver.reconcile(pathname, req[Drift.Config.$].match, req[Drift.Config.$].error),
 	)
 
 	// if there's no match then no user supplied error boundary

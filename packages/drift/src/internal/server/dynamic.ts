@@ -10,6 +10,8 @@ const NEVER: Promise<never> = new Promise(() => {})
  * @description in prerender mode this suspends forever so the nearest Suspense
  * boundary renders its fallback into the static shell. In request mode this
  * resolves immediately
+ * @returns void during normal requests or prerender not in ppr mode
+ * @throws if called in prerender mode (the desired effect)
  */
 export function dynamic() {
 	const { prerender } = RequestContext.use()
