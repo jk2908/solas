@@ -4,7 +4,6 @@ import { AUTOGEN_MSG } from './utils'
 
 /**
  * Generates the RSC entry code
- * @returns the stringified code
  */
 export function writeRSCEntry() {
 	return `
@@ -233,7 +232,6 @@ export function writeRSCEntry() {
 
 /**
  * Generates the SSR entry code
- * @returns the stringified code
  */
 export function writeSSREntry() {
 	return `
@@ -245,7 +243,6 @@ export function writeSSREntry() {
 
 /**
  * Generates the browser entry code
- * @returns the stringified code
  */
 export function writeBrowserEntry() {
 	return `

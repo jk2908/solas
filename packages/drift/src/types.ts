@@ -2,15 +2,14 @@ type BunRequest = Request & { params?: Record<string, string | string[]> }
 
 import { Drift } from './drift'
 
-import type { LogLevel } from './utils/logger'
-
 import type { Build } from './internal/build'
 import type { Metadata } from './internal/metadata'
 import type { HttpException } from './internal/navigation/http-exception'
 import type { Router } from './internal/router/router'
 
-export type PrerenderMode = 'full' | 'ppr' | false
-export type SegmentPrerender = 'full' | 'ppr' | false
+export type PrerenderMode = (typeof Drift.Config.PRERENDER_MODES)[number]
+export type SegmentPrerender = PrerenderMode
+export type ConfigLogLevel = (typeof Drift.Config.LOG_LEVELS)[number]
 
 export type PluginConfig = {
 	url?: `http://${string}` | `https://${string}`
@@ -20,12 +19,12 @@ export type PluginConfig = {
 	metadata?: Metadata.Item
 	trailingSlash?: boolean
 	readonly logger?: {
-		level?: LogLevel
+		level?: ConfigLogLevel
 	}
 }
 
 export type BuildContext = {
-	outDir: string
+	outDir?: string
 	bundle: {
 		server: {
 			entryPath: string | null

@@ -3,7 +3,6 @@ import { dynamic } from './dynamic'
 
 /**
  * Get the request headers as a read-only map
- * @returns a read-only map containing the request headers
  */
 export function headers(): ReadonlyMap<string, string> {
 	dynamic()

@@ -47,9 +47,6 @@ function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
 
 /**
  * SSR handler - returns a ReadableStream response for HTML requests
- * @param rscStream - the RSC ReadableStream to render
- * @param opts - SSR options including formState, nonce, and ppr mode
- * @returns a ReadableStream of the rendered HTML
  */
 async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	const { formState, nonce, ppr = false } = opts

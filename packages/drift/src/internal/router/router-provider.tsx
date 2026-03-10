@@ -28,10 +28,6 @@ export function RouterProvider({
 }) {
 	/**
 	 * Navigate to a new route
-	 * @param to - the path to navigate to
-	 * @param goConfig - configuration for the navigation
-	 * @param goConfig.replace - whether to replace the current history entry (default: false)
-	 * @returns the new path
 	 */
 	const go = useCallback(
 		async (to: string, goConfig?: GoConfig) => {
@@ -82,8 +78,6 @@ export function RouterProvider({
 
 	/**
 	 * Preload a route's assets by fetching the RSC payload
-	 * @param path - the path to preload
-	 * @returns a promise that resolves when the fetch completes
 	 */
 	const preload = useCallback((path: string) => {
 		const connection = (

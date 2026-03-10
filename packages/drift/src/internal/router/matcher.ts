@@ -85,8 +85,6 @@ export class Matcher {
 	#importMap: ImportMap = {}
 
 	/**
-	 * @param manifest - contains all the routes (pages and api) and their metadata
-	 * @param map - contains the static and dynamic imports for each route
 	 * @see {@link Manifest} for the structure of the manifest
 	 * @see {@link ImportMap} for the structure of the import map
 	 */
@@ -97,8 +95,6 @@ export class Matcher {
 
 	/**
 	 * Narrow down a route entry to a page entry if it exists
-	 * @param entry - the route entry to narrow
-	 * @returns the narrowed page entry or null
 	 */
 	static narrow(entry?: ManifestEntry | ManifestEntry[]) {
 		if (Array.isArray(entry)) {
@@ -110,8 +106,6 @@ export class Matcher {
 
 	/**
 	 * Get the status code for a matched route that may or may not have errored
-	 * @param match - the matched route
-	 * @returns the status code
 	 */
 	static getMatchStatusCode(match: Matcher.Match | Matcher.EnhancedMatch | null) {
 		if (!match) return 404
@@ -125,8 +119,6 @@ export class Matcher {
 
 	/**
 	 * Load and cache a module from a dynamic import
-	 * @param loader - the dynamic import
-	 * @returns the module entry
 	 */
 	static #load(loader: DynamicImport) {
 		if (IS_DEV) {
@@ -158,8 +150,6 @@ export class Matcher {
 
 	/**
 	 * Lazily load and cache a component from a dynamic import
-	 * @param loader - the dynamic import
-	 * @returns a React lazy component
 	 */
 	static #view<T extends React.ComponentType<any>>(
 		loader: DynamicImport,
@@ -189,10 +179,6 @@ export class Matcher {
 
 	/**
 	 * Reconcile a router match against a manifest entry
-	 * @param path - the path to match against the routes
-	 * @param match - match from router
-	 * @param error - optional error from router
-	 * @returns the matched route or the closest parent for a 404
 	 */
 	reconcile(path: string, match: Router.Match | null, error?: Error) {
 		if (match) {
@@ -227,8 +213,6 @@ export class Matcher {
 
 	/**
 	 * Enhance a matched route with its associated components
-	 * @param match - the matched route to enhance
-	 * @returns the enhanced route or null
 	 */
 	enhance(match: Matcher.Match | null) {
 		if (!match) return null
@@ -476,9 +460,6 @@ export class Matcher {
 
 	/**
 	 * Find the closest ancestor entry for a given path and property
-	 * @param path - the path to start searching from
-	 * @param property - the property to match against
-	 * @returns the closest ancestor entry or null
 	 */
 	closest(path: string, property: string, value?: Omit<Primitive, 'undefined'>) {
 		const parts = path.split('/').filter(Boolean)

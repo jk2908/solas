@@ -14,12 +14,6 @@ type Match = NonNullable<Matcher.EnhancedMatch>
  * - everything inside the shell is wrapped in Suspense so it can stream
  * - error boundaries wrap Suspense so they can catch streaming errors
  *
- * @param depth - current match depth
- * @param params - route params
- * @param error - error object, if any
- * @param ui - UI components for this route
- * @returns the rendered route tree
- *
  * @example
  * <Shell>
  *   <Suspense>

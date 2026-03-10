@@ -34,12 +34,11 @@ const DEFAULT_CONFIG = {
 } as const satisfies Partial<PluginConfig>
 
 function drift(c: PluginConfig): PluginOption[] {
-	const config = { ...DEFAULT_CONFIG, ...c }
-
-	// @todo: runtime validation
-	// @ts-expect-error
-	config.url =
-		config.url ?? process.env.VITE_APP_URL?.toString() ?? process.env.APP_URL?.toString()
+	const config = Drift.Config.validate({
+		...DEFAULT_CONFIG,
+		...c,
+		url: c.url ?? process.env.VITE_APP_URL?.toString() ?? process.env.APP_URL?.toString(),
+	})
 
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
 	const logger = new Logger()

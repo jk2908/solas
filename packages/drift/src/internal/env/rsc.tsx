@@ -32,14 +32,6 @@ export type RSCPayload = {
 
 /**
  * RSC handler - returns a ReadableStream response for RSC requests
- * @param req - the incoming request
- * @param manifest - the application manifest containing routes and metadata
- * @param importMap - the import map for route components and endpoints
- * @param baseMetadata - optional global metadata from config
- * @param returnValue - optional return value from an action
- * @param formState - optional React form state for hydration
- * @param temporaryReferences - optional temporary references for RSC
- * @returns stream, status code, and ppr flag for the response
  */
 export async function rsc(
 	req: DriftRequest,

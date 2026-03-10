@@ -9,9 +9,6 @@ import { Build } from '../build'
 /**
  * Generates the exported server-side code for creating the router
  * with all the routes and handlers defined in the manifest
- * @param manifest - the application manifest
- * @param imports - the imported modules
- * @returns the stringified code
  */
 export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 	// group manifest entries by method and path

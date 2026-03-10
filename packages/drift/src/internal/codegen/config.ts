@@ -6,8 +6,6 @@ import { AUTOGEN_MSG } from './utils'
 
 /**
  * Generates the code to create an exported config object
- * @param config<PluginConfig> - the plugin configuration
- * @returns the stringified code
  */
 export function writeConfig(config: PluginConfig) {
 	return `

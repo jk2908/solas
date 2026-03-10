@@ -12,11 +12,6 @@ const HTTP_EXCEPTION_NAME_MAP: Record<HttpExceptionStatusCode, string> = {
 
 /**
  * Create a HTTPException instance
- * @param message - the message
- * @param status - the status code of the error
- * @param opts - the options
- * @param opts.payload - the payload
- * @param opts.cause - the cause
  */
 export class HttpException extends Error {
 	payload?: Payload
@@ -40,8 +35,6 @@ export const HTTP_EXCEPTION_DIGEST_PREFIX = 'HTTP_EXCEPTION'
 /**
  * Check if an error is an HTTPException
  * @description uses the digest property to work across server/client boundaries
- * @param err - the error to check
- * @returns true if the error is an HTTPException, false otherwise
  */
 export function isHttpException(err: unknown): err is HttpException {
 	return (
@@ -55,12 +48,6 @@ export function isHttpException(err: unknown): err is HttpException {
 
 /**
  * Throw an HTTPException
- * @param status - the status code of the error
- * @param message - the message
- * @param opts - the options
- * @param opts.payload - the payload
- * @param opts.cause - the cause
- * @throws a HTTPException with the given status and options
  */
 export function abort(
 	status: HttpExceptionStatusCode,

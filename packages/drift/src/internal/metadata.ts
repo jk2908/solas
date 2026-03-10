@@ -64,8 +64,6 @@ export namespace Metadata {
 
 		/**
 		 * Merges multiple metadata objects into one
-		 * @param items - an array of metadata objects to merge
-		 * @returns the merged metadata object
 		 */
 		static #merge(...items: Item[]) {
 			if (!items.length) return {} satisfies Item
@@ -118,8 +116,6 @@ export namespace Metadata {
 
 		/**
 		 * Clones an object using structuredClone w/ JSON fallback
-		 * @param obj - the object to clone
-		 * @returns a clone of the object
 		 */
 		static #clone<T>(obj: T) {
 			if (typeof structuredClone === 'function') {
@@ -131,8 +127,6 @@ export namespace Metadata {
 
 		/**
 		 * Gets a unique key for the meta tag
-		 * @param tag - the meta tag
-		 * @returns a unique key for the meta tag
 		 */
 		static #getMetaTagKey(tag: MetaTag) {
 			return 'name' in tag && tag.name
@@ -148,8 +142,6 @@ export namespace Metadata {
 
 		/**
 		 * Gets a unique key for the link tag
-		 * @param tag - the link tag
-		 * @returns a unique key for the link tag
 		 */
 		static #getLinkTagKey(tag: LinkTag) {
 			return tag.rel + (tag.href ?? '')
@@ -157,8 +149,6 @@ export namespace Metadata {
 
 		/**
 		 * Adds tasks to the collection
-		 * @param tasks - an array of task objects containing a promise and a priority
-		 * @returns this
 		 */
 		add(
 			...tasks: {
@@ -175,7 +165,6 @@ export namespace Metadata {
 
 		/**
 		 * Merges metadata from all sources, sorted by priority
-		 * @returns a promise that resolves to the merged metadata
 		 */
 		async run() {
 			const items = [...this.#collection].sort((a, b) => a.priority - b.priority)
@@ -194,7 +183,7 @@ export namespace Metadata {
 				.filter(r => r.status === 'fulfilled')
 				.map(r => r.value)
 				.sort((a, b) => a.priority - b.priority)
-				.map(r => r.item)				
+				.map(r => r.item)
 
 			if (ok.length) merged = Collection.#merge(merged, ...ok)
 
@@ -202,7 +191,7 @@ export namespace Metadata {
 		}
 
 		/**
-		 * @returns a clone of the base metadata
+		 * Get a clone of the base metadata
 		 */
 		get base() {
 			return Collection.#clone(this.#base)

@@ -1,11 +1,14 @@
 import path from 'node:path'
 
+import { match as createMatch, type MatchFunction } from 'path-to-regexp'
+
 import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
 import { Drift } from '../../drift'
 
 import { isAction } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
+import { toPathPattern } from './pattern'
 
 export namespace Router {
 	export type Params = Record<string, string | string[]>
@@ -61,6 +64,8 @@ export namespace Router {
  * Handle routing and matching for server requests
  */
 export class Router {
+	static #matchers = new WeakMap<Router.Route, MatchFunction<Router.Params>>()
+
 	#routes: Router.Registry = {
 		// exact match by method + path
 		static: new Map(),
@@ -82,7 +87,6 @@ export class Router {
 
 	/**
 	 * Register middleware for all routes
-	 * @param middleware - middleware stack
 	 */
 	use(...middleware: Router.Middleware[]) {
 		this.#middleware.global.push(...middleware)
@@ -92,7 +96,6 @@ export class Router {
 
 	/**
 	 * Register an error handler for routing failures
-	 * @param handler - error handler
 	 */
 	error(handler: Router.ErrorHandler) {
 		this.#onError = handler
@@ -101,10 +104,6 @@ export class Router {
 
 	/**
 	 * Register a route handler
-	 * @param path - the route path
-	 * @param method - the http method
-	 * @param handler - the request handler
-	 * @param params - optional param name for catch-all routes (dynamic params come from :segment names)
 	 */
 	add(
 		path: string,
@@ -164,8 +163,9 @@ export class Router {
 		bucket.push(route)
 		this.#routes.dynamic.byLength.set(route.length, bucket)
 
-		// add to prefix map for fast lookup
-		const prefix = route.tokens.find(t => t.kind === 'static')?.value
+		// only bucket by a leading static segment so the prefix fast path
+		// cannot hide more specific routes that start dynamically
+		const prefix = route.tokens[0]?.kind === 'static' ? route.tokens[0].value : undefined
 
 		if (prefix) {
 			const prefixed = this.#routes.dynamic.byPrefix.get(prefix) ?? []
@@ -178,9 +178,6 @@ export class Router {
 
 	/**
 	 * Match a path and method, returning params and route
-	 * @param path - the request path
-	 * @param method - the http method
-	 * @returns the matched route and params
 	 */
 	match(path: string, method: HttpMethod) {
 		const direct = this.#routes.static.get(`${method}:${path}`)
@@ -197,44 +194,25 @@ export class Router {
 		// else dynamic/catch-all match
 		const segments = Router.#split(path)
 
-		// check dynamic routes first by prefix and then by length
+		// try the leading-static prefix bucket first
 		const prefixed = this.#routes.dynamic.byPrefix.get(segments[0] ?? '')
-		// if there is a prefix match, only check those routes,
-		// else check all routes of the same length
-		const candidates =
-			prefixed ?? this.#routes.dynamic.byLength.get(segments.length) ?? []
+		const prefixedMatch = prefixed ? Router.#pick(prefixed, segments, method) : null
 
-		let best: Router.Route | null = null
-		let bestParams: Router.Params | null = null
+		if (prefixedMatch) return prefixedMatch
 
-		for (const route of candidates) {
-			// method must match
-			if (route.method !== method && !(method === 'HEAD' && route.method === 'GET')) {
-				continue
-			}
+		// if the prefix bucket has no winner, fall back to all dynamic
+		// routes with the same segment count
+		const dynamicMatch = Router.#pick(
+			this.#routes.dynamic.byLength.get(segments.length) ?? [],
+			segments,
+			method,
+		)
 
-			const params = Router.#fit(route, segments)
-			if (!params) continue
-
-			// if there's already a best match, only replace if
-			// the score is higher
-			if (!best || route.score > best.score) {
-				best = route
-				bestParams = params
-			}
-		}
-
-		if (best) return { route: best, params: bestParams ?? {} }
+		if (dynamicMatch) return dynamicMatch
 
 		// finally check catch-all routes
-		for (const route of this.#routes.catchAll) {
-			if (route.method !== method && !(method === 'HEAD' && route.method === 'GET')) {
-				continue
-			}
-
-			const params = Router.#fit(route, segments)
-			if (params) return { route, params }
-		}
+		const catchAllMatch = Router.#pick(this.#routes.catchAll, segments, method)
+		if (catchAllMatch) return catchAllMatch
 
 		// no match
 		return null
@@ -242,8 +220,6 @@ export class Router {
 
 	/**
 	 * Handle an incoming request
-	 * @param req - the request to handle
-	 * @returns the response
 	 */
 	async fetch(req: Request) {
 		const url = new URL(req.url)
@@ -305,10 +281,6 @@ export class Router {
 
 	/**
 	 * Run middleware stack
-	 * @param stack - middleware stack
-	 * @param req - the request
-	 * @param next - next handler
-	 * @returns the response
 	 */
 	#run(
 		stack: Router.Middleware[],
@@ -331,8 +303,6 @@ export class Router {
 
 	/**
 	 * Serve static assets from the output directory
-	 * @param config - the plugin config
-	 * @returns a request handler for static assets
 	 */
 	static static(config: PluginConfig) {
 		return async (req: Request) => {
@@ -363,11 +333,6 @@ export class Router {
 
 	/**
 	 * Serve a file with optional compression content negotiation
-	 * @param filePath - absolute path to the file
-	 * @param req - the request (for Accept-Encoding header)
-	 * @param precompress - whether to look for .br variants
-	 * @param headers - additional headers to add
-	 * @returns response with the file or 404
 	 */
 	static async serve(
 		filePath: string,
@@ -416,8 +381,6 @@ export class Router {
 
 	/**
 	 * Normalise a path based on router options
-	 * @param path - the path to normalise
-	 * @returns the normalised path
 	 */
 	static #normalise(path: string, trailingSlash: boolean = true) {
 		if (!trailingSlash) {
@@ -431,8 +394,6 @@ export class Router {
 
 	/**
 	 * Split a path into segments
-	 * @param path - the path to split
-	 * @returns the path segments
 	 */
 	static #split(path: string) {
 		if (path === '/') return []
@@ -455,41 +416,104 @@ export class Router {
 	}
 
 	/**
+	 * Get or create a path matcher for a route using path-to-regexp
+	 */
+	static #getMatcher(route: Router.Route) {
+		const cached = Router.#matchers.get(route)
+		if (cached) return cached
+
+		// convert route tokens back into a path pattern for path-to-regexp to compile
+		const { path } = toPathPattern(
+			route.path,
+			route.tokens.filter(token => token.kind !== 'static').map(token => token.value),
+		)
+
+		// create a matcher function for this route and cache it
+		const matcher = createMatch<Router.Params>(path, {
+			decode: false,
+		})
+
+		Router.#matchers.set(route, matcher)
+		return matcher
+	}
+
+	/**
+	 * Rank token kinds so more specific segments win before broader ones
+	 */
+	static #getTokenRank(token: Router.Token | undefined) {
+		if (!token) return -1
+		if (token.kind === 'static') return 2
+		if (token.kind === 'dynamic') return 1
+		return 0
+	}
+
+	/**
+	 * Compare two routes and prefer the one with the more specific segment pattern
+	 */
+	static #compare(a: Router.Route, b: Router.Route) {
+		const length = Math.max(a.tokens.length, b.tokens.length)
+
+		for (let index = 0; index < length; index += 1) {
+			// prefer static over dynamic and dynamic over catch-all at the
+			// first segment position where the two routes differ
+			const diff =
+				Router.#getTokenRank(a.tokens[index]) - Router.#getTokenRank(b.tokens[index])
+			if (diff !== 0) return diff
+		}
+
+		// if the token kinds line up, reuse the old coarse score
+		if (a.score !== b.score) return a.score - b.score
+
+		// final stable tie-break for routes with the same pattern shape
+		// sort alphabetically by path string
+		return a.path < b.path ? 1 : a.path > b.path ? -1 : 0
+	}
+
+	/**
+	 * Find the best matching route from a candidate list using explicit specificity rules
+	 */
+	static #pick(routes: Router.Route[], segments: string[], method: HttpMethod) {
+		let best: Router.Route | null = null
+		let bestParams: Router.Params | null = null
+
+		for (const route of routes) {
+			// HEAD can reuse GET routes when HEAD is not registered explicitly
+			if (route.method !== method && !(method === 'HEAD' && route.method === 'GET')) {
+				continue
+			}
+
+			// skip routes that do not fit this path. Only compare specificity
+			// across matched routes
+			const params = Router.#fit(route, segments)
+			if (!params) continue
+
+			// replace the winner only when this route is strictly more specific
+			if (!best || Router.#compare(route, best) > 0) {
+				best = route
+				bestParams = params
+			}
+		}
+
+		if (!best) return null
+
+		return { route: best, params: bestParams ?? {} }
+	}
+
+	/**
 	 * Fit a route against path segments
-	 * @param route - the route to fit
-	 * @param segments - the path segments
-	 * @returns the extracted params or null if not matched
 	 */
 	static #fit(route: Router.Route, segments: string[]) {
 		if (route.catchAll) {
-			if (segments.length < route.length - 1) {
-				return null
-			}
+			if (segments.length < route.length - 1) return null
 		} else if (route.length !== segments.length) {
 			return null
 		}
 
-		const params: Router.Params = {}
+		const matched = Router.#getMatcher(route)(
+			segments.length ? `/${segments.join('/')}` : '/',
+		)
+		if (!matched) return null
 
-		for (let index = 0; index < route.tokens.length; index += 1) {
-			const token = route.tokens[index]
-			const value = segments[index]
-
-			if (token.kind === 'static') {
-				if (token.value !== value) return null
-				continue
-			}
-
-			if (token.kind === 'dynamic') {
-				if (!value) return null
-				params[token.value] = value
-				continue
-			}
-
-			params[token.value] = segments.slice(index).join('/')
-			return params
-		}
-
-		return params
+		return matched.params
 	}
 }

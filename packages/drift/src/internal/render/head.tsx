@@ -1,12 +1,19 @@
 import { use } from 'react'
 
+import { Logger } from '../../utils/logger'
+
 import type { Metadata as Collection } from '../metadata'
 
-export function Head({ metadata: m }: { metadata?: Promise<Collection.Item> }) {
-	if (!m) return null
+const logger = new Logger()
+const cache = new WeakMap<object, Promise<Collection.Item>>()
 
-	// @todo; handle errors
-	const metadata = use(m)
+export function Head({
+	metadata: m,
+}: {
+	metadata?: Collection.Item | Promise<Collection.Item>
+}) {
+	if (!m) return null
+	const metadata = use(toSafeUsable(m))
 
 	return (
 		<>
@@ -51,4 +58,17 @@ export function Head({ metadata: m }: { metadata?: Promise<Collection.Item> }) {
 			))}
 		</>
 	)
+}
+
+function toSafeUsable(metadata: Collection.Item | Promise<Collection.Item>) {
+	const cached = cache.get(metadata)
+	if (cached) return cached
+
+	const safe = Promise.resolve(metadata).catch(err => {
+		logger.error('[head] failed to resolve metadata', err)
+		return {} as Collection.Item
+	})
+
+	cache.set(metadata, safe)
+	return safe
 }

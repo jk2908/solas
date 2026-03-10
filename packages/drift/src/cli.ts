@@ -1,15 +1,15 @@
 #!/usr/bin/env bun
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
-import type { BuildManifest } from './types';
+import type { BuildManifest } from './types'
 
-import { Drift } from './drift';
+import { Drift } from './drift'
 
-import { Compress } from './utils/compress';
-import { Logger } from './utils/logger';
+import { Compress } from './utils/compress'
+import { Logger } from './utils/logger'
 
-import { Prerender } from './internal/prerender';
+import { Prerender } from './internal/prerender'
 
 const logger = new Logger()
 const DEFAULT_PREVIEW_PORT = 4173

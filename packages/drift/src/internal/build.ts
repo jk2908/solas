@@ -1,22 +1,23 @@
-import type { Dirent } from 'node:fs';
+import type { Dirent } from 'node:fs'
 
-import fs from 'node:fs/promises';
-import path from 'node:path';
+import fs from 'node:fs/promises'
+import path from 'node:path'
 
 import type {
-    BuildContext,
-    Endpoint,
-    HttpMethod,
-    PluginConfig,
-    Segment,
-    SegmentPrerender,
-} from '../types';
+	BuildContext,
+	Endpoint,
+	HttpMethod,
+	PluginConfig,
+	Segment,
+	SegmentPrerender,
+} from '../types'
 
-import { Drift } from '../drift';
+import { Drift } from '../drift'
 
-import { Logger } from '../utils/logger';
+import { Logger } from '../utils/logger'
+import { ModuleExports } from '../utils/module-exports'
 
-import { Prerender } from './prerender';
+import { Prerender } from './prerender'
 
 export namespace Build {
 	export type ScanResult = {
@@ -83,8 +84,6 @@ export namespace Build {
 
 		/**
 		 * Extracts dynamic parameter names from a file path
-		 * @param file - the file path to extract parameters from
-		 * @returns an array of parameter names
 		 */
 		static getParams(file: string) {
 			return Array.from(file.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
@@ -92,8 +91,6 @@ export namespace Build {
 
 		/**
 		 * Get the depth of a route based on slashes
-		 * @param route - the route to get the depth of
-		 * @returns the depth of the route
 		 */
 		static getDepth(route: string) {
 			if (route === '/') return 0
@@ -104,8 +101,6 @@ export namespace Build {
 
 		/**
 		 * Convert a file path to a canonical route.
-		 * @param file - the file to convert to a route
-		 * @returns the converted route
 		 */
 		static toCanonicalRoute(file: string) {
 			const route = file
@@ -125,8 +120,6 @@ export namespace Build {
 		 * This finds the relative path from the generated
 		 * directory to the file, removes the extension and
 		 * replaces backslashes with forward slashes.
-		 * @param file the file to get the import path for
-		 * @returns the import path for the file
 		 */
 		static getImportPath(file: string) {
 			const cwd = process.cwd()
@@ -141,12 +134,6 @@ export namespace Build {
 		/**
 		 * Run the Finder to get the app route and associated data
 		 * needed for codegen
-		 * @returns data needed for codegen
-		 * @returns data.manifest - the route manifest
-		 * @returns data.imports - the dynamic and static imports for page and API routes
-		 * @returns data.modules - module metadata for each route
-		 * @returns data.prerenderedRoutes - routes to prerender at build time
-		 * @throws if an error occurs during scanning
 		 */
 		async run() {
 			try {
@@ -159,10 +146,6 @@ export namespace Build {
 
 		/**
 		 * Scan the filesystem to get all routes for processing
-		 * @param dir - the directory to scan
-		 * @param res - the result object to populate
-		 * @param prev - the previous layout, error and loading results
-		 * @returns a result object containing segments and API routes
 		 */
 		async #scan(
 			dir: string,
@@ -362,12 +345,11 @@ export namespace Build {
 
 		/**
 		 * Process the scanned route data
-		 * @param res the scanned route data
-		 * @returns an object containing finalised manifest, imports, modules, and prerenderable routes
 		 */
 		async process(res: ScanResult) {
 			const processed = new Set<string>()
 			const prerenderedRoutes = new Set<string>()
+			const exportReader = new ModuleExports.Reader(this.buildContext.transpiler)
 
 			const manifest: Record<string, Segment | Endpoint | (Segment | Endpoint)[]> = {}
 
@@ -386,18 +368,18 @@ export namespace Build {
 					if (!this.buildContext || !this.config) continue
 
 					const {
-						shell,
-						layouts,
-						page,
-						'404s': notFounds,
-						loaders,
-						middlewares,
+						shell: shellPath,
+						layouts: layoutPaths,
+						page: pagePath,
+						'404s': notFoundPaths,
+						loaders: loaderPaths,
+						middlewares: middlewarePaths,
 						dir,
 					} = segment
 
 					// route is derived from dir path, not page
 					const route = Finder.toCanonicalRoute(
-						page ?? `${dir.replace(/\\/g, '/')}/+page.tsx`,
+						pagePath ?? `${dir.replace(/\\/g, '/')}/+page.tsx`,
 					)
 					const params = Finder.getParams(dir)
 					const depth = Finder.getDepth(route)
@@ -417,7 +399,7 @@ export namespace Build {
 						currentPrerenderMode = flag
 					}
 
-					const shellImport = Finder.getImportPath(shell)
+					const shellImport = Finder.getImportPath(shellPath)
 
 					const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
 					const layoutIds: (string | null)[] = []
@@ -426,111 +408,116 @@ export namespace Build {
 					const middlewareIds: (string | null)[] = []
 
 					// check shell prerender
-					if (!processed.has(shell)) {
-						prerenderCache.set(shell, await Prerender.Build.getStaticFlag(shell))
+					if (!processed.has(shellPath)) {
+						prerenderCache.set(
+							shellPath,
+							await Prerender.Build.getStaticFlag(shellPath, this.buildContext),
+						)
 						imports.components.static.set(shellId, shellImport)
-						processed.add(shell)
+						processed.add(shellPath)
 					}
 
-					applyPrerenderMode(prerenderCache.get(shell))
+					applyPrerenderMode(prerenderCache.get(shellPath))
 
-					for (const layout of layouts) {
-						if (!layout) {
+					for (const layoutPath of layoutPaths) {
+						if (!layoutPath) {
 							layoutIds.push(null)
 							continue
 						}
 
-						const layoutImport = Finder.getImportPath(layout)
+						const layoutImport = Finder.getImportPath(layoutPath)
 						const layoutId = `${EntryKind.LAYOUT}${Bun.hash(layoutImport)}`
 
-						if (!processed.has(layout)) {
-							prerenderCache.set(layout, await Prerender.Build.getStaticFlag(layout))
+						if (!processed.has(layoutPath)) {
+							prerenderCache.set(
+								layoutPath,
+								await Prerender.Build.getStaticFlag(layoutPath, this.buildContext),
+							)
 							imports.components.dynamic.set(layoutId, layoutImport)
-							processed.add(layout)
+							processed.add(layoutPath)
 						}
 
-						applyPrerenderMode(prerenderCache.get(layout))
+						applyPrerenderMode(prerenderCache.get(layoutPath))
 						layoutIds.push(layoutId)
 					}
 
-					for (const notFound of notFounds) {
+					for (const notFoundPath of notFoundPaths) {
 						// hole if level does not declare a 404 boundary.
 						// Keep slot so indices match layouts
-						if (!notFound) {
+						if (!notFoundPath) {
 							notFoundIds.push(null)
 							continue
 						}
 
-						const notFoundImport = Finder.getImportPath(notFound)
+						const notFoundImport = Finder.getImportPath(notFoundPath)
 						const notFoundId = `${EntryKind['404']}${Bun.hash(notFoundImport)}`
 
 						notFoundIds.push(notFoundId)
 
 						// dedupe imports but still assign the slot for this route
-						if (!processed.has(notFound)) {
+						if (!processed.has(notFoundPath)) {
 							imports.components.dynamic.set(notFoundId, notFoundImport)
-							processed.add(notFound)
+							processed.add(notFoundPath)
 						}
 					}
 
-					for (const loader of loaders) {
+					for (const loaderPath of loaderPaths) {
 						// hole if level does not declare a loader.
 						// Keep slot so indices match layouts
-						if (!loader) {
+						if (!loaderPath) {
 							loadingIds.push(null)
 							continue
 						}
 
-						const loaderImport = Finder.getImportPath(loader)
+						const loaderImport = Finder.getImportPath(loaderPath)
 						const loaderId = `${EntryKind.LOADING}${Bun.hash(loaderImport)}`
 
 						loadingIds.push(loaderId)
 
 						// dedupe imports but still assign the slot for this route
-						if (!processed.has(loader)) {
+						if (!processed.has(loaderPath)) {
 							imports.components.dynamic.set(loaderId, loaderImport)
-							processed.add(loader)
+							processed.add(loaderPath)
 						}
 					}
 
-					for (const middleware of middlewares) {
-						if (!middleware) {
+					for (const middlewarePath of middlewarePaths) {
+						if (!middlewarePath) {
 							middlewareIds.push(null)
 							continue
 						}
 
-						const middlewareImport = Finder.getImportPath(middleware)
+						const middlewareImport = Finder.getImportPath(middlewarePath)
 						const middlewareId = `${EntryKind.MIDDLEWARE}${Bun.hash(middlewareImport)}`
 
 						middlewareIds.push(middlewareId)
 
-						if (!processed.has(middleware)) {
-							const code = await Bun.file(middleware).text()
-							const exports = this.buildContext.transpiler.scan(code).exports
-
-							if (!exports.includes('middleware')) {
-								logger.warn(
-									'[Build:Finder:process]',
-									`Missing export 'middleware' in ${middleware}`,
-								)
+						if (!processed.has(middlewarePath)) {
+							// route scanning only tells us this is a +middleware file path so
+							// we still validate that the module actually exports middleware
+							if (!(await exportReader.has(middlewarePath, 'middleware'))) {
+								throw new Error(`Missing export 'middleware' in ${middlewarePath}`)
 							}
 
 							imports.middlewares.static.set(middlewareId, middlewareImport)
-							processed.add(middleware)
+							processed.add(middlewarePath)
 						}
 					}
 
 					// generate entry id based on page if exists, otherwise dir
-					const entryId = page
-						? `${EntryKind.PAGE}${Bun.hash(Finder.getImportPath(page))}`
+					const entryId = pagePath
+						? `${EntryKind.PAGE}${Bun.hash(Finder.getImportPath(pagePath))}`
 						: `${EntryKind.PAGE}${Bun.hash(route)}`
 
-					if (page) {
-						const pagePrerender = await Prerender.Build.getStaticFlag(page)
+					if (pagePath) {
+						const pagePrerender = await Prerender.Build.getStaticFlag(
+							pagePath,
+							this.buildContext,
+						)
 						applyPrerenderMode(pagePrerender)
 
-						imports.components.dynamic.set(entryId, Finder.getImportPath(page))
-						processed.add(page)
+						imports.components.dynamic.set(entryId, Finder.getImportPath(pagePath))
+						processed.add(pagePath)
 					}
 
 					const shouldPrerender = currentPrerenderMode !== false
@@ -541,13 +528,17 @@ export namespace Build {
 					if (shouldPrerender) {
 						if (!isDynamic && !isCatchAll) {
 							prerenderedRoutes.add(route)
-						} else if (page) {
+						} else if (pagePath) {
 							const staticParams = await Prerender.Build.getStaticParams(
-								page,
+								pagePath,
 								this.buildContext,
 							)
 
-							for (const r of Prerender.Build.getDynamicRouteList(route, staticParams)) {
+							for (const r of Prerender.Build.getDynamicRouteList(
+								route,
+								params,
+								staticParams,
+							)) {
 								prerenderedRoutes.add(r)
 							}
 						}
@@ -561,11 +552,19 @@ export namespace Build {
 						__depth: depth,
 						method: 'get' as const,
 						paths: {
-							layouts: [shell, ...layouts].map(l => (l ? Finder.getImportPath(l) : null)),
-							'404s': notFounds.map(e => (e ? Finder.getImportPath(e) : null)),
-							loaders: loaders.map(l => (l ? Finder.getImportPath(l) : null)),
-							middlewares: middlewares.map(m => (m ? Finder.getImportPath(m) : null)),
-							page: page ? Finder.getImportPath(page) : null,
+							layouts: [shellPath, ...layoutPaths].map(layout =>
+								layout ? Finder.getImportPath(layout) : null,
+							),
+							'404s': notFoundPaths.map(notFound =>
+								notFound ? Finder.getImportPath(notFound) : null,
+							),
+							loaders: loaderPaths.map(loader =>
+								loader ? Finder.getImportPath(loader) : null,
+							),
+							middlewares: middlewarePaths.map(middleware =>
+								middleware ? Finder.getImportPath(middleware) : null,
+							),
+							page: pagePath ? Finder.getImportPath(pagePath) : null,
 						},
 						prerender: prerenderMode,
 						dynamic: isDynamic,
@@ -585,7 +584,7 @@ export namespace Build {
 					modules[entryId] = {
 						shellId,
 						layoutIds,
-						pageId: page ? entryId : undefined,
+						pageId: pagePath ? entryId : undefined,
 						'404Ids': notFoundIds,
 						loadingIds,
 						middlewareIds,
@@ -597,41 +596,51 @@ export namespace Build {
 
 			for (const endpoint of res.endpoints) {
 				try {
-					if (!this.buildContext || processed.has(endpoint.file)) continue
+					const endpointFilePath = endpoint.file
+					const endpointMiddlewarePaths = endpoint.middlewares
 
-					const route = Finder.toCanonicalRoute(endpoint.file)
-					const params = Finder.getParams(endpoint.file)
+					if (!this.buildContext || processed.has(endpointFilePath)) continue
 
-					const code = await Bun.file(endpoint.file).text()
-					const exports = this.buildContext.transpiler.scan(code).exports
+					const route = Finder.toCanonicalRoute(endpointFilePath)
+					const params = Finder.getParams(endpointFilePath)
+
+					const endpointExports = await exportReader.exports(endpointFilePath)
 
 					const group: Endpoint[] = []
 
-					for (const method of exports) {
+					for (const method of endpointExports) {
 						if (!HTTP_VERBS.includes(method as HttpMethod)) {
 							logger.warn(
 								'[Build:Finder:process]',
-								`Ignoring unsupported HTTP verb: ${method} in ${endpoint.file}`,
+								`Ignoring unsupported HTTP verb: ${method} in ${endpointFilePath}`,
 							)
 							continue
 						}
 
 						const m = method.toLowerCase() as Lowercase<HttpMethod>
-						const endpointId = `${EntryKind.ENDPOINT}${Bun.hash(Finder.getImportPath(endpoint.file))}_${m}`
+						const endpointId = `${EntryKind.ENDPOINT}${Bun.hash(Finder.getImportPath(endpointFilePath))}_${m}`
 
-						const middlewareIds = endpoint.middlewares.map(middleware => {
-							if (!middleware) return null
+						const middlewareIds = await Promise.all(
+							endpointMiddlewarePaths.map(async middlewarePath => {
+								if (!middlewarePath) return null
 
-							const middlewareImport = Finder.getImportPath(middleware)
-							const middlewareId = `${EntryKind.MIDDLEWARE}${Bun.hash(middlewareImport)}`
+								const middlewareImport = Finder.getImportPath(middlewarePath)
+								const middlewareId = `${EntryKind.MIDDLEWARE}${Bun.hash(middlewareImport)}`
 
-							if (!processed.has(middleware)) {
-								imports.middlewares.static.set(middlewareId, middlewareImport)
-								processed.add(middleware)
-							}
+								if (!processed.has(middlewarePath)) {
+									// endpoint middleware discovery gives us file paths, not proof of the export
+									// so check the module shape before we register the import
+									if (!(await exportReader.has(middlewarePath, 'middleware'))) {
+										throw new Error(`Missing export 'middleware' in ${middlewarePath}`)
+									}
 
-							return middlewareId
-						})
+									imports.middlewares.static.set(middlewareId, middlewareImport)
+									processed.add(middlewarePath)
+								}
+
+								return middlewareId
+							}),
+						)
 
 						group.push({
 							__id: endpointId,
@@ -639,21 +648,26 @@ export namespace Build {
 							__params: params,
 							__kind: EntryKind.ENDPOINT,
 							method: m,
-							middlewares: endpoint.middlewares,
+							middlewares: endpointMiddlewarePaths,
 						})
 
-						imports.endpoints.static.set(endpointId, Finder.getImportPath(endpoint.file))
+						imports.endpoints.static.set(
+							endpointId,
+							Finder.getImportPath(endpointFilePath),
+						)
 						modules[endpointId] = { endpointId, middlewareIds }
-						processed.add(endpoint.file)
+						processed.add(endpointFilePath)
 					}
 
 					const entry = group.length === 1 ? group[0] : group
 
-					if (endpoint.middlewares.length) {
+					if (endpointMiddlewarePaths.length) {
 						modules[route] = {
 							...(modules[route] ?? {}),
-							middlewareIds: endpoint.middlewares.map(m =>
-								m ? `${EntryKind.MIDDLEWARE}${Bun.hash(Finder.getImportPath(m))}` : null,
+							middlewareIds: endpointMiddlewarePaths.map(middlewarePath =>
+								middlewarePath
+									? `${EntryKind.MIDDLEWARE}${Bun.hash(Finder.getImportPath(middlewarePath))}`
+									: null,
 							),
 						}
 					}

@@ -28,7 +28,6 @@ type LogEntry = {
 
 /**
  * Log messages with different severity levels
- * @param level - the severity level of the logger
  */
 export class Logger {
 	#level: LogLevel
@@ -39,8 +38,6 @@ export class Logger {
 
 	/**
 	 * Check if a value is a valid log level
-	 * @param value - the value to check
-	 * @returns true if the value is a valid log level, false otherwise
 	 */
 	static #isValidLevel(value: unknown): value is LogLevel {
 		return typeof value === 'string' && value in LEVELS
@@ -48,7 +45,6 @@ export class Logger {
 
 	/**
 	 * Get the log level from environment variables, defaulting to 'info' if not set or invalid
-	 * @returns the log level
 	 */
 	static #getEnvLevel() {
 		if (typeof process === 'undefined') return 'info'
@@ -63,8 +59,6 @@ export class Logger {
 
 	/**
 	 * Convert a value to an Error instance
-	 * @param err - the value to convert
-	 * @returns the Error instance
 	 */
 	static toError(err: unknown) {
 		return err instanceof Error ? err : new Error(String(err), { cause: err })
@@ -72,8 +66,6 @@ export class Logger {
 
 	/**
 	 * Stringify the error for logging
-	 * @param err - the error to print
-	 * @returns the printed error
 	 */
 	static print(err: unknown) {
 		if (err instanceof Error || err instanceof HttpException) {
@@ -97,9 +89,6 @@ export class Logger {
 
 	/**
 	 * Log a message with a specific level
-	 * @param level - the severity level of the logger
-	 * @param message - the log message
-	 * @param error - the error object (if any)
 	 */
 	log(level: LogLevel, message: string, error?: Error) {
 		if (LEVELS[level] < LEVELS[this.#level]) return
@@ -132,7 +121,6 @@ export class Logger {
 
 	/**
 	 * Log a debug message
-	 * @param message - the debug message
 	 */
 	debug(...messages: string[]) {
 		this.log('debug', messages.join(' '))
@@ -140,7 +128,6 @@ export class Logger {
 
 	/**
 	 * Log an info message
-	 * @param message - the info message
 	 */
 	info(...messages: string[]) {
 		this.log('info', messages.join(' '))
@@ -148,7 +135,6 @@ export class Logger {
 
 	/**
 	 * Log a warning message
-	 * @param message - the warning message
 	 */
 	warn(...messages: string[]) {
 		this.log('warn', messages.join(' '))
@@ -156,8 +142,6 @@ export class Logger {
 
 	/**
 	 * Log an error message
-	 * @param message - the error message
-	 * @param error - the error object
 	 */
 	error(message: string, error?: unknown) {
 		this.log('error', message, error === undefined ? undefined : Logger.toError(error))
@@ -165,8 +149,6 @@ export class Logger {
 
 	/**
 	 * Log a fatal error message
-	 * @param message - the error message
-	 * @param error - the error object
 	 */
 	fatal(message: string, error?: unknown) {
 		this.log('fatal', message, error === undefined ? undefined : Logger.toError(error))

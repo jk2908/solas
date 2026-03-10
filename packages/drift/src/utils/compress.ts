@@ -60,11 +60,6 @@ export namespace Compress {
 
 	/**
 	 * Compress a file or directory
-	 * @param input - the input file or directory
-	 * @param config - the config options
-	 * @param config.filter - a filter function to determine which files to compress
-	 * @returns an async generator that yields the compressed files
-	 * @throws if an error occurs during compression
 	 */
 	export async function* run(
 		input: string,

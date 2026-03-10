@@ -47,8 +47,6 @@ const SUPPORTED_EXTENSIONS = new Set([
 export namespace Format {
 	/**
 	 * Format the code in a directory using Oxfmt
-	 * @param dir - the directory to format
-	 * @returns void
 	 */
 	export async function run(dir: string) {
 		try {

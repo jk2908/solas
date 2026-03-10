@@ -4,6 +4,9 @@ import { AUTOGEN_MSG } from './utils'
 
 import type { Build } from '../build'
 
+/**
+ * Generates the import map for all route components, endpoints, layouts, shells, and middlewares
+ */
 export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 	const statics = [
 		...imports.endpoints.static.entries().map(([k, v]) => {
