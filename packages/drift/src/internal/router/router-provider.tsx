@@ -84,9 +84,7 @@ export function RouterProvider({
 
 		if (document.visibilityState === 'hidden') return
 		if (connection?.saveData) return
-		if (connection?.effectiveType === 'slow-2g' || connection?.effectiveType === '2g') {
-			return
-		}
+		if (['2g', 'slow-2g'].includes(connection?.effectiveType ?? '')) return
 
 		const key = Preload.toKey(path, window.location.origin)
 
