@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
@@ -26,11 +26,22 @@ export function RouterProvider({
 	setPayload?: (payload: RSCPayload) => void
 	isNavigating?: boolean
 }) {
+	// id to track active navigations
+	const id = useRef(0)
+	// abort controller for in-flight navigation
+	const controller = useRef<AbortController | null>(null)
+
 	/**
 	 * Navigate to a new route
 	 */
 	const go = useCallback(
 		async (to: string, goConfig?: GoConfig) => {
+			id.current += 1
+			const navigationId = id.current
+
+			controller.current?.abort()
+			controller.current = null
+
 			const url = new URL(to, window.location.origin)
 			const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
 
@@ -43,12 +54,29 @@ export function RouterProvider({
 			const path = Preload.toKey(url.toString(), window.location.origin)
 
 			try {
-				const promise =
-					Preload.get(path) ?? fetch(path, { headers: { accept: 'text/x-component' } })
+				let promise = Preload.get(path)
+
+				if (!promise) {
+					const ctrl = new AbortController()
+					controller.current = ctrl
+
+					promise = fetch(path, {
+						headers: { accept: 'text/x-component' },
+						signal: ctrl.signal,
+					})
+				}
 
 				if (!Preload.has(path)) Preload.set(path, promise)
 
+				// if another navigation has started since this one, ignore the result
+				// and return early
+				if (navigationId !== id.current) return path
+
 				const res = await createFromFetch<RSCPayload>(promise)
+
+				// check again if another navigation has started while we were awaiting
+				// the response
+				if (navigationId !== id.current) return path
 
 				// this state update is already wrapped in a
 				// transition before being passed as props
@@ -62,12 +90,17 @@ export function RouterProvider({
 
 				Events.dispatch('navigation', { path })
 			} catch (err) {
+				if (err instanceof Error && err.name === 'AbortError') {
+					return path
+				}
+
 				logger.error('[navigation] failed', err)
 				Events.dispatch('navigation:error', {
 					path,
-					error: err instanceof Error ? err.message : String(err),
+					error: err instanceof Error ? err.message : Logger.print(err),
 				})
 			} finally {
+				if (navigationId === id.current) controller.current = null
 				Preload.remove(path)
 			}
 
@@ -97,6 +130,9 @@ export function RouterProvider({
 		window.addEventListener('popstate', handler)
 
 		return () => {
+			controller.current?.abort()
+			controller.current = null
+
 			window.removeEventListener('popstate', handler)
 		}
 	}, [go])
