@@ -52,6 +52,9 @@ export function RouterProvider({
 			}
 
 			const path = Preload.toKey(url.toString(), window.location.origin)
+			// distinguish an actual prior preload from a cache entry we create
+			// opportunistically for this navigation
+			const hadEntry = Preload.has(path)
 
 			try {
 				let promise = Preload.get(path)
@@ -101,7 +104,14 @@ export function RouterProvider({
 				})
 			} finally {
 				if (navigationId === id.current) controller.current = null
-				Preload.remove(path)
+
+				// preserve entries that were already preloaded so nearby follow-up
+				// navigations can still reuse them within the preload TTL window
+				if (!hadEntry) {
+					// entries created by go() only serve as in-flight dedupe for this
+					// navigation (i.e. not intentionally preloaded)
+					Preload.remove(path)
+				}
 			}
 
 			return path
