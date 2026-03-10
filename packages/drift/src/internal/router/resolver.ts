@@ -19,6 +19,8 @@ import { HttpException, isHttpException } from '../navigation/http-exception'
 export namespace Resolver {
 	export type ReconciledMatch = ReturnType<Resolver['reconcile']>
 
+	export type CachedEnhancedMatch = Omit<EnhancedMatch, 'params' | 'error'>
+
 	export type EnhancedMatch = ReconciledMatch & {
 		ui: {
 			layouts: (View<{
@@ -58,7 +60,7 @@ export class Resolver {
 	/**
 	 * Cache of enhanced matches
 	 */
-	static #enhancedMatchCache = new Map<string, Resolver.EnhancedMatch>()
+	static #enhancedMatchCache = new Map<string, Resolver.CachedEnhancedMatch>()
 
 	/**
 	 * Cache of loaded modules from dynamic imports
@@ -117,6 +119,17 @@ export class Resolver {
 		}
 
 		return 200
+	}
+
+	static #withRequestState(
+		cached: Resolver.CachedEnhancedMatch,
+		match: NonNullable<Resolver.ReconciledMatch>,
+	) {
+		return {
+			...cached,
+			params: match.params,
+			error: match.error,
+		} satisfies Resolver.EnhancedMatch
 	}
 
 	/**
@@ -224,26 +237,24 @@ export class Resolver {
 
 		if (cached) {
 			logger.debug('[enhance]', __id, 'CACHED')
-
-			// update params and error in case they changed as part
-			// of a dynamic route navigation
-			cached.params = match.params
-			cached.error = 'error' in match ? match.error : undefined
-
-			return cached
+			// ensure request-specific state is merged back in to the cached enhanced match
+			// (params/error)
+			return Resolver.#withRequestState(cached, match)
 		}
 
 		const entry = this.#importMap[__id]
 		if (!entry) return null
 
-		const enhanced: Resolver.EnhancedMatch = {
+		const { params, error, ...rest } = match
+
+		const enhanced: Resolver.CachedEnhancedMatch = {
 			ui: {
 				layouts: [],
 				Page: null,
 				'404s': [],
 				loaders: [],
 			},
-			...match,
+			...rest,
 		}
 
 		// shell is a static import, layouts[0] in the enhanced match
@@ -461,7 +472,11 @@ export class Resolver {
 
 		if (!IS_DEV) Resolver.#enhancedMatchCache.set(__id, enhanced)
 
-		return enhanced
+		return {
+			...enhanced,
+			params,
+			error,
+		}
 	}
 
 	/**
