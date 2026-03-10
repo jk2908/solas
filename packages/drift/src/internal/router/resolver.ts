@@ -17,9 +17,9 @@ import { Metadata } from '../metadata'
 import { HttpException, isHttpException } from '../navigation/http-exception'
 
 export namespace Resolver {
-	export type Match = ReturnType<Resolver['reconcile']>
+	export type ReconciledMatch = ReturnType<Resolver['reconcile']>
 
-	export type EnhancedMatch = Match & {
+	export type EnhancedMatch = ReconciledMatch & {
 		ui: {
 			layouts: (View<{
 				children?: React.ReactNode
@@ -107,7 +107,9 @@ export class Resolver {
 	/**
 	 * Get the status code for a matched route that may or may not have errored
 	 */
-	static getMatchStatusCode(match: Resolver.Match | Resolver.EnhancedMatch | null) {
+	static getMatchStatusCode(
+		match: Resolver.ReconciledMatch | Resolver.EnhancedMatch | null,
+	) {
 		if (!match) return 404
 
 		if ('error' in match) {
@@ -214,7 +216,7 @@ export class Resolver {
 	/**
 	 * Enhance a matched route with its associated components
 	 */
-	enhance(match: Resolver.Match | null) {
+	enhance(match: Resolver.ReconciledMatch | null) {
 		if (!match) return null
 
 		const { __id } = match
