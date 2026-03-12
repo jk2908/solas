@@ -277,8 +277,10 @@ export async function maybeActionWithParsedFormData(req: Request) {
 	if (req.headers.has('x-rsc-action-id')) return { action: true, formData: null }
 
 	const contentType = req.headers.get('content-type') ?? ''
-	if (!contentType.startsWith('multipart/form-data'))
+
+	if (!contentType.startsWith('multipart/form-data')) {
 		return { action: false, formData: null }
+	}
 
 	try {
 		const formData = await req.clone().formData()
