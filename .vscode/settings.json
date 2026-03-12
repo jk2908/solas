@@ -1,6 +1,6 @@
 {
 	"biome.enabled": false,
-	"typescript.experimental.useTsgo": true,
+	"js/ts.experimental.useTsgo": true,
 	"editor.defaultFormatter": "oxc.oxc-vscode",
 	"editor.formatOnSave": true,
 	"editor.formatOnPaste": false,

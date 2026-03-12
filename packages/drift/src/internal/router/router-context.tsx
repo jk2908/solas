@@ -9,10 +9,10 @@ export type GoConfig = {
 
 export const RouterContext = createContext<{
 	go: (to: string, config?: GoConfig) => Promise<string>
-	preload: (path: string) => void
+	prefetch: (path: string) => void
 	isNavigating: boolean
 }>({
 	go: async () => '',
-	preload: () => {},
+	prefetch: () => {},
 	isNavigating: false,
 })

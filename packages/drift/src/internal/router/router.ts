@@ -305,6 +305,7 @@ export class Router {
 
 	/**
 	 * Serve static assets from the output directory
+	 * @note generated /assets/* handlers bypass +middleware conventions
 	 */
 	static static(config: PluginConfig) {
 		return async (req: Request) => {

@@ -41,12 +41,7 @@ export namespace Resolver {
 		}
 		error?: HttpException | Error
 		endpoint?: (req?: Request & { params?: Router.Params }) => unknown
-		metadata?: ({ params, error }: { params?: Router.Params; error?: Error }) => Promise<
-			PromiseSettledResult<{
-				task: Promise<Metadata.Item>
-				priority: (typeof Metadata.PRIORITY)[keyof typeof Metadata.PRIORITY]
-			}>[]
-		>
+		metadata?: (input: Metadata.Input<Router.Params>) => Metadata.Task[]
 	}
 }
 
@@ -304,171 +299,64 @@ export class Resolver {
 
 		if (entry.endpoint) enhanced.endpoint = entry.endpoint
 
-		enhanced.metadata = ({
-			params,
-			error,
-		}: {
-			params?: Router.Params
-			error?: Error
-		}) => {
-			const tasks: { task: Promise<Metadata.Item>; priority: number }[] = []
+		// cache the route's metadata exports once. They are turned into
+		// request-specific tasks later with params/error
+		const metadataSources: Metadata.Source[] = []
 
-			if (entry.shell) {
-				const metadata = entry.shell.metadata
-
-				if (metadata) {
-					if (typeof metadata === 'function') {
-						tasks.push({
-							task: Promise.resolve(metadata({ params, error })).catch(err => {
-								logger.error(`[enhance.metadata]: ${__id}`, err)
-								return Promise.resolve({})
-							}),
-							priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
-						})
-					} else if (typeof metadata === 'object') {
-						tasks.push({
-							task: Promise.resolve(metadata),
-							priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
-						})
-					}
-				}
-			}
-
-			if (entry.layouts?.length) {
-				for (const layout of entry.layouts) {
-					if (!layout) continue
-
-					const e = Resolver.#load(layout)
-
-					if (e.module && 'metadata' in e.module) {
-						const metadata = e.module.metadata
-
-						if (metadata) {
-							if (typeof metadata === 'function') {
-								tasks.push({
-									task: Promise.resolve(metadata({ params, error })).catch(err => {
-										logger.error(`[enhance.metadata]: ${__id}`, err)
-										return {}
-									}),
-									priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
-								})
-							} else if (typeof metadata === 'object') {
-								tasks.push({
-									task: Promise.resolve(metadata),
-									priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
-								})
-							}
-						}
-					} else {
-						tasks.push({
-							task: e.promise.then(m => {
-								const metadata = m.metadata
-								if (!metadata) return {}
-
-								if (typeof metadata === 'function') {
-									return metadata({ params, error }).catch((err: unknown) => {
-										logger.error(`[enhance.metadata]: ${__id}`, err)
-										return {}
-									})
-								} else if (typeof metadata === 'object') {
-									return metadata
-								}
-							}),
-							priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
-						})
-					}
-				}
-			}
-
-			if (entry.page) {
-				const e = Resolver.#load(entry.page)
-
-				if (e.module && 'metadata' in e.module) {
-					const metadata = e.module.metadata
-
-					if (metadata) {
-						if (typeof metadata === 'function') {
-							tasks.push({
-								task: Promise.resolve(metadata({ params, error })).catch(err => {
-									logger.error(`[enhance.metadata]: ${__id}`, err)
-									return {}
-								}),
-								priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
-							})
-						} else if (typeof metadata === 'object') {
-							tasks.push({
-								task: Promise.resolve(metadata),
-								priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
-							})
-						}
-					}
-				} else {
-					tasks.push({
-						task: e.promise.then(m => {
-							const metadata = m.metadata
-							if (!metadata) return {}
-
-							if (typeof metadata === 'function') {
-								return metadata({ params, error }).catch((err: unknown) => {
-									logger.error(`[enhance.metadata]: ${__id}`, err)
-									return {}
-								})
-							} else if (typeof metadata === 'object') {
-								return metadata
-							}
-						}),
-						priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
-					})
-				}
-			}
-
-			if (entry['404s'] && error) {
-				for (const errLoader of entry['404s']) {
-					if (!errLoader) continue
-					const e = Resolver.#load(errLoader)
-
-					if (e.module && 'metadata' in e.module) {
-						const metadata = e.module.metadata
-
-						if (metadata) {
-							if (typeof metadata === 'function') {
-								tasks.push({
-									task: Promise.resolve(metadata({ params, error })).catch(err => {
-										logger.error(`[enhance.metadata]: ${__id}`, err)
-										return {}
-									}),
-									priority: Metadata.PRIORITY[Build.EntryKind['404']],
-								})
-							} else if (typeof metadata === 'object') {
-								tasks.push({
-									task: Promise.resolve(metadata),
-									priority: Metadata.PRIORITY[Build.EntryKind['404']],
-								})
-							}
-						}
-					} else {
-						tasks.push({
-							task: e.promise.then(m => {
-								const metadata = m.metadata
-								if (!metadata) return {}
-
-								if (typeof metadata === 'function') {
-									return metadata({ params, error }).catch((err: unknown) => {
-										logger.error(`[enhance.metadata]: ${__id}`, err)
-										return {}
-									})
-								} else if (typeof metadata === 'object') {
-									return metadata
-								}
-							}),
-							priority: Metadata.PRIORITY[Build.EntryKind['404']],
-						})
-					}
-				}
-			}
-
-			return Promise.allSettled(tasks)
+		if (entry.shell) {
+			metadataSources.push({
+				priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
+				load: () => Promise.resolve(entry.shell?.metadata),
+			})
 		}
+
+		if (entry.layouts?.length) {
+			for (const layout of entry.layouts) {
+				if (!layout) continue
+				const loaded = Resolver.#load(layout)
+
+				metadataSources.push({
+					priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
+					load: () =>
+						loaded.module
+							? Promise.resolve(loaded.module.metadata)
+							: loaded.promise.then(module => module.metadata),
+				})
+			}
+		}
+
+		if (entry.page) {
+			const loaded = Resolver.#load(entry.page)
+
+			metadataSources.push({
+				priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
+				load: () =>
+					loaded.module
+						? Promise.resolve(loaded.module.metadata)
+						: loaded.promise.then(module => module.metadata),
+			})
+		}
+
+		if (entry['404s']?.length) {
+			for (const errLoader of entry['404s']) {
+				if (!errLoader) continue
+				const loaded = Resolver.#load(errLoader)
+
+				metadataSources.push({
+					priority: Metadata.PRIORITY[Build.EntryKind['404']],
+					when: 'error',
+					load: () =>
+						loaded.module
+							? Promise.resolve(loaded.module.metadata)
+							: loaded.promise.then(module => module.metadata),
+				})
+			}
+		}
+
+		enhanced.metadata = ({ params, error }: Metadata.Input<Router.Params>) =>
+			Metadata.tasks(metadataSources, { params, error }, err => {
+				logger.error(`[enhance.metadata]: ${__id}`, err)
+			})
 
 		if (!IS_DEV) Resolver.#enhancedMatchCache.set(__id, enhanced)
 

@@ -58,6 +58,7 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
       return new Router({
         trailingSlash: config.trailingSlash,
       })
+				// static assets are served outside +middleware conventions
         .add('/assets/*', 'GET', Router.static(config))
         ${[...groups.entries()]
 					.map(([, group]) => {
@@ -99,13 +100,11 @@ export function writeRouter(manifest: Manifest, imports: Build.Imports) {
 							entry => entry.__kind === Build.EntryKind.ENDPOINT,
 						)
 
-						const mw = (
-							page && 'paths' in page
-								? page.paths.middlewares
-								: endpoint && 'middlewares' in endpoint
-									? endpoint.middlewares
-									: []
-						)
+						const mw = [
+							...(page && 'paths' in page ? page.paths.middlewares : []),
+							...(endpoint && 'middlewares' in endpoint ? endpoint.middlewares : []),
+						]
+							.filter((value, index, values) => values.indexOf(value) === index)
 							.map(id => (id ? (mwByPath.get(id) ?? null) : null))
 							.filter(Boolean)
 

@@ -115,23 +115,9 @@ export async function rsc(
 	// check if this route is a candidate for ppr
 	const ppr = match.prerender === 'ppr'
 	const collection = new Metadata.Collection(baseMetadata)
-
-	const metadata = match
-		.metadata?.({ params: match.params, error: match.error })
-		.then(m => {
-			const values = m
-				.filter(
-					(
-						result,
-					): result is PromiseFulfilledResult<{
-						task: Promise<Metadata.Item>
-						priority: number
-					}> => result.status === 'fulfilled',
-				)
-				.map(result => result.value)
-
-			return collection.add(...values).run()
-		})
+	const metadata = collection
+		.add(...(match.metadata?.({ params: match.params, error: match.error }) ?? []))
+		.run()
 
 	const rscPayload: RSCPayload = {
 		root: (
@@ -282,7 +268,6 @@ export async function action(req: DriftRequest) {
 
 	return { returnValue, formState, temporaryReferences }
 }
-
 /**
  * Check if a request is an action request and reuse parsed FormData
  * when multipart action detection already had to inspect the body

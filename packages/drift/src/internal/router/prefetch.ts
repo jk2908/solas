@@ -1,10 +1,10 @@
-export namespace Preload {
+export namespace Prefetch {
 	type Entry = {
 		promise: Promise<Response>
 		timeoutId: ReturnType<typeof setTimeout>
 	}
 
-	const TTL_MS = 60_000
+	export const TTL_MS = 60_000
 	const MAX_SIZE = 32
 	const cache = new Map<string, Entry>()
 
@@ -42,10 +42,14 @@ export namespace Preload {
 	}
 
 	/**
-	 * Retrieves the cached response promise for the given path if it exists
+	 * Retrieves a fresh response promise for the given path if it exists
+	 * by cloning the cached response so each consumer gets an unread stream
 	 */
 	export function get(path: string) {
-		return cache.get(path)?.promise
+		const promise = cache.get(path)?.promise
+		if (!promise) return undefined
+
+		return promise.then(response => response.clone())
 	}
 
 	/**

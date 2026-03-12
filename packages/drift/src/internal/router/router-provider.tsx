@@ -8,7 +8,7 @@ import { Events } from '../../utils/events'
 import { Logger } from '../../utils/logger'
 
 import type { RSCPayload } from '../env/rsc'
-import { Preload } from './preload'
+import { Prefetch } from './prefetch'
 import { GoConfig, RouterContext } from './router-context'
 
 const DEFAULT_GO_CONFIG = {
@@ -33,6 +33,9 @@ export function RouterProvider({
 
 	/**
 	 * Navigate to a new route
+	 * @param to the destination url (absolute or relative to origin)
+	 * @param goConfig optional configuration for the navigation
+	 * @returns the path that was navigated to (relative to origin)
 	 */
 	const go = useCallback(
 		async (to: string, goConfig?: GoConfig) => {
@@ -51,13 +54,13 @@ export function RouterProvider({
 				}
 			}
 
-			const path = Preload.toKey(url.toString(), window.location.origin)
-			// distinguish an actual prior preload from a cache entry we create
+			const path = Prefetch.toKey(url.toString(), window.location.origin)
+			// distinguish an actual prior prefetch from a cache entry we create
 			// opportunistically for this navigation
-			const hadEntry = Preload.has(path)
+			const existing = Prefetch.has(path)
 
 			try {
-				let promise = Preload.get(path)
+				let promise = Prefetch.get(path)
 
 				if (!promise) {
 					const ctrl = new AbortController()
@@ -69,7 +72,7 @@ export function RouterProvider({
 					})
 				}
 
-				if (!Preload.has(path)) Preload.set(path, promise)
+				if (!Prefetch.has(path)) Prefetch.set(path, promise)
 
 				// if another navigation has started since this one, ignore the result
 				// and return early
@@ -98,19 +101,19 @@ export function RouterProvider({
 				}
 
 				logger.error('[navigation] failed', err)
-				Events.dispatch('navigation:error', {
+				Events.dispatch('navigationerror', {
 					path,
 					error: err instanceof Error ? err.message : Logger.print(err),
 				})
 			} finally {
 				if (navigationId === id.current) controller.current = null
 
-				// preserve entries that were already preloaded so nearby follow-up
-				// navigations can still reuse them within the preload TTL window
-				if (!hadEntry) {
+				// preserve entries that were already prefetched so nearby follow-up
+				// navigations can still reuse them within the prefetch TTL window
+				if (!existing) {
 					// entries created by go() only serve as in-flight dedupe for this
-					// navigation (i.e. not intentionally preloaded)
-					Preload.remove(path)
+					// navigation (i.e. not intentionally prefetched)
+					Prefetch.remove(path)
 				}
 			}
 
@@ -120,19 +123,21 @@ export function RouterProvider({
 	)
 
 	/**
-	 * Preload a route's assets by fetching the RSC payload
+	 * Prefetch a route's assets by fetching the RSC payload
+	 * @param path the route path to prefetch (absolute or relative to origin)
+	 * @returns void
 	 */
-	const preload = useCallback((path: string) => {
+	const prefetch = useCallback((path: string) => {
 		const connection = window.navigator.connection
 
 		if (document.visibilityState === 'hidden') return
 		if (connection?.saveData) return
 		if (['2g', 'slow-2g'].includes(connection?.effectiveType ?? '')) return
 
-		const key = Preload.toKey(path, window.location.origin)
+		const key = Prefetch.toKey(path, window.location.origin)
 
-		if (Preload.has(key)) return
-		Preload.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
+		if (Prefetch.has(key)) return
+		Prefetch.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
 	}, [])
 
 	useEffect(() => {
@@ -150,10 +155,10 @@ export function RouterProvider({
 	const value = useMemo(
 		() => ({
 			go,
-			preload,
+			prefetch,
 			isNavigating,
 		}),
-		[go, preload, isNavigating],
+		[go, prefetch, isNavigating],
 	)
 
 	return <RouterContext value={value}>{children}</RouterContext>

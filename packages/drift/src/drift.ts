@@ -36,7 +36,7 @@ export namespace Drift {
 			const errors: string[] = []
 
 			if (!isRecord(input)) {
-				throw new Error(
+					throw new TypeError(
 					'[drift] Invalid config:\n- Expected plugin config to be an object',
 				)
 			}
@@ -123,7 +123,7 @@ export namespace Drift {
 			}
 
 			if (errors.length > 0) {
-				throw new Error(`[drift] Invalid config:\n- ${errors.join('\n- ')}`)
+					throw new TypeError(`[drift] Invalid config:\n- ${errors.join('\n- ')}`)
 			}
 
 			return input as PluginConfig
@@ -152,7 +152,7 @@ export namespace Drift {
 	 * Set the Drift framework version
 	 */
 	export function setVersion(value: string) {
-		if (!value) throw new Error('Missing package.json version')
+		if (!value) throw new TypeError('Missing package.json version')
 		version = value
 	}
 }

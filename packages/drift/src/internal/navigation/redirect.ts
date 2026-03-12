@@ -21,19 +21,16 @@ export const REDIRECT_DIGEST_PREFIX = 'REDIRECT'
 
 /**
  * Validate a url for use in the redirect() function
- * @param url - the url to validate
- * @returns void if the url is valid
- * @throws an error if the url is invalid
  */
 function validate(url: string) {
 	if (url.startsWith('//')) {
-		throw new Error('[drift] redirect() does not allow protocol-relative urls')
+		throw new TypeError('[drift] redirect() does not allow protocol-relative urls')
 	}
 
 	// reject urls with control characters to prevent header injection
 	for (const char of url) {
 		if (char === '\r' || char === '\n') {
-			throw new Error('[drift] redirect() does not allow control characters')
+			throw new TypeError('[drift] redirect() does not allow control characters')
 		}
 	}
 
@@ -45,21 +42,18 @@ function validate(url: string) {
 	try {
 		parsed = new URL(url)
 	} catch {
-		throw new Error(
-			'[drift] redirect() only supports application-relative paths or absolute http/https urls',
+		throw new TypeError(
+			'[drift] redirect() only supports relative paths or absolute http/https urls',
 		)
 	}
 
 	if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-		throw new Error('[drift] redirect() only supports http:// and https:// urls')
+		throw new TypeError('[drift] redirect() only supports http:// and https:// urls')
 	}
 }
 
 /**
  * Check if an error is a Redirect error
- * @description uses the digest property to work across server/client boundaries
- * @param err - the error to check
- * @returns true if the error is a Redirect error, false otherwise
  */
 export function isRedirect(err: unknown): err is Redirect {
 	return (
@@ -72,7 +66,7 @@ export function isRedirect(err: unknown): err is Redirect {
 }
 
 /**
- * Throws a Redirect exception to signal a redirect
+ * Throws a Redirect exc`eption to signal a redirect
  * @param url - the application-relative URL or absolute http/https URL to redirect to
  * @param status - the HTTP status code for the redirect, defaults to 307
  */

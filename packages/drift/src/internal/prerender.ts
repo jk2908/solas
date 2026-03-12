@@ -498,7 +498,7 @@ export namespace Prerender {
 			)
 
 			if (!(res instanceof Response)) {
-				const error = new Error(`Invalid response for ${route}`)
+				const error = new TypeError(`Invalid response for ${route}`)
 				logger.error(`[prerender:get] ${error.message}`, error)
 
 				throw error

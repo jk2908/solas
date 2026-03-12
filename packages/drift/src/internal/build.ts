@@ -496,7 +496,7 @@ export namespace Build {
 							// route scanning only tells us this is a +middleware file path so
 							// we still validate that the module actually exports middleware
 							if (!(await exportReader.has(middlewarePath, 'middleware'))) {
-								throw new Error(`Missing export 'middleware' in ${middlewarePath}`)
+								throw new Error(`Missing middleware export in ${middlewarePath}`)
 							}
 
 							imports.middlewares.static.set(middlewareId, middlewareImport)
@@ -590,6 +590,13 @@ export namespace Build {
 						middlewareIds,
 					}
 				} catch (err) {
+					if (
+						err instanceof Error &&
+						err.message.startsWith('Missing middleware export')
+					) {
+						throw err
+					}
+
 					logger.error('[Build:Finder:process]: failed to process segment', err)
 				}
 			}
@@ -631,7 +638,7 @@ export namespace Build {
 									// endpoint middleware discovery gives us file paths, not proof of the export
 									// so check the module shape before we register the import
 									if (!(await exportReader.has(middlewarePath, 'middleware'))) {
-										throw new Error(`Missing export 'middleware' in ${middlewarePath}`)
+										throw new Error(`Missing middleware export in ${middlewarePath}`)
 									}
 
 									imports.middlewares.static.set(middlewareId, middlewareImport)
@@ -648,7 +655,9 @@ export namespace Build {
 							__params: params,
 							__kind: EntryKind.ENDPOINT,
 							method: m,
-							middlewares: endpointMiddlewarePaths,
+							middlewares: endpointMiddlewarePaths.map(middlewarePath =>
+								middlewarePath ? Finder.getImportPath(middlewarePath) : null,
+							),
 						})
 
 						imports.endpoints.static.set(
@@ -688,6 +697,13 @@ export namespace Build {
 						manifest[route] = entry
 					}
 				} catch (err) {
+					if (
+						err instanceof Error &&
+						err.message.startsWith('Missing middleware export')
+					) {
+						throw err
+					}
+
 					logger.error('[Build:Finder:process]: failed to process route', err)
 				}
 			}

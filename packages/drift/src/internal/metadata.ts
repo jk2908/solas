@@ -5,12 +5,12 @@ type EntryKind = typeof Build.EntryKind
 const TITLE_TEMPLATE_STR = '%s'
 
 export namespace Metadata {
-	type Source = Exclude<
+	type EntrySource = Exclude<
 		EntryKind[keyof EntryKind],
 		typeof Build.EntryKind.ENDPOINT | typeof Build.EntryKind.MIDDLEWARE
 	>
 
-	export const PRIORITY: Record<Source, number> = {
+	export const PRIORITY: Record<EntrySource, number> = {
 		[Build.EntryKind.SHELL]: 10,
 		[Build.EntryKind.LAYOUT]: 20,
 		[Build.EntryKind.PAGE]: 30,
@@ -42,6 +42,29 @@ export namespace Metadata {
 		link?: LinkTag[]
 	}
 
+	export type Input<TParams = unknown, TError = Error> = {
+		params?: TParams
+		error?: TError
+	}
+
+	export type Task = {
+		priority: number
+		task: Promise<Item>
+	}
+
+	export type RunMode = 'always' | 'error'
+
+	/**
+	 * A cached way to load one metadata export for a route.
+	 * The export itself is loaded once route structure is known, then resolved
+	 * later with request-specific input such as params or an error.
+	 */
+	export type Source = {
+		priority: Task['priority']
+		when?: RunMode
+		load: () => Promise<unknown>
+	}
+
 	export class Collection {
 		/**
 		 * The base metadata object
@@ -53,10 +76,7 @@ export namespace Metadata {
 		 * The collection of metadata tasks with their priorities
 		 * @description - each task is a promise that resolves to a metadata object
 		 */
-		#collection: {
-			priority: number
-			item: Promise<Item>
-		}[] = []
+		#collection: Task[] = []
 
 		constructor(base?: Item) {
 			if (base) this.#base = base
@@ -150,14 +170,9 @@ export namespace Metadata {
 		/**
 		 * Adds tasks to the collection
 		 */
-		add(
-			...tasks: {
-				task: Promise<Item>
-				priority: number
-			}[]
-		) {
+		add(...tasks: Task[]) {
 			for (const { task, priority } of tasks) {
-				this.#collection.push({ priority, item: task })
+				this.#collection.push({ priority, task })
 			}
 
 			return this
@@ -168,22 +183,18 @@ export namespace Metadata {
 		 */
 		async run() {
 			const items = [...this.#collection].sort((a, b) => a.priority - b.priority)
+
+			if (items.length === 0) return Collection.#clone(this.#base)
+
 			let merged = Collection.#clone(this.#base)
 
-			if (items.length === 0) return merged
-
-			const tasks = items.map(entry =>
-				entry.item
-					.then(item => ({ item, priority: entry.priority }))
-					.catch(() => ({ item: {}, priority: entry.priority })),
-			)
-
-			const res = await Promise.allSettled(tasks)
+			const res = await Promise.allSettled(items.map(entry => entry.task))
 			const ok = res
-				.filter(r => r.status === 'fulfilled')
-				.map(r => r.value)
-				.sort((a, b) => a.priority - b.priority)
-				.map(r => r.item)
+				.filter(
+					(result): result is PromiseFulfilledResult<Item> =>
+						result.status === 'fulfilled',
+				)
+				.map(result => result.value)
 
 			if (ok.length) merged = Collection.#merge(merged, ...ok)
 
@@ -196,5 +207,54 @@ export namespace Metadata {
 		get base() {
 			return Collection.#clone(this.#base)
 		}
+	}
+
+	/**
+	 * Normalise a metadata export into a promise of a metadata object
+	 * Supports both plain object exports and metadata(input) functions
+	 */
+	export function resolve(
+		metadata: unknown,
+		input: Input,
+		onError?: (err: unknown) => void,
+	) {
+		if (!metadata) return Promise.resolve({} satisfies Item)
+
+		if (typeof metadata === 'function') {
+			try {
+				return Promise.resolve(metadata(input) as Item).catch(err => {
+					onError?.(err)
+					return {} satisfies Item
+				})
+			} catch (err) {
+				onError?.(err)
+				return Promise.resolve({} satisfies Item)
+			}
+		}
+
+		if (typeof metadata === 'object') return Promise.resolve(metadata as Item)
+		return Promise.resolve({} satisfies Item)
+	}
+
+	/**
+	 * Turn cached metadata exports into concrete work for the current request/render
+	 */
+	export function tasks(
+		sources: Source[],
+		input: Input,
+		onError?: (err: unknown) => void,
+	) {
+		const tasks: Task[] = []
+
+		for (const source of sources) {
+			if (source.when === 'error' && !input.error) continue
+
+			tasks.push({
+				task: source.load().then(metadata => resolve(metadata, input, onError)),
+				priority: source.priority,
+			})
+		}
+
+		return tasks
 	}
 }
