@@ -11,7 +11,8 @@ const HTTP_EXCEPTION_NAME_MAP: Record<HttpExceptionStatusCode, string> = {
 } as const
 
 /**
- * Create a HTTPException instance
+ * An exception representing an HTTP error, with an optional payload
+ * and cause
  */
 export class HttpException extends Error {
 	payload?: Payload

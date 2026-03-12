@@ -40,7 +40,7 @@ export type BuildContext = {
 }
 
 export type DriftRequest = Request & {
-	__DRIFT__: {
+	[Drift.Config.REQUEST_META]: {
 		error?: HttpException | Error
 		action?: boolean
 		match: Router.Match | null

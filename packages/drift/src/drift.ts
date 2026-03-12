@@ -11,6 +11,7 @@ export namespace Drift {
 		export const ENTRY_BROWSER = 'entry.browser.tsx'
 		export const ASSETS_DIR = 'assets'
 		export const $ = Symbol(NAME)
+		export const REQUEST_META = '__DRIFT__'
 		export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
 		export const PRERENDER_MODES = ['full', 'ppr', false] as const
 
@@ -36,7 +37,7 @@ export namespace Drift {
 			const errors: string[] = []
 
 			if (!isRecord(input)) {
-					throw new TypeError(
+				throw new Error(
 					'[drift] Invalid config:\n- Expected plugin config to be an object',
 				)
 			}
@@ -123,37 +124,21 @@ export namespace Drift {
 			}
 
 			if (errors.length > 0) {
-					throw new TypeError(`[drift] Invalid config:\n- ${errors.join('\n- ')}`)
+				throw new Error(`[drift] Invalid config:\n- ${errors.join('\n- ')}`)
 			}
 
 			return input as PluginConfig
 		}
 	}
 
-	let version: string | undefined
-
-	/**
-	 * Get the Drift framework version from package.json
-	 */
 	export function getVersion() {
-		if (version) return version
-
 		const value = (import.meta.env as Record<string, unknown>).DRIFT_VERSION
 
 		if (typeof value !== 'string' || value.length === 0) {
-			throw new Error('Missing package.json version')
+			throw new Error('Missing drift package version')
 		}
 
-		version = value
-		return version
-	}
-
-	/**
-	 * Set the Drift framework version
-	 */
-	export function setVersion(value: string) {
-		if (!value) throw new TypeError('Missing package.json version')
-		version = value
+		return value
 	}
 }
 

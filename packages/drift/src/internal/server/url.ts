@@ -8,6 +8,12 @@ import { dynamic } from './dynamic'
 export function url() {
 	dynamic()
 
-	const { req } = RequestContext.use()
-	return new URL(req.url)
+	const { req, cache } = RequestContext.use()
+	// use request cache if possible
+	if (cache.url) return cache.url
+
+	const parsed = new URL(req.url)
+	cache.url = parsed
+
+	return parsed
 }

@@ -33,6 +33,18 @@ const DEFAULT_CONFIG = {
 	trailingSlash: false,
 } as const satisfies Partial<PluginConfig>
 
+const DRIFT_VERSION = (() => {
+	const value = JSON.parse(
+		fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
+	)
+
+	if (typeof value.version !== 'string' || value.version.length === 0) {
+		throw new Error('Missing drift package version')
+	}
+
+	return value.version
+})()
+
 function drift(c: PluginConfig): PluginOption[] {
 	const config = Drift.Config.validate({
 		...DEFAULT_CONFIG,
@@ -176,20 +188,6 @@ function drift(c: PluginConfig): PluginOption[] {
 		async config(viteConfig: UserConfig) {
 			await build()
 
-			try {
-				Drift.getVersion()
-			} catch {
-				const value = JSON.parse(
-					fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
-				) as { version?: unknown }
-
-				if (typeof value.version !== 'string' || value.version.length === 0) {
-					throw new Error('Missing drift package version')
-				}
-
-				Drift.setVersion(value.version)
-			}
-
 			viteConfig.build ??= {}
 			viteConfig.build.outDir = config.outDir
 			viteConfig.build.emptyOutDir = true
@@ -202,9 +200,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(
 				process.env.VITE_APP_URL,
 			)
-			viteConfig.define['import.meta.env.DRIFT_VERSION'] = JSON.stringify(
-				Drift.getVersion(),
-			)
+			viteConfig.define['import.meta.env.DRIFT_VERSION'] = JSON.stringify(DRIFT_VERSION)
 
 			viteConfig.resolve ??= {}
 			viteConfig.resolve.alias = {

@@ -14,14 +14,17 @@ export namespace Cookies {
 		if (!header) return out
 
 		for (const part of header.split(';')) {
-			const [raw, ...rest] = part.split('=')
-
-			const key = raw?.trim()
+			// cookie values may contain =, so only split on the
+			// first separator
+			const separator = part.indexOf('=')
+			const raw = separator === -1 ? part : part.slice(0, separator)
+			const key = raw.trim()
 
 			if (!key) continue
+			// later duplicates are ignored so the first cookie value wins
 			if (out.has(key)) continue
 
-			const value = rest.join('=').trim()
+			const value = separator === -1 ? '' : part.slice(separator + 1).trim()
 			out.set(key, decode(value))
 		}
 
