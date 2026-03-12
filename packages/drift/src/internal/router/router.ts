@@ -4,8 +4,6 @@ import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 
 import type { DriftRequest, HttpMethod, PluginConfig } from '../../types'
 
-import { Drift } from '../../drift'
-
 import { maybeActionWithParsedFormData } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
 import { toPathPattern } from './pattern'
@@ -250,15 +248,16 @@ export class Router {
 				return (
 					this.#onError?.(
 						error,
-						Object.assign(req, { [Drift.Config.$]: { match: null, error, action } }),
+						Object.assign(req, { __DRIFT__: { match: null, error, action } }),
 					) ?? new Response(error.message, { status: error.status })
 				)
 			}
 
 			const matched = match
-			const request = Object.assign(req, {
-				[Drift.Config.$]: { match: matched, action, formData },
+			const request: DriftRequest = Object.assign(req, {
+				__DRIFT__: { match: matched, action, body: { formData } },
 			})
+
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
 
 			return this.#run(
@@ -269,7 +268,7 @@ export class Router {
 			)
 		} catch (err) {
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
-			const request = Object.assign(req, { [Drift.Config.$]: { match, error, action } })
+			const request = Object.assign(req, { __DRIFT__: { match, error, action } })
 
 			if (this.#onError) return this.#onError(error, request)
 

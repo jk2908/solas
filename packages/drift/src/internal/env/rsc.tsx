@@ -11,8 +11,6 @@ import {
 
 import type { DriftRequest, ImportMap, Manifest } from '../../types'
 
-import { Drift } from '../../drift'
-
 import { Logger } from '../../utils/logger'
 import { getKnownDigest, isKnownError } from './utils'
 
@@ -51,14 +49,14 @@ export async function rsc(
 			? url.pathname.slice(0, -1)
 			: url.pathname
 	const match = resolver.enhance(
-		resolver.reconcile(pathname, req[Drift.Config.$].match, req[Drift.Config.$].error),
+		resolver.reconcile(pathname, req.__DRIFT__.match, req.__DRIFT__.error),
 	)
 
 	// if there's no match then no user supplied error boundary
 	// has been found, and we should server render a default
 	// error screen
 	if (!match) {
-		const error = req[Drift.Config.$].error ?? new HttpException(404, 'Not found')
+		const error = req.__DRIFT__.error ?? new HttpException(404, 'Not found')
 		const title = `${'status' in error ? `${error.status} -` : ''}${error.message}`
 
 		const rscPayload: RSCPayload = {
@@ -258,7 +256,7 @@ export async function action(req: DriftRequest) {
 		// we might have already parsed FormData in the router for multipart action
 		// detection should be attached to the DriftRequest, so we can reuse that
 		// to avoid parsing twice
-		const parsedFormData = req[Drift.Config.$].formData
+		const parsedFormData = req.__DRIFT__.parsedFormData
 
 		const formData = parsedFormData ?? (await req.formData())
 		const decodedAction = await decodeAction(formData)
