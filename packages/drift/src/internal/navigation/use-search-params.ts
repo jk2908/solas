@@ -1,14 +1,16 @@
 import { useMemo, useSyncExternalStore } from 'react'
 
+import { Drift } from '../../drift'
+
 export function useSearchParams() {
 	const search = useSyncExternalStore(
 		fn => {
 			window.addEventListener('popstate', fn)
-			window.addEventListener('driftnavigation', fn)
+			window.addEventListener(Drift.Events.names.NAVIGATION, fn)
 
 			return () => {
 				window.removeEventListener('popstate', fn)
-				window.removeEventListener('driftnavigation', fn)
+				window.removeEventListener(Drift.Events.names.NAVIGATION, fn)
 			}
 		},
 		() => window.location.search,

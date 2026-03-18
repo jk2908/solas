@@ -158,13 +158,15 @@ export class Router {
 			return this
 		}
 
-		// dynamic route, add to match tables
+		// dynamic routes are looked up through two indexes; one grouped
+		// by segment count, and one grouped by the first static segment
 		const bucket = this.#routes.dynamic.byLength.get(route.length) ?? []
 		bucket.push(route)
 		this.#routes.dynamic.byLength.set(route.length, bucket)
 
-		// only bucket by a leading static segment so the prefix fast path
-		// cannot hide more specific routes that start dynamically
+		// only routes that start with a literal segment go into the prefix index.
+		// Routes that start dynamically still fall back to the length-based
+		// lookup, so this shortcut doesn't accidentally skip a better match
 		const prefix = route.tokens[0]?.kind === 'static' ? route.tokens[0].value : undefined
 
 		if (prefix) {
