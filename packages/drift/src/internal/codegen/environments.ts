@@ -45,7 +45,7 @@ export function writeRSCEntry() {
         returnValue: undefined,
       }
 
-      if (req[Drift.Config.$].action) opts = await action(req)
+      if (req[Drift.Config.REQUEST_META].action) opts = await action(req)
 
       const { stream: rscStream, status, ppr } = await rsc(
         req,

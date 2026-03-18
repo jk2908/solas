@@ -18,7 +18,6 @@ import { HttpException, isHttpException } from '../navigation/http-exception'
 
 export namespace Resolver {
 	export type ReconciledMatch = ReturnType<Resolver['reconcile']>
-
 	export type CachedEnhancedMatch = Omit<EnhancedMatch, 'params' | 'error'>
 
 	export type EnhancedMatch = ReconciledMatch & {
@@ -31,7 +30,19 @@ export namespace Resolver {
 				children?: React.ReactNode
 				params?: Router.Params
 			}> | null
+			'401s': (View<{
+				children?: React.ReactNode
+				error?: HttpException
+			}> | null)[]
+			'403s': (View<{
+				children?: React.ReactNode
+				error?: HttpException
+			}> | null)[]
 			'404s': (View<{
+				children?: React.ReactNode
+				error?: HttpException
+			}> | null)[]
+			'500s': (View<{
 				children?: React.ReactNode
 				error?: HttpException
 			}> | null)[]
@@ -246,7 +257,10 @@ export class Resolver {
 			ui: {
 				layouts: [],
 				Page: null,
+				'401s': [],
+				'403s': [],
 				'404s': [],
+				'500s': [],
 				loaders: [],
 			},
 			...rest,
@@ -276,11 +290,35 @@ export class Resolver {
 			>(entry.page)
 		}
 
+		if (entry['401s']?.length) {
+			enhanced.ui['401s'] = entry['401s'].map(e =>
+				e
+					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['401s'][number]>>(e)
+					: null,
+			)
+		}
+
+		if (entry['403s']?.length) {
+			enhanced.ui['403s'] = entry['403s'].map(e =>
+				e
+					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['403s'][number]>>(e)
+					: null,
+			)
+		}
+
 		// load 404 boundaries
 		if (entry['404s']?.length) {
 			enhanced.ui['404s'] = entry['404s'].map(e =>
 				e
 					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['404s'][number]>>(e)
+					: null,
+			)
+		}
+
+		if (entry['500s']?.length) {
+			enhanced.ui['500s'] = entry['500s'].map(e =>
+				e
+					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['500s'][number]>>(e)
 					: null,
 			)
 		}
@@ -337,6 +375,40 @@ export class Resolver {
 			})
 		}
 
+		if (entry['401s']?.length) {
+			for (const errLoader of entry['401s']) {
+				if (!errLoader) continue
+				const loaded = Resolver.#load(errLoader)
+
+				metadataSources.push({
+					priority: Metadata.PRIORITY[Build.EntryKind['401']],
+					when: 'error',
+					status: 401,
+					load: () =>
+						loaded.module
+							? Promise.resolve(loaded.module.metadata)
+							: loaded.promise.then(module => module.metadata),
+				})
+			}
+		}
+
+		if (entry['403s']?.length) {
+			for (const errLoader of entry['403s']) {
+				if (!errLoader) continue
+				const loaded = Resolver.#load(errLoader)
+
+				metadataSources.push({
+					priority: Metadata.PRIORITY[Build.EntryKind['403']],
+					when: 'error',
+					status: 403,
+					load: () =>
+						loaded.module
+							? Promise.resolve(loaded.module.metadata)
+							: loaded.promise.then(module => module.metadata),
+				})
+			}
+		}
+
 		if (entry['404s']?.length) {
 			for (const errLoader of entry['404s']) {
 				if (!errLoader) continue
@@ -345,6 +417,24 @@ export class Resolver {
 				metadataSources.push({
 					priority: Metadata.PRIORITY[Build.EntryKind['404']],
 					when: 'error',
+					status: 404,
+					load: () =>
+						loaded.module
+							? Promise.resolve(loaded.module.metadata)
+							: loaded.promise.then(module => module.metadata),
+				})
+			}
+		}
+
+		if (entry['500s']?.length) {
+			for (const errLoader of entry['500s']) {
+				if (!errLoader) continue
+				const loaded = Resolver.#load(errLoader)
+
+				metadataSources.push({
+					priority: Metadata.PRIORITY[Build.EntryKind['500']],
+					when: 'error',
+					status: 500,
 					load: () =>
 						loaded.module
 							? Promise.resolve(loaded.module.metadata)

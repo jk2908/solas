@@ -4,11 +4,12 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
-import { Events } from '../../utils/events'
+import { Drift } from '../../drift'
+
 import { Logger } from '../../utils/logger'
 
 import type { RSCPayload } from '../env/rsc'
-import { Prefetch } from './prefetch'
+import { Prefetcher } from './prefetcher'
 import { GoConfig, RouterContext } from './router-context'
 
 const DEFAULT_GO_CONFIG = {
@@ -16,6 +17,7 @@ const DEFAULT_GO_CONFIG = {
 } satisfies GoConfig
 
 const logger = new Logger()
+const prefetcher = new Prefetcher()
 
 export function RouterProvider({
 	children,
@@ -54,13 +56,13 @@ export function RouterProvider({
 				}
 			}
 
-			const path = Prefetch.toKey(url.toString(), window.location.origin)
+			const path = Prefetcher.key(url.toString(), window.location.origin)
 			// distinguish an actual prior prefetch from a cache entry we create
 			// opportunistically for this navigation
-			const existing = Prefetch.has(path)
+			const existing = prefetcher.has(path)
 
 			try {
-				let promise = Prefetch.get(path)
+				let promise = prefetcher.get(path)
 
 				if (!promise) {
 					const ctrl = new AbortController()
@@ -72,7 +74,7 @@ export function RouterProvider({
 					})
 				}
 
-				if (!Prefetch.has(path)) Prefetch.set(path, promise)
+				if (!prefetcher.has(path)) prefetcher.set(path, promise)
 
 				// if another navigation has started since this one, ignore the result
 				// and return early
@@ -94,17 +96,24 @@ export function RouterProvider({
 					window.history.pushState(null, '', path)
 				}
 
-				Events.dispatch('navigation', { path })
+				window.dispatchEvent(
+					new CustomEvent(Drift.Events.names.NAVIGATION, { detail: { path } }),
+				)
 			} catch (err) {
 				if (err instanceof Error && err.name === 'AbortError') {
 					return path
 				}
 
 				logger.error('[navigation] failed', err)
-				Events.dispatch('navigationerror', {
-					path,
-					error: err instanceof Error ? err.message : Logger.print(err),
-				})
+
+				window.dispatchEvent(
+					new CustomEvent(Drift.Events.names.NAVIGATION_ERROR, {
+						detail: {
+							path,
+							error: err instanceof Error ? err.message : Logger.print(err),
+						},
+					}),
+				)
 			} finally {
 				if (navigationId === id.current) controller.current = null
 
@@ -113,7 +122,7 @@ export function RouterProvider({
 				if (!existing) {
 					// entries created by go() only serve as in-flight dedupe for this
 					// navigation (i.e. not intentionally prefetched)
-					Prefetch.remove(path)
+					prefetcher.remove(path)
 				}
 			}
 
@@ -134,10 +143,10 @@ export function RouterProvider({
 		if (connection?.saveData) return
 		if (['2g', 'slow-2g'].includes(connection?.effectiveType ?? '')) return
 
-		const key = Prefetch.toKey(path, window.location.origin)
+		const key = Prefetcher.key(path, window.location.origin)
 
-		if (Prefetch.has(key)) return
-		Prefetch.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
+		if (prefetcher.has(key)) return
+		prefetcher.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
 	}, [])
 
 	useEffect(() => {

@@ -33,18 +33,6 @@ const DEFAULT_CONFIG = {
 	trailingSlash: false,
 } as const satisfies Partial<PluginConfig>
 
-const DRIFT_VERSION = (() => {
-	const value = JSON.parse(
-		fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
-	)
-
-	if (typeof value.version !== 'string' || value.version.length === 0) {
-		throw new Error('Missing drift package version')
-	}
-
-	return value.version
-})()
-
 function drift(c: PluginConfig): PluginOption[] {
 	const config = Drift.Config.validate({
 		...DEFAULT_CONFIG,
@@ -75,10 +63,15 @@ function drift(c: PluginConfig): PluginOption[] {
 		return fs
 			.readFile(filePath, 'utf-8')
 			.catch(() => null)
-			.then(current => {
-				if (current === content) return false
+			.then(curr => {
+				if (curr === content) return false
 
-				return Bun.write(filePath, content).then(() => true)
+				return Bun.write(filePath, content)
+					.then(() => true)
+					.catch(err => {
+						logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
+						return false
+					})
 			})
 	}
 
@@ -124,20 +117,31 @@ function drift(c: PluginConfig): PluginOption[] {
 	let rebuildQueued = false
 	let rebuildReason = 'change'
 
-	const watchCwd = process.cwd().replace(/\\/g, '/')
-	const watchAppRoot = `${watchCwd}/${Drift.Config.APP_DIR}/`
+	// normalise all watcher paths to forward slashes so path checks behave the
+	// same on Windows and POSIX
+	const WATCH_CWD = process.cwd().replace(/\\/g, '/')
+	const WATCH_APP_ROOT = `${WATCH_CWD}/${Drift.Config.APP_DIR}/`
 
+	// convert watcher paths to a consistent slash format before comparing them
 	const normaliseWatchPath = (p: string) => p.replace(/\\/g, '/')
-	const toAbsoluteWatchPath = (p: string) =>
-		normaliseWatchPath(path.isAbsolute(p) ? p : path.join(watchCwd, p))
-	const inAppDir = (p: string) => toAbsoluteWatchPath(p).startsWith(watchAppRoot)
 
+	// resolve relative watcher paths against the project root so prefix checks are reliable
+	const toAbsoluteWatchPath = (p: string) =>
+		normaliseWatchPath(path.isAbsolute(p) ? p : path.join(WATCH_CWD, p))
+
+	// only route changes inside the app directory should trigger a rebuild
+	const inAppDir = (p: string) => toAbsoluteWatchPath(p).startsWith(WATCH_APP_ROOT)
+
+	// route graph rebuilds only care about framework route files, with endpoint
+	// edits needing special treatment because verb exports can change in-place
 	const routeFile = /\/\+(layout|page|404|loading|middleware|endpoint)\.(t|j)sx?$/
 	const endpointFile = /\/\+endpoint\.(t|j)sx?$/
 
 	const rebuild = Time.debounce((event: string, p: string) => {
 		const queue = () => {
 			void (async () => {
+				// collapse bursts of file events into one active rebuild plus a single
+				// queued rerun when changes land mid-build
 				if (rebuildRunning) {
 					rebuildQueued = true
 					return
@@ -163,22 +167,25 @@ function drift(c: PluginConfig): PluginOption[] {
 			})()
 		}
 
+		// ignore anything outside the app dir
 		if (!inAppDir(p)) return
 
 		const file = toAbsoluteWatchPath(p)
 
+		// directory adds/removals can change route structure immediately
 		if (event === 'addDir' || event === 'unlinkDir') {
-			rebuildReason = `${event}: ${path.relative(watchCwd, file)}`
+			rebuildReason = `${event}: ${path.relative(WATCH_CWD, file)}`
 			queue()
 			return
 		}
 
+		// non-route files do not affect generated route artifacts
 		if (!routeFile.test(file)) return
 
 		// content changes only matter for route graph when endpoint verbs change
 		if (event === 'change' && !endpointFile.test(file)) return
 
-		rebuildReason = `${event}: ${path.relative(watchCwd, file)}`
+		rebuildReason = `${event}: ${path.relative(WATCH_CWD, file)}`
 		queue()
 	}, 75)
 
@@ -188,19 +195,27 @@ function drift(c: PluginConfig): PluginOption[] {
 		async config(viteConfig: UserConfig) {
 			await build()
 
+			const pkg = JSON.parse(
+				fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
+			)
+
+			if (typeof pkg.version !== 'string' || pkg.version.length === 0) {
+				throw new Error('Missing drift package version')
+			}
+
 			viteConfig.build ??= {}
 			viteConfig.build.outDir = config.outDir
 			viteConfig.build.emptyOutDir = true
 
 			viteConfig.server ??= {}
-			viteConfig.server.port = 8787
+			viteConfig.server.port = config.port ?? viteConfig.server.port ?? 8787
 
 			viteConfig.define ??= {}
 			viteConfig.define['import.meta.env.APP_URL'] = JSON.stringify(process.env.APP_URL)
 			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(
 				process.env.VITE_APP_URL,
 			)
-			viteConfig.define['import.meta.env.DRIFT_VERSION'] = JSON.stringify(DRIFT_VERSION)
+			viteConfig.define['import.meta.env.DRIFT_VERSION'] = JSON.stringify(pkg.version)
 
 			viteConfig.resolve ??= {}
 			viteConfig.resolve.alias = {
@@ -262,9 +277,6 @@ function drift(c: PluginConfig): PluginOption[] {
 }
 
 export default drift
-
-export * from './types'
-
 export { Drift } from './drift'
-
 export type * from './drift.d.ts'
+export type * from './types'

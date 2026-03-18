@@ -140,6 +140,13 @@ export namespace Drift {
 
 		return value
 	}
+
+	export namespace Events {
+		export const names = {
+			NAVIGATION: 'driftnavigation',
+			NAVIGATION_ERROR: 'driftnavigationerror',
+		} as const
+	}
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -7,19 +7,18 @@ import type { Metadata } from './internal/metadata'
 import type { HttpException } from './internal/navigation/http-exception'
 import type { Router } from './internal/router/router'
 
-export type PrerenderMode = (typeof Drift.Config.PRERENDER_MODES)[number]
-export type SegmentPrerender = PrerenderMode
-export type ConfigLogLevel = (typeof Drift.Config.LOG_LEVELS)[number]
+export type LogLevel = (typeof Drift.Config.LOG_LEVELS)[number]
 
 export type PluginConfig = {
 	url?: `http://${string}` | `https://${string}`
+	port?: number
 	precompress?: boolean
-	prerender?: PrerenderMode
+	prerender?: Route.Prerender
 	outDir?: string
 	metadata?: Metadata.Item
 	trailingSlash?: boolean
 	readonly logger?: {
-		level?: ConfigLogLevel
+		level?: LogLevel
 	}
 }
 
@@ -57,15 +56,18 @@ export type Segment = {
 	method: 'get'
 	paths: {
 		layouts: (string | null)[]
+		'401s': (string | null)[]
+		'403s': (string | null)[]
 		'404s': (string | null)[]
+		'500s': (string | null)[]
 		loaders: (string | null)[]
 		middlewares: (string | null)[]
 		page?: string | null
 	}
 	error?: HttpException | Error
-	prerender: SegmentPrerender
+	prerender: Route.Prerender
 	dynamic: boolean
-	catch_all: boolean
+	wildcard: boolean
 }
 
 export type Endpoint = {
@@ -94,7 +96,10 @@ export type MapEntry = {
 	shell?: StaticImport
 	page?: DynamicImport
 	layouts?: readonly (DynamicImport | null)[]
+	'401s'?: readonly (DynamicImport | null)[]
+	'403s'?: readonly (DynamicImport | null)[]
 	'404s'?: readonly (DynamicImport | null)[]
+	'500s'?: readonly (DynamicImport | null)[]
 	loaders?: readonly (DynamicImport | null)[]
 	middlewares?: readonly (Router.Middleware | null)[]
 	endpoint?: (req?: BunRequest) => unknown
@@ -112,4 +117,12 @@ export type BuildManifest = {
 	prerenderedRoutes: string[]
 	outDir: string
 	precompress: boolean
+}
+
+export namespace Route {
+	export type Metadata =
+		| Metadata.Item
+		| ((input: Metadata.Input<Router.Params>) => Promise<Metadata.Item> | Metadata.Item)
+
+	export type Prerender = (typeof Drift.Config.PRERENDER_MODES)[number]
 }

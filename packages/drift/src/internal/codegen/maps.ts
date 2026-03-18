@@ -41,9 +41,24 @@ export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 		if (m.pageId) parts.push(`page: ${m.pageId}`)
 		if (m.endpointId) parts.push(`endpoint: ${m.endpointId}`)
 
+		if (m['401Ids']?.length) {
+			const unauthorized = m['401Ids'].map(id => (id === null ? 'null' : id)).join(', ')
+			parts.push(`'401s': [${unauthorized}]`)
+		}
+
+		if (m['403Ids']?.length) {
+			const forbidden = m['403Ids'].map(id => (id === null ? 'null' : id)).join(', ')
+			parts.push(`'403s': [${forbidden}]`)
+		}
+
 		if (m['404Ids']?.length) {
 			const notFounds = m['404Ids'].map(id => (id === null ? 'null' : id)).join(', ')
 			parts.push(`'404s': [${notFounds}]`)
+		}
+
+		if (m['500Ids']?.length) {
+			const serverErrors = m['500Ids'].map(id => (id === null ? 'null' : id)).join(', ')
+			parts.push(`'500s': [${serverErrors}]`)
 		}
 
 		if (m.loadingIds?.length) {

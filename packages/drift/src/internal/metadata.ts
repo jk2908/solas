@@ -1,4 +1,6 @@
+import type { HttpException } from './navigation/http-exception'
 import { Build } from './build'
+import { isHttpException } from './navigation/http-exception'
 
 type EntryKind = typeof Build.EntryKind
 
@@ -14,7 +16,10 @@ export namespace Metadata {
 		[Build.EntryKind.SHELL]: 10,
 		[Build.EntryKind.LAYOUT]: 20,
 		[Build.EntryKind.PAGE]: 30,
+		[Build.EntryKind['401']]: 40,
+		[Build.EntryKind['403']]: 40,
 		[Build.EntryKind['404']]: 40,
+		[Build.EntryKind['500']]: 40,
 		[Build.EntryKind.LOADING]: 50,
 	} as const
 
@@ -62,6 +67,7 @@ export namespace Metadata {
 	export type Source = {
 		priority: Task['priority']
 		when?: RunMode
+		status?: HttpException.StatusCode
 		load: () => Promise<unknown>
 	}
 
@@ -248,6 +254,15 @@ export namespace Metadata {
 
 		for (const source of sources) {
 			if (source.when === 'error' && !input.error) continue
+			if (source.status !== undefined) {
+				if (
+					!input.error ||
+					!isHttpException(input.error) ||
+					input.error.status !== source.status
+				) {
+					continue
+				}
+			}
 
 			tasks.push({
 				task: source.load().then(metadata => resolve(metadata, input, onError)),

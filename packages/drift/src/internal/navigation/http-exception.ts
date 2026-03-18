@@ -1,13 +1,18 @@
-export type Payload = string | Record<string, unknown>
-export type HttpExceptionStatusCode = 404 | (number & {})
+export namespace HttpException {
+	export type Payload = string | Record<string, unknown>
+	export type StatusCode = 401 | 403 | 404 | 500
 
-type HttpExceptionOptions = {
-	payload?: Payload
-	cause?: unknown
+	export type Options = {
+		payload?: Payload
+		cause?: unknown
+	}
 }
 
-const HTTP_EXCEPTION_NAME_MAP: Record<HttpExceptionStatusCode, string> = {
+export const HTTP_EXCEPTION_NAME_MAP: Record<HttpException.StatusCode, string> = {
+	401: 'UNAUTHORIZED',
+	403: 'FORBIDDEN',
 	404: 'NOT_FOUND',
+	500: 'INTERNAL_SERVER_ERROR',
 } as const
 
 /**
@@ -15,13 +20,13 @@ const HTTP_EXCEPTION_NAME_MAP: Record<HttpExceptionStatusCode, string> = {
  * and cause
  */
 export class HttpException extends Error {
-	payload?: Payload
+	payload?: HttpException.Payload
 	digest?: string
 
 	constructor(
-		public readonly status: HttpExceptionStatusCode,
+		public readonly status: HttpException.StatusCode,
 		public override readonly message: string,
-		opts?: HttpExceptionOptions,
+		opts?: HttpException.Options,
 	) {
 		super(message, { cause: opts?.cause })
 
@@ -51,10 +56,10 @@ export function isHttpException(err: unknown): err is HttpException {
  * Throw an HTTPException
  */
 export function abort(
-	status: HttpExceptionStatusCode,
+	status: HttpException.StatusCode,
 	message: string,
 	opts?: {
-		payload?: Payload
+		payload?: HttpException.Payload
 		cause?: unknown
 	},
 ): never {

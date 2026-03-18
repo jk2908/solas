@@ -1,11 +1,17 @@
-import { Link } from '@jk2908/drift/navigation'
-
 export default function Page() {
 	return (
 		<>
-			<span>hijijiijijijDriftdyofdhibeeeeeenyoooebebebbee bebebebbbee</span>
+			<style>
+				{`
+					.item {
+						font-size: 24px;
+						padding-block: 12px;
+				`}
+			</style>
 
-			<Link href="/test">go to test page</Link>
+			<header className="header">
+				<h1>Solas</h1>
+			</header>
 		</>
 	)
 }

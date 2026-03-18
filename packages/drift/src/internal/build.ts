@@ -8,8 +8,8 @@ import type {
 	Endpoint,
 	HttpMethod,
 	PluginConfig,
+	Route,
 	Segment,
-	SegmentPrerender,
 } from '../types'
 
 import { Drift } from '../drift'
@@ -30,8 +30,14 @@ export namespace Build {
 			layouts: (string | null)[]
 			// shell (root layout)
 			shell: string
+			// 401 boundary chain
+			'401s': (string | null)[]
+			// 403 boundary chain
+			'403s': (string | null)[]
 			// 404 boundary chain
 			'404s': (string | null)[]
+			// 500 boundary chain
+			'500s': (string | null)[]
 			// loading component chain
 			loaders: (string | null)[]
 			// middleware chain
@@ -52,7 +58,10 @@ export namespace Build {
 			shellId?: string
 			layoutIds?: (string | null)[]
 			pageId?: string
+			'401Ids'?: (string | null)[]
+			'403Ids'?: (string | null)[]
 			'404Ids'?: (string | null)[]
+			'500Ids'?: (string | null)[]
 			loadingIds?: (string | null)[]
 			middlewareIds?: (string | null)[]
 			endpointId?: string
@@ -65,7 +74,10 @@ export namespace Build {
 		SHELL: '$S',
 		LAYOUT: '$L',
 		PAGE: '$P',
+		401: '$401',
+		403: '$403',
 		404: '$404',
+		500: '$500',
 		LOADING: '$LOAD',
 		MIDDLEWARE: '$MW',
 		ENDPOINT: '$E',
@@ -107,7 +119,7 @@ export namespace Build {
 				.replace(new RegExp(`^${Drift.Config.APP_DIR}`), '')
 				.replace(/\/\+page\.(j|t)sx?$/, '')
 				.replace(/\/\+endpoint\.(j|t)sx?$/, '')
-				.replace(/\[\.\.\..+?\]/g, '*') // catch-all routes
+				.replace(/\[\.\.\..+?\]/g, '*') // wildcard routes
 				.replace(/\[(.+?)\]/g, ':$1') // dynamic routes
 
 			if (!route || route === '') return '/'
@@ -152,12 +164,18 @@ export namespace Build {
 			res: ScanResult = { segments: [], endpoints: [] },
 			prev: {
 				layouts: (string | null)[]
+				'401s': (string | null)[]
+				'403s': (string | null)[]
 				'404s': (string | null)[]
+				'500s': (string | null)[]
 				loaders: (string | null)[]
 				middlewares: (string | null)[]
 			} = {
 				layouts: [],
+				'401s': [],
+				'403s': [],
 				'404s': [],
+				'500s': [],
 				loaders: [],
 				middlewares: [],
 			},
@@ -172,7 +190,10 @@ export namespace Build {
 				// define route file types
 				const TYPES = {
 					page: '+page',
+					'401': '+401',
+					'403': '+403',
 					'404': '+404',
+					'500': '+500',
 					layout: '+layout',
 					loading: '+loading',
 					middleware: '+middleware',
@@ -182,7 +203,10 @@ export namespace Build {
 				// map of valid files for each type
 				const validFiles = {
 					[TYPES.page]: new Set(EXTENSIONS.page.map(ext => `${TYPES.page}.${ext}`)),
+					[TYPES['401']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['401']}.${ext}`)),
+					[TYPES['403']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['403']}.${ext}`)),
 					[TYPES['404']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['404']}.${ext}`)),
+					[TYPES['500']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['500']}.${ext}`)),
 					[TYPES.loading]: new Set(EXTENSIONS.page.map(ext => `${TYPES.loading}.${ext}`)),
 					[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
 					[TYPES.middleware]: new Set(
@@ -207,13 +231,16 @@ export namespace Build {
 							const base = path.basename(d.name)
 
 							if (validFiles[TYPES.layout].has(base)) return 0
-							if (validFiles[TYPES['404']].has(base)) return 1
-							if (validFiles[TYPES.loading].has(base)) return 2
-							if (validFiles[TYPES.middleware].has(base)) return 3
-							if (validFiles[TYPES.page].has(base)) return 4
-							if (validFiles[TYPES.endpoint].has(base)) return 5
+							if (validFiles[TYPES['401']].has(base)) return 1
+							if (validFiles[TYPES['403']].has(base)) return 2
+							if (validFiles[TYPES['404']].has(base)) return 3
+							if (validFiles[TYPES['500']].has(base)) return 4
+							if (validFiles[TYPES.loading].has(base)) return 5
+							if (validFiles[TYPES.middleware].has(base)) return 6
+							if (validFiles[TYPES.page].has(base)) return 7
+							if (validFiles[TYPES.endpoint].has(base)) return 8
 
-							return 5
+							return 8
 						}
 
 						return priority(a) - priority(b)
@@ -222,9 +249,12 @@ export namespace Build {
 					return 0
 				})
 
-				// current layout, 404, loader, middleware, and page files for this segment
+				// current layout, status boundaries, loader, middleware, and page files for this segment
 				let currentLayout: string | undefined
+				let current401: string | undefined
+				let current403: string | undefined
 				let current404: string | undefined
+				let current500: string | undefined
 				let currentLoader: string | undefined
 				let currentMiddleware: string | undefined
 				let currentPage: string | undefined
@@ -237,7 +267,10 @@ export namespace Build {
 						// has a layout (defines a wrapper for child routes)
 						if (!currentPage && currentLayout) {
 							const layouts = [...prev.layouts, currentLayout]
+							const unauthorized = [...prev['401s'], current401 ?? null]
+							const forbidden = [...prev['403s'], current403 ?? null]
 							const notFounds = [...prev['404s'], current404 ?? null]
+							const serverErrors = [...prev['500s'], current500 ?? null]
 							const loaders = [...prev.loaders, currentLoader ?? null]
 							const middlewares = [...prev.middlewares, currentMiddleware ?? null]
 							const shell = layouts[0]
@@ -246,7 +279,10 @@ export namespace Build {
 								res.segments.push({
 									dir,
 									page: undefined,
+									'401s': unauthorized,
+									'403s': forbidden,
 									'404s': notFounds,
+									'500s': serverErrors,
 									loaders,
 									middlewares,
 									layouts: layouts.length > 1 ? layouts.slice(1) : [],
@@ -257,7 +293,10 @@ export namespace Build {
 
 						const next = {
 							layouts: [...prev.layouts, currentLayout ?? null],
+							'401s': [...prev['401s'], current401 ?? null],
+							'403s': [...prev['403s'], current403 ?? null],
 							'404s': [...prev['404s'], current404 ?? null],
+							'500s': [...prev['500s'], current500 ?? null],
 							loaders: [...prev.loaders, currentLoader ?? null],
 							middlewares: [...prev.middlewares, currentMiddleware ?? null],
 						}
@@ -269,8 +308,14 @@ export namespace Build {
 
 						if (validFiles[TYPES.layout].has(base)) {
 							currentLayout = relative
+						} else if (validFiles[TYPES['401']].has(base)) {
+							current401 = relative
+						} else if (validFiles[TYPES['403']].has(base)) {
+							current403 = relative
 						} else if (validFiles[TYPES['404']].has(base)) {
 							current404 = relative
+						} else if (validFiles[TYPES['500']].has(base)) {
+							current500 = relative
 						} else if (validFiles[TYPES.loading].has(base)) {
 							currentLoader = relative
 						} else if (validFiles[TYPES.middleware].has(base)) {
@@ -283,7 +328,10 @@ export namespace Build {
 						} else if (validFiles[TYPES.page].has(base)) {
 							currentPage = relative
 							const layouts = [...prev.layouts, currentLayout ?? null]
+							const unauthorized = [...prev['401s'], current401 ?? null]
+							const forbidden = [...prev['403s'], current403 ?? null]
 							const notFounds = [...prev['404s'], current404 ?? null]
+							const serverErrors = [...prev['500s'], current500 ?? null]
 							const loaders = [...prev.loaders, currentLoader ?? null]
 							const middlewares = [...prev.middlewares, currentMiddleware ?? null]
 							const shell = layouts?.[0]
@@ -293,7 +341,10 @@ export namespace Build {
 							res.segments.push({
 								dir,
 								page: relative,
+								'401s': unauthorized,
+								'403s': forbidden,
 								'404s': notFounds,
+								'500s': serverErrors,
 								loaders,
 								middlewares,
 								layouts: layouts.length > 1 ? layouts.slice(1) : [],
@@ -303,10 +354,14 @@ export namespace Build {
 					}
 				}
 
-				// warn if segment has 404/loading but no page or layout
-				if (!currentPage && !currentLayout && (current404 || currentLoader)) {
+				// warn if segment has status boundaries/loading but no page or layout
+				if (
+					!currentPage &&
+					!currentLayout &&
+					(current401 || current403 || current404 || current500 || currentLoader)
+				) {
 					logger.warn(
-						`[Build:Finder:#scan]: ${dir} has +error or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
+						`[Build:Finder:#scan]: ${dir} has status route files or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
 					)
 				}
 
@@ -314,7 +369,10 @@ export namespace Build {
 				// haven't created one yet (no subdirectories triggered it)
 				if (!currentPage && currentLayout && !res.segments.some(s => s.dir === dir)) {
 					const layouts = [...prev.layouts, currentLayout]
+					const unauthorized = [...prev['401s'], current401 ?? null]
+					const forbidden = [...prev['403s'], current403 ?? null]
 					const notFounds = [...prev['404s'], current404 ?? null]
+					const serverErrors = [...prev['500s'], current500 ?? null]
 					const loaders = [...prev.loaders, currentLoader ?? null]
 					const middlewares = [...prev.middlewares, currentMiddleware ?? null]
 					const shell = layouts[0]
@@ -323,7 +381,10 @@ export namespace Build {
 						res.segments.push({
 							dir,
 							page: undefined,
+							'401s': unauthorized,
+							'403s': forbidden,
 							'404s': notFounds,
+							'500s': serverErrors,
 							loaders,
 							middlewares,
 							layouts: layouts.length > 1 ? layouts.slice(1) : [],
@@ -361,7 +422,7 @@ export namespace Build {
 			}
 
 			const modules: Modules = {}
-			const prerenderCache = new Map<string, SegmentPrerender | undefined>()
+			const prerenderCache = new Map<string, Route.Prerender | undefined>()
 
 			for (const segment of res.segments) {
 				try {
@@ -370,8 +431,11 @@ export namespace Build {
 					const {
 						shell: shellPath,
 						layouts: layoutPaths,
+						'401s': unauthorizedPaths,
+						'403s': forbiddenPaths,
 						page: pagePath,
 						'404s': notFoundPaths,
+						'500s': serverErrorPaths,
 						loaders: loaderPaths,
 						middlewares: middlewarePaths,
 						dir,
@@ -385,16 +449,16 @@ export namespace Build {
 					const depth = Finder.getDepth(route)
 
 					const isDynamic = route.includes(':')
-					const isCatchAll = route.includes('*')
+					const isWildcard = route.includes('*')
 
 					// effective mode for this segment
 					// start from global config then apply shell/layout/page overrides
-					let currentPrerenderMode: SegmentPrerender = this.config?.prerender ?? false
+					let currentPrerenderMode: Route.Prerender = this.config?.prerender ?? false
 
 					/**
 					 * apply explicit prerender mode overrides in inheritance order
 					 */
-					function applyPrerenderMode(flag: SegmentPrerender | undefined) {
+					function applyPrerenderMode(flag: Route.Prerender | undefined) {
 						if (flag === undefined) return
 						currentPrerenderMode = flag
 					}
@@ -403,7 +467,10 @@ export namespace Build {
 
 					const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
 					const layoutIds: (string | null)[] = []
+					const unauthorizedIds: (string | null)[] = []
+					const forbiddenIds: (string | null)[] = []
 					const notFoundIds: (string | null)[] = []
+					const serverErrorIds: (string | null)[] = []
 					const loadingIds: (string | null)[] = []
 					const middlewareIds: (string | null)[] = []
 
@@ -441,6 +508,40 @@ export namespace Build {
 						layoutIds.push(layoutId)
 					}
 
+					for (const unauthorizedPath of unauthorizedPaths) {
+						if (!unauthorizedPath) {
+							unauthorizedIds.push(null)
+							continue
+						}
+
+						const unauthorizedImport = Finder.getImportPath(unauthorizedPath)
+						const unauthorizedId = `${EntryKind['401']}${Bun.hash(unauthorizedImport)}`
+
+						unauthorizedIds.push(unauthorizedId)
+
+						if (!processed.has(unauthorizedPath)) {
+							imports.components.dynamic.set(unauthorizedId, unauthorizedImport)
+							processed.add(unauthorizedPath)
+						}
+					}
+
+					for (const forbiddenPath of forbiddenPaths) {
+						if (!forbiddenPath) {
+							forbiddenIds.push(null)
+							continue
+						}
+
+						const forbiddenImport = Finder.getImportPath(forbiddenPath)
+						const forbiddenId = `${EntryKind['403']}${Bun.hash(forbiddenImport)}`
+
+						forbiddenIds.push(forbiddenId)
+
+						if (!processed.has(forbiddenPath)) {
+							imports.components.dynamic.set(forbiddenId, forbiddenImport)
+							processed.add(forbiddenPath)
+						}
+					}
+
 					for (const notFoundPath of notFoundPaths) {
 						// hole if level does not declare a 404 boundary.
 						// Keep slot so indices match layouts
@@ -458,6 +559,23 @@ export namespace Build {
 						if (!processed.has(notFoundPath)) {
 							imports.components.dynamic.set(notFoundId, notFoundImport)
 							processed.add(notFoundPath)
+						}
+					}
+
+					for (const serverErrorPath of serverErrorPaths) {
+						if (!serverErrorPath) {
+							serverErrorIds.push(null)
+							continue
+						}
+
+						const serverErrorImport = Finder.getImportPath(serverErrorPath)
+						const serverErrorId = `${EntryKind['500']}${Bun.hash(serverErrorImport)}`
+
+						serverErrorIds.push(serverErrorId)
+
+						if (!processed.has(serverErrorPath)) {
+							imports.components.dynamic.set(serverErrorId, serverErrorImport)
+							processed.add(serverErrorPath)
 						}
 					}
 
@@ -521,12 +639,12 @@ export namespace Build {
 					}
 
 					const shouldPrerender = currentPrerenderMode !== false
-					const prerenderMode: SegmentPrerender = shouldPrerender
+					const prerenderMode: Route.Prerender = shouldPrerender
 						? currentPrerenderMode
 						: false
 
 					if (shouldPrerender) {
-						if (!isDynamic && !isCatchAll) {
+						if (!isDynamic && !isWildcard) {
 							prerenderedRoutes.add(route)
 						} else if (pagePath) {
 							const staticParams = await Prerender.Build.getStaticParams(
@@ -555,8 +673,17 @@ export namespace Build {
 							layouts: [shellPath, ...layoutPaths].map(layout =>
 								layout ? Finder.getImportPath(layout) : null,
 							),
+							'401s': unauthorizedPaths.map(unauthorized =>
+								unauthorized ? Finder.getImportPath(unauthorized) : null,
+							),
+							'403s': forbiddenPaths.map(forbidden =>
+								forbidden ? Finder.getImportPath(forbidden) : null,
+							),
 							'404s': notFoundPaths.map(notFound =>
 								notFound ? Finder.getImportPath(notFound) : null,
+							),
+							'500s': serverErrorPaths.map(serverError =>
+								serverError ? Finder.getImportPath(serverError) : null,
 							),
 							loaders: loaderPaths.map(loader =>
 								loader ? Finder.getImportPath(loader) : null,
@@ -568,7 +695,7 @@ export namespace Build {
 						},
 						prerender: prerenderMode,
 						dynamic: isDynamic,
-						catch_all: isCatchAll,
+						wildcard: isWildcard,
 					}
 
 					if (manifest[route]) {
@@ -585,7 +712,10 @@ export namespace Build {
 						shellId,
 						layoutIds,
 						pageId: pagePath ? entryId : undefined,
+						'401Ids': unauthorizedIds,
+						'403Ids': forbiddenIds,
 						'404Ids': notFoundIds,
+						'500Ids': serverErrorIds,
 						loadingIds,
 						middlewareIds,
 					}

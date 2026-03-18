@@ -26,7 +26,7 @@ export namespace Router {
 	) => Response | Promise<Response>
 
 	export type Token = {
-		kind: 'static' | 'dynamic' | 'catch-all'
+		kind: 'static' | 'dynamic' | 'wildcard'
 		value: string
 	}
 
@@ -38,7 +38,7 @@ export namespace Router {
 		tokens: Token[]
 		length: number
 		score: number
-		catchAll: boolean
+		wildcard: boolean
 	}
 
 	export type Match = {
@@ -56,7 +56,7 @@ export namespace Router {
 			byLength: Map<number, Route[]>
 			byPrefix: Map<string, Route[]>
 		}
-		catchAll: Route[]
+		wildcard: Route[]
 	}
 }
 
@@ -75,8 +75,8 @@ export class Router {
 			// fast path for static prefixes
 			byPrefix: new Map(),
 		},
-		// catch-all routes checked last
-		catchAll: [],
+		// wildcard routes checked last
+		wildcard: [],
 	}
 	#middleware: { global: Router.Middleware[] } = { global: [] }
 	#onError?: (err: Error, req: DriftRequest) => Response | Promise<Response>
@@ -116,12 +116,12 @@ export class Router {
 		const tokens: Router.Token[] = []
 
 		let score = 0
-		let catchAll = false
+		let wildcard = false
 
 		for (const segment of segments) {
 			if (segment === '*') {
-				catchAll = true
-				tokens.push({ kind: 'catch-all', value: params?.[0] ?? '*' })
+				wildcard = true
+				tokens.push({ kind: 'wildcard', value: params?.[0] ?? '*' })
 				continue
 			}
 
@@ -143,7 +143,7 @@ export class Router {
 			tokens,
 			length: segments.length,
 			score,
-			catchAll,
+			wildcard,
 		}
 
 		// static route, easy map set
@@ -152,9 +152,9 @@ export class Router {
 			return this
 		}
 
-		// catch-all route, push to end of list
-		if (catchAll) {
-			this.#routes.catchAll.push(route)
+		// wildcard route, push to end of list
+		if (wildcard) {
+			this.#routes.wildcard.push(route)
 			return this
 		}
 
@@ -191,7 +191,7 @@ export class Router {
 			if (directGet) return { route: directGet, params: {} }
 		}
 
-		// else dynamic/catch-all match
+		// else dynamic/wildcard match
 		const segments = Router.#split(path)
 
 		// try the leading-static prefix bucket first
@@ -210,9 +210,9 @@ export class Router {
 
 		if (dynamicMatch) return dynamicMatch
 
-		// finally check catch-all routes
-		const catchAllMatch = Router.#pick(this.#routes.catchAll, segments, method)
-		if (catchAllMatch) return catchAllMatch
+		// finally check wildcard routes
+		const wildcardMatch = Router.#pick(this.#routes.wildcard, segments, method)
+		if (wildcardMatch) return wildcardMatch
 
 		// no match
 		return null
@@ -462,7 +462,7 @@ export class Router {
 		const length = Math.max(a.tokens.length, b.tokens.length)
 
 		for (let index = 0; index < length; index += 1) {
-			// prefer static over dynamic and dynamic over catch-all at the
+			// prefer static over dynamic and dynamic over wildcard at the
 			// first segment position where the two routes differ
 			const diff =
 				Router.#getTokenRank(a.tokens[index]) - Router.#getTokenRank(b.tokens[index])
@@ -511,7 +511,7 @@ export class Router {
 	 * Fit a route against path segments
 	 */
 	static #fit(route: Router.Route, segments: string[]) {
-		if (route.catchAll) {
+		if (route.wildcard) {
 			if (segments.length < route.length - 1) return null
 		} else if (route.length !== segments.length) {
 			return null
