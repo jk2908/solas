@@ -46,37 +46,36 @@ const SUPPORTED_EXTENSIONS = new Set([
 
 export namespace Format {
 	/**
-	 * Format the code in a directory using Oxfmt
+	 * Format a file in-place using oxfmt with our preferred code style
 	 */
-	export async function run(dir: string) {
+	export async function run(filePath: string) {
 		try {
-			const glob = new Bun.Glob('**/*')
+			const ext = path.extname(filePath).toLowerCase()
 
-			for await (const rel of glob.scan({ cwd: dir, onlyFiles: true })) {
-				const filePath = path.join(dir, rel)
-				const ext = path.extname(filePath).toLowerCase()
-
-				if (!SUPPORTED_EXTENSIONS.has(ext)) continue
-
-				const file = Bun.file(filePath)
-				const source = await file.text()
-
-				const options: FormatOptions =
-					ext === '.json' ? { ...BASE_OPTIONS, trailingComma: 'none' } : BASE_OPTIONS
-
-				const result = await format(filePath, source, options)
-
-				if (result.errors.length > 0) {
-					logger.error(
-						`[format:${dir}] oxfmt failed for ${filePath}: ${result.errors[0]?.message}`,
-					)
-				}
-
-				if (result.code !== source) await Bun.write(filePath, result.code)
+			if (!SUPPORTED_EXTENSIONS.has(ext)) {
+				logger.warn(`[format] Skipping unsupported file type: ${filePath}`)
+				return
 			}
+
+			const file = Bun.file(filePath)
+			const source = await file.text()
+
+			const options: FormatOptions =
+				ext === '.json' ? { ...BASE_OPTIONS, trailingComma: 'none' } : BASE_OPTIONS
+
+			const result = await format(filePath, source, options)
+
+			if (result.errors.length > 0) {
+				logger.warn(`[format] oxfmt failed for ${filePath}: ${result.errors[0]?.message}`)
+				return
+			}
+
+			if (result.code === source) return
+
+			await Bun.write(filePath, result.code)
+			logger.info(`[format] Formatted file: ${filePath}`)
 		} catch (err) {
-			logger.error(`[format:${dir}]`, err)
-			throw err
+			logger.error(`[format] Failed to format file: ${filePath}`, err)
 		}
 	}
 }

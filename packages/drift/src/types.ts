@@ -24,16 +24,6 @@ export type PluginConfig = {
 
 export type BuildContext = {
 	outDir?: string
-	bundle: {
-		server: {
-			entryPath: string | null
-			outDir: string | null
-		}
-		client: {
-			entryPath: string | null
-			outDir: string | null
-		}
-	}
 	transpiler: InstanceType<typeof Bun.Transpiler>
 	prerenderedRoutes: Set<string>
 }

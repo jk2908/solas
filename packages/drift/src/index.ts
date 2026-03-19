@@ -43,36 +43,41 @@ function drift(c: PluginConfig): PluginOption[] {
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
 	const logger = new Logger()
 
-	const buildContext: BuildContext = {
+	const buildContext = {
 		outDir: config.outDir,
-		bundle: {
-			server: {
-				entryPath: null,
-				outDir: null,
-			},
-			client: {
-				entryPath: null,
-				outDir: null,
-			},
-		},
 		transpiler,
 		prerenderedRoutes: new Set<string>(),
-	}
+	} satisfies BuildContext
 
-	function maybeWrite(filePath: string, content: string) {
-		return fs
-			.readFile(filePath, 'utf-8')
-			.catch(() => null)
-			.then(curr => {
-				if (curr === content) return false
+	async function maybeWrite(filePath: string, content: string) {
+		try {
+			const curr = await fs.readFile(filePath, 'utf-8')
 
-				return Bun.write(filePath, content)
-					.then(() => true)
-					.catch(err => {
-						logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
-						return false
-					})
-			})
+			// no change, bail
+			if (curr === content) return null
+
+			try {
+				await Bun.write(filePath, content)
+				return path.relative(process.cwd(), filePath)
+			} catch (err) {
+				logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
+				return null
+			}
+		} catch (err) {
+			if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
+				// file doesn't exist, write it
+				try {
+					await Bun.write(filePath, content)
+					return path.relative(process.cwd(), filePath)
+				} catch (err) {
+					logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
+					return null
+				}
+			}
+
+			logger.error(`[maybeWrite] Failed to read file: ${filePath}`, err)
+			return null
+		}
 	}
 
 	async function build() {
@@ -105,10 +110,17 @@ function drift(c: PluginConfig): PluginOption[] {
 			files.map(([file, content]) => maybeWrite(path.join(generatedDir, file), content)),
 		)
 
-		const changed = writes.some(Boolean)
+		const changed = writes.filter(n => n !== null)
+		// early return if nothing has changed
+		if (!changed.length) return null
 
-		// skip when no file changed
-		if (changed) await Format.run(Drift.Config.GENERATED_DIR).catch(() => {})
+		await Promise.all(
+			changed.map(filePath =>
+				Format.run(filePath).catch(() => {
+					logger.error(`[build] Failed to format file: ${filePath}`)
+				}),
+			),
+		)
 
 		return changed
 	}
@@ -155,14 +167,11 @@ function drift(c: PluginConfig): PluginOption[] {
 					try {
 						const changed = await build()
 
-						if (changed) {
-							logger.info('[watch]', `route graph rebuilt (${rebuildReason})`)
-						}
+						if (changed) logger.info('[watch]', `route graph rebuilt (${rebuildReason})`)
 					} catch (err) {
 						logger.error('[watch] route rebuild failed', err)
 					}
 				} while (rebuildQueued)
-
 				rebuildRunning = false
 			})()
 		}
