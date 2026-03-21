@@ -13,6 +13,7 @@ import { Drift } from './drift'
 
 import { Format } from './utils/format'
 import { Logger } from './utils/logger'
+import { ModuleExports } from './utils/module-exports'
 import { Time } from './utils/time'
 
 import { Build } from './internal/build'
@@ -42,32 +43,42 @@ function drift(c: PluginConfig): PluginOption[] {
 
 	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
 	const logger = new Logger()
+	const exportsReader = new ModuleExports.Reader(transpiler)
 
 	const buildContext = {
 		outDir: config.outDir,
 		transpiler,
 		prerenderedRoutes: new Set<string>(),
+		exportsReader,
 	} satisfies BuildContext
+
+	// cache for file contents to avoid unnecessary readFile invocations
+	const fileCache = new Map<string, string>()
 
 	async function maybeWrite(filePath: string, content: string) {
 		try {
-			const curr = await fs.readFile(filePath, 'utf-8')
+			const curr = fileCache.get(filePath) ?? (await fs.readFile(filePath, 'utf-8'))
+			fileCache.set(filePath, curr)
 
 			// no change, bail
 			if (curr === content) return null
 
 			try {
 				await Bun.write(filePath, content)
+				fileCache.set(filePath, content)
+
 				return path.relative(process.cwd(), filePath)
 			} catch (err) {
 				logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
 				return null
 			}
 		} catch (err) {
+			// file doesn't exist, write it
 			if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
-				// file doesn't exist, write it
 				try {
 					await Bun.write(filePath, content)
+					fileCache.set(filePath, content)
+
 					return path.relative(process.cwd(), filePath)
 				} catch (err) {
 					logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
@@ -76,6 +87,7 @@ function drift(c: PluginConfig): PluginOption[] {
 			}
 
 			logger.error(`[maybeWrite] Failed to read file: ${filePath}`, err)
+
 			return null
 		}
 	}

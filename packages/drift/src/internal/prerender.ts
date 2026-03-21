@@ -7,7 +7,6 @@ import type { BuildContext } from '../types'
 import { Drift } from '../drift'
 
 import { Logger } from '../utils/logger'
-import { ModuleExports } from '../utils/module-exports'
 import { Time } from '../utils/time'
 
 import { toPathPattern } from './router/pattern'
@@ -396,9 +395,7 @@ export namespace Prerender {
 		 * looking for an exported `prerender` binding and validating its value
 		 */
 		export async function getStaticFlag(filePath: string, buildContext: BuildContext) {
-			const reader = new ModuleExports.Reader(buildContext.transpiler)
-
-			return reader.literal<'full' | 'ppr' | false>(
+			return buildContext.exportsReader.literal<'full' | 'ppr' | false>(
 				filePath,
 				'prerender',
 				(v): v is (typeof Drift.Config.PRERENDER_MODES)[number] =>
@@ -411,9 +408,9 @@ export namespace Prerender {
 		 * in the route module and calling it to get the list of parameter objects
 		 */
 		export async function getStaticParams(filePath: string, buildContext: BuildContext) {
-			const reader = new ModuleExports.Reader(buildContext.transpiler)
-
-			const params = await reader.value<() => Promise<unknown> | unknown>(
+			const params = await buildContext.exportsReader.value<
+				() => Promise<unknown> | unknown
+			>(
 				filePath,
 				'params',
 				(v): v is () => Promise<unknown> | unknown => typeof v === 'function',

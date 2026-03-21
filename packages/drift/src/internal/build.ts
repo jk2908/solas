@@ -15,7 +15,6 @@ import type {
 import { Drift } from '../drift'
 
 import { Logger } from '../utils/logger'
-import { ModuleExports } from '../utils/module-exports'
 
 import { Prerender } from './prerender'
 
@@ -410,7 +409,6 @@ export namespace Build {
 		async process(res: ScanResult) {
 			const processed = new Set<string>()
 			const prerenderedRoutes = new Set<string>()
-			const exportReader = new ModuleExports.Reader(this.buildContext.transpiler)
 
 			const manifest: Record<string, Segment | Endpoint | (Segment | Endpoint)[]> = {}
 
@@ -613,7 +611,9 @@ export namespace Build {
 						if (!processed.has(middlewarePath)) {
 							// route scanning only tells us this is a +middleware file path so
 							// we still validate that the module actually exports middleware
-							if (!(await exportReader.has(middlewarePath, 'middleware'))) {
+							if (
+								!(await this.buildContext.exportsReader.has(middlewarePath, 'middleware'))
+							) {
 								throw new Error(`Missing middleware export in ${middlewarePath}`)
 							}
 
@@ -741,7 +741,8 @@ export namespace Build {
 					const route = Finder.toCanonicalRoute(endpointFilePath)
 					const params = Finder.getParams(endpointFilePath)
 
-					const endpointExports = await exportReader.exports(endpointFilePath)
+					const endpointExports =
+						await this.buildContext.exportsReader.exports(endpointFilePath)
 
 					const group: Endpoint[] = []
 
@@ -767,7 +768,12 @@ export namespace Build {
 								if (!processed.has(middlewarePath)) {
 									// endpoint middleware discovery gives us file paths, not proof of the export
 									// so check the module shape before we register the import
-									if (!(await exportReader.has(middlewarePath, 'middleware'))) {
+									if (
+										!(await this.buildContext.exportsReader.has(
+											middlewarePath,
+											'middleware',
+										))
+									) {
 										throw new Error(`Missing middleware export in ${middlewarePath}`)
 									}
 

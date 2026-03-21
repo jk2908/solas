@@ -56,7 +56,10 @@ export namespace Router {
 			byLength: Map<number, Route[]>
 			byPrefix: Map<string, Route[]>
 		}
-		wildcard: Route[]
+		wildcard: {
+			byPrefix: Map<string, Route[]>
+			fallback: Route[]
+		}
 	}
 }
 
@@ -75,8 +78,11 @@ export class Router {
 			// fast path for static prefixes
 			byPrefix: new Map(),
 		},
-		// wildcard routes checked last
-		wildcard: [],
+		// wildcard routes checked last, narrowed by first literal segment when possible
+		wildcard: {
+			byPrefix: new Map(),
+			fallback: [],
+		},
 	}
 	#middleware: { global: Router.Middleware[] } = { global: [] }
 	#onError?: (err: Error, req: DriftRequest) => Response | Promise<Response>
@@ -154,7 +160,16 @@ export class Router {
 
 		// wildcard route, push to end of list
 		if (wildcard) {
-			this.#routes.wildcard.push(route)
+			const prefix = route.tokens[0]?.kind === 'static' ? route.tokens[0].value : undefined
+
+			if (prefix) {
+				const prefixed = this.#routes.wildcard.byPrefix.get(prefix) ?? []
+				prefixed.push(route)
+				this.#routes.wildcard.byPrefix.set(prefix, prefixed)
+			} else {
+				this.#routes.wildcard.fallback.push(route)
+			}
+
 			return this
 		}
 
@@ -212,9 +227,19 @@ export class Router {
 
 		if (dynamicMatch) return dynamicMatch
 
-		// finally check wildcard routes
-		const wildcardMatch = Router.#pick(this.#routes.wildcard, segments, method)
+		// finally check wildcard routes, prefixed first, then fully generic ones
+		const wildcardPrefixed = this.#routes.wildcard.byPrefix.get(segments[0] ?? '')
+		const wildcardMatch = wildcardPrefixed
+			? Router.#pick(wildcardPrefixed, segments, method)
+			: null
 		if (wildcardMatch) return wildcardMatch
+
+		const wildcardFallbackMatch = Router.#pick(
+			this.#routes.wildcard.fallback,
+			segments,
+			method,
+		)
+		if (wildcardFallbackMatch) return wildcardFallbackMatch
 
 		// no match
 		return null
@@ -235,7 +260,8 @@ export class Router {
 				req = new Request(url.toString(), req)
 			}
 
-			const { action: isAction, formData } = await maybeActionWithParsedFormData(req)
+			const { action: isAction, formData: parsedFormData } =
+				await maybeActionWithParsedFormData(req)
 			action = isAction
 
 			const method = req.method.toUpperCase() as HttpMethod
@@ -261,7 +287,7 @@ export class Router {
 
 			const matched = match
 			const request: DriftRequest = Object.assign(req, {
-				[Drift.Config.REQUEST_META]: { match: matched, action, body: { formData } },
+				[Drift.Config.REQUEST_META]: { match: matched, action, parsedFormData },
 			})
 
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
