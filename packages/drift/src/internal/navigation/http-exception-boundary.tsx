@@ -32,18 +32,24 @@ export function HttpExceptionBoundary({
 						const [code] = rest
 						const status = Number(code)
 
-						if (!isSupportedStatusCode(status)) return null
+						if (!isSupportedStatusCode(status)) throw err
+
+						const component = components[status]
+						// if no component is provided for this status code, re-throw
+						// the error to be caught by a higher-level boundary
+						// (e.g. the root boundary)
+						if (!component) throw err
 
 						return (
 							<>
 								<meta name="robots" content="noindex,nofollow" />
-								{components[status] ?? null}
+								{component}
 							</>
 						)
 					}
 				}
 
-				return null
+				throw err
 			}}>
 			{children}
 		</ErrorBoundary>

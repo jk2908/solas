@@ -449,12 +449,12 @@ export namespace Build {
 					const isDynamic = route.includes(':')
 					const isWildcard = route.includes('*')
 
-					// effective mode for this segment
-					// start from global config then apply shell/layout/page overrides
+					// effective mode for this segment; start from global config then
+					// apply shell/layout/page overrides
 					let currentPrerenderMode: Route.Prerender = this.config?.prerender ?? false
 
 					/**
-					 * apply explicit prerender mode overrides in inheritance order
+					 * Apply explicit prerender mode overrides in inheritance order
 					 */
 					function applyPrerenderMode(flag: Route.Prerender | undefined) {
 						if (flag === undefined) return

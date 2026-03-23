@@ -57,7 +57,7 @@ export class Prefetcher {
 	 */
 	get(path: string) {
 		const promise = this.#cache.get(path)?.promise
-		if (!promise) return undefined
+		if (!promise) return
 
 		return promise.then(res => res.clone())
 	}

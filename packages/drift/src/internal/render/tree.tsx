@@ -117,39 +117,21 @@ export function Tree({
 			inner = <Suspense fallback={<Loading />}>{inner}</Suspense>
 		}
 
-		if (Unauthorized) {
-			inner = (
-				<HttpExceptionBoundary
-					components={{ 401: <Unauthorized error={new HttpException(401, 'Unauthorized')} /> }}>
-					{inner}
-				</HttpExceptionBoundary>
-			)
+		const errorBoundaries = {
+			401: Unauthorized ? (
+				<Unauthorized error={new HttpException(401, 'Unauthorized')} />
+			) : null,
+			403: Forbidden ? <Forbidden error={new HttpException(403, 'Forbidden')} /> : null,
+			404: NotFound ? <NotFound error={new HttpException(404, 'Not found')} /> : null,
+			500: ServerError ? (
+				<ServerError error={new HttpException(500, 'Internal Server Error')} />
+			) : null,
 		}
 
-		if (Forbidden) {
+		// wrap in error boundaries (if supplied for this segment's http errors)
+		if (Object.values(errorBoundaries).some(c => c !== null)) {
 			inner = (
-				<HttpExceptionBoundary
-					components={{ 403: <Forbidden error={new HttpException(403, 'Forbidden')} /> }}>
-					{inner}
-				</HttpExceptionBoundary>
-			)
-		}
-
-		// wrap in not found boundary if it exists at this level.
-		// Catches exceptions() thrown in render
-		if (NotFound) {
-			inner = (
-				<HttpExceptionBoundary
-					components={{ 404: <NotFound error={new HttpException(404, 'Not found')} /> }}>
-					{inner}
-				</HttpExceptionBoundary>
-			)
-		}
-
-		if (ServerError) {
-			inner = (
-				<HttpExceptionBoundary
-					components={{ 500: <ServerError error={new HttpException(500, 'Internal Server Error')} /> }}>
+				<HttpExceptionBoundary components={errorBoundaries}>
 					{inner}
 				</HttpExceptionBoundary>
 			)

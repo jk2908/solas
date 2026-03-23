@@ -1,8 +1,10 @@
 import { use } from 'react'
 
+import { Drift } from '../../drift'
+
 import { Logger } from '../../utils/logger'
 
-import type { Metadata as Collection } from '../metadata'
+import { type Metadata as Collection } from '../metadata'
 
 const logger = new Logger()
 const cache = new WeakMap<object, Promise<Collection.Item>>()
@@ -17,6 +19,8 @@ export function Head({
 
 	return (
 		<>
+			<meta name="generator" content={Drift.Config.NAME} />
+
 			{metadata.title && <title>{metadata.title.toString()}</title>}
 
 			{metadata.meta?.map(meta => {

@@ -131,6 +131,9 @@ export class Resolver {
 		cached: Resolver.CachedEnhancedMatch,
 		match: NonNullable<Resolver.ReconciledMatch>,
 	) {
+		// the cached match only stores route structure, while params and errors still
+		// belong to this request
+		// so merge them back in here
 		return {
 			...cached,
 			params: match.params,
@@ -143,6 +146,8 @@ export class Resolver {
 	 */
 	static #load(loader: DynamicImport) {
 		if (IS_DEV) {
+			// in dev always call the loader directly so hot updates are not hidden
+			// behind the prod cache
 			return {
 				promise: loader(),
 			}
@@ -151,6 +156,7 @@ export class Resolver {
 		let entry = Resolver.#moduleCache.get(loader)
 		if (entry) return entry
 
+		// cache the in-flight import so repeated lookups share one load
 		const promise = loader()
 			.then(mod => {
 				const entry = Resolver.#moduleCache.get(loader)
@@ -172,9 +178,7 @@ export class Resolver {
 	/**
 	 * Lazily load and cache a component from a dynamic import
 	 */
-	static #view<T extends React.ComponentType<any>>(
-		loader: DynamicImport,
-	): View<React.ComponentProps<T>> {
+	static #view<T extends React.ComponentType<any>>(loader: DynamicImport) {
 		const entry = Resolver.#load(loader)
 
 		logger.debug(
@@ -184,12 +188,16 @@ export class Resolver {
 		)
 
 		if (entry.module?.default) {
+			// if the module already loaded, return the component directly
 			entry.Component = entry.module.default as View<React.ComponentProps<T>>
 			return entry.Component
 		}
 
+		// if we already created a lazy wrapper for this module
+		// reuse it
 		if (entry.Component) return entry.Component as View<React.ComponentProps<T>>
 
+		// otherwise create the lazy wrapper once and keep it on the cache entry
 		const Component = lazy(() =>
 			entry.promise.then(mod => ({ default: mod.default as T })),
 		)
@@ -206,6 +214,7 @@ export class Resolver {
 			const entry = Resolver.narrow(this.#manifest[match.route.path])
 
 			if (entry) {
+				// normal case, the router matched a page route so just attach request state
 				return {
 					...entry,
 					params: match.params,
@@ -214,11 +223,12 @@ export class Resolver {
 			}
 		}
 
-		// @note: if there's no match we'll traverse backwards
-		// to find the closest user supplied 404 boundary
+		// if nothing matched directly, walk back up the path
+		// and look for the nearest user 404 boundary
 		const entry = this.closest(path, 'paths.404s')
 
 		if (entry) {
+			// reuse that route entry but force it into a 404 state
 			return {
 				...entry,
 				params: {},
@@ -239,12 +249,14 @@ export class Resolver {
 		if (!match) return null
 
 		const { __id } = match
+		// if in dev skip the cache to always get the latest changes
+		// and not break hmr
 		const cached = IS_DEV ? undefined : Resolver.#enhancedMatchCache.get(__id)
 
 		if (cached) {
 			logger.debug('[enhance]', __id, 'CACHED')
-			// ensure request-specific state is merged back in to the cached enhanced match
-			// (params/error)
+			// cached ui can be reused, but params and errors still come from
+			// this request
 			return Resolver.#withRequestState(cached, match)
 		}
 
@@ -266,7 +278,8 @@ export class Resolver {
 			...rest,
 		}
 
-		// shell is a static import, layouts[0] in the enhanced match
+		// build the renderable ui shape from the import map, with a static shell
+		// and dynamic imports for everything else
 		if (entry.shell) {
 			enhanced.ui.layouts = [
 				entry.shell.default as Resolver.EnhancedMatch['ui']['layouts'][0],
@@ -274,6 +287,7 @@ export class Resolver {
 		}
 
 		if (entry.layouts?.length) {
+			// layouts are stored after the shell and can each load lazily
 			const dynamicLayouts = entry.layouts.map(l =>
 				l
 					? Resolver.#view<NonNullable<Resolver.EnhancedMatch['ui']['layouts'][number]>>(
@@ -285,6 +299,7 @@ export class Resolver {
 		}
 
 		if (entry.page) {
+			// the page is the leaf view for this route
 			enhanced.ui.Page = Resolver.#view<
 				NonNullable<Resolver.EnhancedMatch['ui']['Page']>
 			>(entry.page)
@@ -323,8 +338,7 @@ export class Resolver {
 			)
 		}
 
-		// each route can display a loading component whilst layouts
-		// are suspended - not inherited like other components
+		// loading components are per route level they are not inherited like layouts or boundaries
 		if (entry.loaders?.length) {
 			enhanced.ui.loaders = entry.loaders.map(l =>
 				l
@@ -337,8 +351,8 @@ export class Resolver {
 
 		if (entry.endpoint) enhanced.endpoint = entry.endpoint
 
-		// cache the route's metadata exports once. They are turned into
-		// request-specific tasks later with params/error
+		// collect metadata loaders once per route so they can turn into request
+		// specific tasks later when params and errors are known
 		const metadataSources: Metadata.Source[] = []
 
 		if (entry.shell) {
@@ -444,6 +458,8 @@ export class Resolver {
 		}
 
 		enhanced.metadata = ({ params, error }: Metadata.Input<Router.Params>) =>
+			// metadata execution still happens per request because params and errors
+			// can differ
 			Metadata.tasks(metadataSources, { params, error }, err => {
 				logger.error(`[enhance.metadata]: ${__id}`, err)
 			})
@@ -464,6 +480,7 @@ export class Resolver {
 		const parts = path.split('/').filter(Boolean)
 		const segments = property.split('.')
 
+		// walk from the current path back towards the root until we find a match
 		for (let i = parts.length; i >= 0; i--) {
 			const testPath = i === 0 ? '/' : `/${parts.slice(0, i).join('/')}`
 			const entry = this.#manifest[testPath]
@@ -474,6 +491,7 @@ export class Resolver {
 
 			let curr: unknown = pageEntry
 
+			// follow the dotted property path step by step on the matched entry
 			for (const segment of segments) {
 				if (!curr || typeof curr !== 'object') break
 				if (!(segment in curr)) break

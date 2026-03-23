@@ -57,7 +57,22 @@ function drift(c: PluginConfig): PluginOption[] {
 
 	async function maybeWrite(filePath: string, content: string) {
 		try {
-			const curr = fileCache.get(filePath) ?? (await fs.readFile(filePath, 'utf-8'))
+			const cached = fileCache.get(filePath)
+
+			if (cached === content) {
+				// if content is unchanged and file exists, skip write
+				if (await Bun.file(filePath).exists()) return null
+
+				// else, file is missing but cached content is the same as 
+				// last time we saw it, write it
+
+				await Bun.write(filePath, content)
+				fileCache.set(filePath, content)
+
+				return path.relative(process.cwd(), filePath)
+			}
+
+			const curr = cached ?? (await fs.readFile(filePath, 'utf-8'))
 			fileCache.set(filePath, curr)
 
 			// no change, bail
