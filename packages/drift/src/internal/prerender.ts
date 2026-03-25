@@ -395,7 +395,7 @@ export namespace Prerender {
 		 * looking for an exported `prerender` binding and validating its value
 		 */
 		export async function getStaticFlag(filePath: string, buildContext: BuildContext) {
-			return buildContext.exportsReader.literal<'full' | 'ppr' | false>(
+			return buildContext.exportReader.literal<'full' | 'ppr' | false>(
 				filePath,
 				'prerender',
 				(v): v is (typeof Drift.Config.PRERENDER_MODES)[number] =>
@@ -408,7 +408,7 @@ export namespace Prerender {
 		 * in the route module and calling it to get the list of parameter objects
 		 */
 		export async function getStaticParams(filePath: string, buildContext: BuildContext) {
-			const params = await buildContext.exportsReader.value<
+			const params = await buildContext.exportReader.value<
 				() => Promise<unknown> | unknown
 			>(
 				filePath,

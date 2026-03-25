@@ -26,18 +26,14 @@ export class Prefetcher {
 	}
 
 	/**
-	 * Evicts an entry from the cache based on the specified mode, either 'oldest'
-	 * or 'random'
+	 * Evicts the oldest entry from the cache
 	 */
-	evict(mode: 'oldest' | 'random' = 'oldest') {
+	evict() {
 		if (this.#cache.size === 0) return
 
-		const candidate =
-			mode === 'oldest'
-				? this.#cache.entries().next().value
-				: [...this.#cache.entries()][Math.floor(Math.random() * this.#cache.size)]
-
+		const candidate = this.#cache.entries().next().value
 		if (!candidate) return
+
 		const [key, entry] = candidate
 
 		clearTimeout(entry.timeoutId)

@@ -131,9 +131,8 @@ export class Resolver {
 		cached: Resolver.CachedEnhancedMatch,
 		match: NonNullable<Resolver.ReconciledMatch>,
 	) {
-		// the cached match only stores route structure, while params and errors still
-		// belong to this request
-		// so merge them back in here
+		// the cached match only stores route structure, while params and errors
+		// still belong to this request so merge them back in here
 		return {
 			...cached,
 			params: match.params,
@@ -338,7 +337,8 @@ export class Resolver {
 			)
 		}
 
-		// loading components are per route level they are not inherited like layouts or boundaries
+		// loading components are per route level they are not inherited like layouts
+		// or boundaries
 		if (entry.loaders?.length) {
 			enhanced.ui.loaders = entry.loaders.map(l =>
 				l

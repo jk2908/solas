@@ -612,7 +612,7 @@ export namespace Build {
 							// route scanning only tells us this is a +middleware file path so
 							// we still validate that the module actually exports middleware
 							if (
-								!(await this.buildContext.exportsReader.has(middlewarePath, 'middleware'))
+								!(await this.buildContext.exportReader.has(middlewarePath, 'middleware'))
 							) {
 								throw new Error(`Missing middleware export in ${middlewarePath}`)
 							}
@@ -742,7 +742,7 @@ export namespace Build {
 					const params = Finder.getParams(endpointFilePath)
 
 					const endpointExports =
-						await this.buildContext.exportsReader.exports(endpointFilePath)
+						await this.buildContext.exportReader.exports(endpointFilePath)
 
 					const group: Endpoint[] = []
 
@@ -769,7 +769,7 @@ export namespace Build {
 									// endpoint middleware discovery gives us file paths, not proof of the export
 									// so check the module shape before we register the import
 									if (
-										!(await this.buildContext.exportsReader.has(
+										!(await this.buildContext.exportReader.has(
 											middlewarePath,
 											'middleware',
 										))

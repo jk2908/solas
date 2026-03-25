@@ -124,6 +124,8 @@ export class Router {
 		let score = 0
 		let wildcard = false
 
+		// turn the route path into tokens once so registration and matching can
+		// share the same specificity rules
 		for (const segment of segments) {
 			if (segment === '*') {
 				wildcard = true
@@ -256,6 +258,8 @@ export class Router {
 
 		try {
 			if (path !== url.pathname) {
+				// rebuild the request with the canonical pathname so downstream code
+				// sees the same url the router matched against
 				url.pathname = path
 				req = new Request(url.toString(), req)
 			}
@@ -275,6 +279,8 @@ export class Router {
 			if (!match) {
 				const error = new HttpException(404, 'Not found')
 
+				// unmatched requests still pass through the shared error hook with the
+				// same request metadata shape as matched requests
 				return (
 					this.#onError?.(
 						error,
@@ -286,10 +292,14 @@ export class Router {
 			}
 
 			const matched = match
+			// attach routing state to the request once so middleware and handlers can
+			// read the same per-request metadata
 			const request: DriftRequest = Object.assign(req, {
 				[Drift.Config.REQUEST_META]: { match: matched, action, parsedFormData },
 			})
 
+			// global middleware stays outside route middleware by preserving
+			// registration order here before composition in #run
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
 
 			return this.#run(
@@ -299,6 +309,7 @@ export class Router {
 					matched.route.handler?.(request) ?? new Response('Not found', { status: 404 }),
 			)
 		} catch (err) {
+			// normalise unknown throwables so the error hook always receives an Error
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
 			const request = Object.assign(req, {
 				[Drift.Config.REQUEST_META]: { match, error, action },
@@ -349,6 +360,7 @@ export class Router {
 			let decodedPathname = pathname
 
 			try {
+				// validate any percent-encoding before resolving the asset path
 				decodedPathname = decodeURIComponent(pathname)
 			} catch {
 				return new Response('Bad Request', { status: 400 })
@@ -357,10 +369,13 @@ export class Router {
 			const relativePath = decodedPathname.replace(/^\/+/, '')
 			const filePath = path.resolve(staticRoot, relativePath)
 
+			// keep asset requests pinned under the client output root even if the
+			// incoming path contains traversal segments
 			if (filePath !== staticRoot && !filePath.startsWith(`${staticRoot}${path.sep}`)) {
 				return new Response('Forbidden', { status: 403 })
 			}
 
+			// emitted assets are fingerprinted so they can be cached aggressively
 			return Router.serve(filePath, req, config.precompress, {
 				'Cache-Control': 'public, immutable, max-age=31536000',
 			})
@@ -382,6 +397,7 @@ export class Router {
 		let encoding: string | null = null
 
 		if (precompress) {
+			// prefer a precompressed variant when the client accepts it and one was emitted
 			if (accept.includes('br')) {
 				const brotli = Bun.file(`${filePath}.br`)
 
@@ -420,11 +436,13 @@ export class Router {
 	 */
 	static #normalise(path: string, trailingSlash: boolean = true) {
 		if (!trailingSlash) {
+			// collapse non-root trailing slashes when the router runs in slashless mode
 			return path.endsWith('/') && path !== '/' ? path.slice(0, -1) : path
 		}
 
 		if (path === '/') return path
 
+		// otherwise make non-root paths canonical with a trailing slash
 		return path.endsWith('/') ? path : `${path}/`
 	}
 
@@ -437,6 +455,7 @@ export class Router {
 		const parts: string[] = []
 		let start = 0
 
+		// walk the string once so we avoid empty segments from repeated or edge slashes
 		for (let i = 0; i <= path.length; i += 1) {
 			const char = path[i]
 			if (char !== '/' && i !== path.length) continue
@@ -540,11 +559,14 @@ export class Router {
 	 */
 	static #fit(route: Router.Route, segments: string[]) {
 		if (route.wildcard) {
+			// wildcard routes only require the fixed prefix before the catch-all segment
 			if (segments.length < route.length - 1) return null
 		} else if (route.length !== segments.length) {
 			return null
 		}
 
+		// defer the actual param extraction to the cached path-to-regexp matcher so
+		// dynamic and wildcard params stay consistent with registration
 		const matched = Router.#getMatcher(route)(
 			segments.length ? `/${segments.join('/')}` : '/',
 		)

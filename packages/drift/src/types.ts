@@ -2,7 +2,7 @@ type BunRequest = Request & { params?: Record<string, string | string[]> }
 
 import { Drift } from './drift'
 
-import { ModuleExports } from './utils/module-exports'
+import { ExportReader } from './utils/export-reader'
 
 import type { Build } from './internal/build'
 import type { Metadata } from './internal/metadata'
@@ -26,9 +26,8 @@ export type PluginConfig = {
 
 export type BuildContext = {
 	outDir?: string
-	transpiler: InstanceType<typeof Bun.Transpiler>
 	prerenderedRoutes: Set<string>
-	exportsReader: ModuleExports.Reader
+	exportReader: ExportReader
 }
 
 export type DriftRequest = Request & {

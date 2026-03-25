@@ -11,9 +11,9 @@ import type { BuildContext, PluginConfig } from './types'
 
 import { Drift } from './drift'
 
+import { ExportReader } from './utils/export-reader'
 import { Format } from './utils/format'
 import { Logger } from './utils/logger'
-import { ModuleExports } from './utils/module-exports'
 import { Time } from './utils/time'
 
 import { Build } from './internal/build'
@@ -41,15 +41,13 @@ function drift(c: PluginConfig): PluginOption[] {
 		url: c.url ?? process.env.VITE_APP_URL?.toString() ?? process.env.APP_URL?.toString(),
 	})
 
-	const transpiler = new Bun.Transpiler({ loader: 'tsx' })
 	const logger = new Logger()
-	const exportsReader = new ModuleExports.Reader(transpiler)
+	const exportReader = new ExportReader()
 
 	const buildContext = {
 		outDir: config.outDir,
-		transpiler,
 		prerenderedRoutes: new Set<string>(),
-		exportsReader,
+		exportReader,
 	} satisfies BuildContext
 
 	// cache for file contents to avoid unnecessary readFile invocations
@@ -63,7 +61,7 @@ function drift(c: PluginConfig): PluginOption[] {
 				// if content is unchanged and file exists, skip write
 				if (await Bun.file(filePath).exists()) return null
 
-				// else, file is missing but cached content is the same as 
+				// else, file is missing but cached content is the same as
 				// last time we saw it, write it
 
 				await Bun.write(filePath, content)
