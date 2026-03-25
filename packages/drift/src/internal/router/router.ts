@@ -162,7 +162,8 @@ export class Router {
 
 		// wildcard route, push to end of list
 		if (wildcard) {
-			const prefix = route.tokens[0]?.kind === 'static' ? route.tokens[0].value : undefined
+			const prefix =
+				route.tokens[0]?.kind === 'static' ? route.tokens[0].value : undefined
 
 			if (prefix) {
 				const prefixed = this.#routes.wildcard.byPrefix.get(prefix) ?? []
