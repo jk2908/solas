@@ -171,7 +171,8 @@ function drift(c: PluginConfig): PluginOption[] {
 
 	// route graph rebuilds only care about framework route files, with endpoint
 	// edits needing special treatment because verb exports can change in-place
-	const routeFile = /\/\+(layout|page|404|loading|middleware|endpoint)\.(t|j)sx?$/
+	const routeFile =
+		/\/\+(layout|page|401|403|404|500|loading|middleware|endpoint)\.(t|j)sx?$/
 	const endpointFile = /\/\+endpoint\.(t|j)sx?$/
 
 	const rebuild = Time.debounce((event: string, p: string) => {
