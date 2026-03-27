@@ -16,12 +16,11 @@ export function writeRSCEntry() {
     import { rsc, action } from '${Drift.Config.PKG_NAME}/env/rsc'
     import type { SSR } from '${Drift.Config.PKG_NAME}/env/ssr'
     import { Prerender } from '${Drift.Config.PKG_NAME}/prerender'
-    import { Router } from '${Drift.Config.PKG_NAME}/router'
+    import { createRouter, Router } from '${Drift.Config.PKG_NAME}/router'
 
     import { manifest } from './manifest'
     import { importMap } from './maps'
     import { config } from './config'
-    import { createRouter } from './router'
 
     const fullyPrerenderedRoutes = new Set<string>(
       Object.values(manifest)
@@ -159,7 +158,7 @@ export function writeRSCEntry() {
       })
     }
 
-    const router = createRouter(handler)
+    const router = createRouter(config, manifest, importMap, handler)
 
     export default {
       async fetch(req: Request) {

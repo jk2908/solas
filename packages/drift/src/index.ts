@@ -25,7 +25,6 @@ import {
 } from './internal/codegen/environments'
 import { writeManifest } from './internal/codegen/manifest'
 import { writeMaps } from './internal/codegen/maps'
-import { writeRouter } from './internal/codegen/router'
 
 const DEFAULT_CONFIG = {
 	precompress: true,
@@ -125,7 +124,6 @@ function drift(c: PluginConfig): PluginOption[] {
 			['config.ts', writeConfig(config)],
 			['manifest.ts', writeManifest(manifest)],
 			['maps.ts', writeMaps(imports, modules)],
-			['router.tsx', writeRouter(manifest, imports)],
 			[Drift.Config.ENTRY_RSC, writeRSCEntry()],
 			[Drift.Config.ENTRY_SSR, writeSSREntry()],
 			[Drift.Config.ENTRY_BROWSER, writeBrowserEntry()],

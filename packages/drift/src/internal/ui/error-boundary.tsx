@@ -2,6 +2,8 @@
 
 import { Component } from 'react'
 
+import { isKnownError } from '../env/utils'
+
 type BoundaryError = Error & { digest?: string }
 
 export type Props = {
@@ -48,7 +50,11 @@ export class ErrorBoundary extends Component<
 
 	render() {
 		const { error } = this.state
+
 		if (!error) return this.props.children
+		// possible framework control-flow error, re-throw to be caught
+		// by appropriate HttpException or Redirect boundaries
+		if (isKnownError(error)) throw error
 
 		return typeof this.props.fallback === 'function'
 			? this.props.fallback(error, this.reset)

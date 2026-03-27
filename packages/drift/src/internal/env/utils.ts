@@ -25,7 +25,7 @@ export function isKnownError(err: unknown) {
 	if (err instanceof Error) {
 		if (err.name === 'AbortError') return true
 
-		if (err.message === 'The render was aborted by the server without a reason.') {
+		if (err.message === 'The render was aborted by the server without a reason') {
 			return true
 		}
 	}
