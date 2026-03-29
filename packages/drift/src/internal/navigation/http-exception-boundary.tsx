@@ -1,6 +1,7 @@
 'use client'
 
-import { ErrorBoundary } from '../ui/error-boundary'
+import { Component } from 'react'
+
 import {
 	HTTP_EXCEPTION_DIGEST_PREFIX,
 	type HttpException,
@@ -13,6 +14,40 @@ function isSupportedStatusCode(value: number): value is HttpException.StatusCode
 	return value === 401 || value === 403 || value === 404 || value === 500
 }
 
+type BoundaryError = Error & { digest?: string }
+
+export type Props = {
+	fallback: ((error: BoundaryError) => React.ReactNode) | React.ReactNode
+	children: React.ReactNode
+}
+
+class Boundary extends Component<
+	Props,
+	{
+		error: BoundaryError | null
+	}
+> {
+	constructor(props: Props) {
+		super(props)
+
+		this.state = { error: null }
+	}
+
+	static getDerivedStateFromError(error: Error) {
+		return { error }
+	}
+
+	render() {
+		const { error } = this.state
+
+		if (!error) return this.props.children
+
+		return typeof this.props.fallback === 'function'
+			? this.props.fallback(error)
+			: this.props.fallback
+	}
+}
+
 export function HttpExceptionBoundary({
 	components,
 	children,
@@ -21,7 +56,7 @@ export function HttpExceptionBoundary({
 	children: React.ReactNode
 }) {
 	return (
-		<ErrorBoundary
+		<Boundary
 			fallback={err => {
 				if (!isHttpException(err)) throw err
 
@@ -52,6 +87,6 @@ export function HttpExceptionBoundary({
 				throw err
 			}}>
 			{children}
-		</ErrorBoundary>
+		</Boundary>
 	)
 }

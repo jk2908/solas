@@ -1,11 +1,50 @@
 'use client'
 
-import { ErrorBoundary } from '../ui/error-boundary'
+import { Component } from 'react'
+
 import { isRedirect, REDIRECT_DIGEST_PREFIX } from './redirect'
 
+type BoundaryError = Error & { digest?: string }
+
+export type Props = {
+	fallback: ((error: BoundaryError) => React.ReactNode) | React.ReactNode
+	children: React.ReactNode
+}
+
+class Boundary extends Component<
+	Props,
+	{
+		error: BoundaryError | null
+	}
+> {
+	constructor(props: Props) {
+		super(props)
+
+		this.state = { error: null }
+	}
+
+	static getDerivedStateFromError(error: Error) {
+		return { error }
+	}
+
+	render() {
+		const { error } = this.state
+
+		if (!error) return this.props.children
+
+		return typeof this.props.fallback === 'function'
+			? this.props.fallback(error)
+			: this.props.fallback
+	}
+}
+
+/**
+ * A component that catches redirect errors in its child component tree and performs
+ * a client-side redirect using a meta refresh tag
+ */
 export function RedirectBoundary({ children }: { children: React.ReactNode }) {
 	return (
-		<ErrorBoundary
+		<Boundary
 			fallback={err => {
 				if (!isRedirect(err)) throw err
 
@@ -22,6 +61,6 @@ export function RedirectBoundary({ children }: { children: React.ReactNode }) {
 				return null
 			}}>
 			{children}
-		</ErrorBoundary>
+		</Boundary>
 	)
 }
