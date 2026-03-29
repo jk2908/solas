@@ -2,9 +2,9 @@
 
 import { Component } from 'react'
 
-import { isKnownError } from '../env/utils'
+import type { BoundaryError } from '../../types'
 
-type BoundaryError = Error & { digest?: string }
+import { isKnownError } from '../env/utils'
 
 export type Props = {
 	fallback:

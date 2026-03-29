@@ -37,7 +37,7 @@ export type RSCPayload = {
 /**
  * Get the streamed RSC payload and response metadata for a single request.
  * Resolves the route match, collects metadata, and returns the stream,
- * status code, and PPR mode needed by the response layer
+ * status code, and prerender mode needed by the response layer
  */
 async function getPayload(
 	req: DriftRequest,

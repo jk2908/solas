@@ -118,3 +118,5 @@ export namespace Route {
 
 	export type Prerender = (typeof Drift.Config.PRERENDER_MODES)[number]
 }
+
+export type BoundaryError = Error & { digest?: string }

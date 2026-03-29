@@ -2,9 +2,9 @@
 
 import { Component } from 'react'
 
-import { isRedirect, REDIRECT_DIGEST_PREFIX } from './redirect'
+import type { BoundaryError } from '../../types'
 
-type BoundaryError = Error & { digest?: string }
+import { isRedirect, REDIRECT_DIGEST_PREFIX } from './redirect'
 
 export type Props = {
 	fallback: ((error: BoundaryError) => React.ReactNode) | React.ReactNode

@@ -2,6 +2,8 @@
 
 import { Component } from 'react'
 
+import type { BoundaryError } from '../../types'
+
 import {
 	HTTP_EXCEPTION_DIGEST_PREFIX,
 	type HttpException,
@@ -13,8 +15,6 @@ type ComponentsMap = Partial<Record<HttpException.StatusCode, React.ReactElement
 function isSupportedStatusCode(value: number): value is HttpException.StatusCode {
 	return value === 401 || value === 403 || value === 404 || value === 500
 }
-
-type BoundaryError = Error & { digest?: string }
 
 export type Props = {
 	fallback: ((error: BoundaryError) => React.ReactNode) | React.ReactNode

@@ -10,11 +10,11 @@ import { Logger } from '../../utils/logger'
 
 import type { RSCPayload } from '../env/rsc'
 import { Prefetcher } from './prefetcher'
-import { GoConfig, RouterContext } from './router-context'
+import { type Navigation, RouterContext } from './router-context'
 
 const DEFAULT_GO_CONFIG = {
 	replace: false,
-} satisfies GoConfig
+} satisfies Navigation.GoOptions
 
 const logger = new Logger()
 const prefetcher = new Prefetcher()
@@ -36,11 +36,11 @@ export function RouterProvider({
 	/**
 	 * Navigate to a new route
 	 * @param to the destination url (absolute or relative to origin)
-	 * @param goConfig optional configuration for the navigation
+	 * @param opts navigation options
 	 * @returns the path that was navigated to (relative to origin)
 	 */
 	const go = useCallback(
-		async (to: string, goConfig?: GoConfig) => {
+		async (to: string, opts: Navigation.GoOptions = {}) => {
 			id.current += 1
 			const navigationId = id.current
 
@@ -48,15 +48,16 @@ export function RouterProvider({
 			controller.current = null
 
 			const url = new URL(to, window.location.origin)
-			const replace = goConfig?.replace ?? DEFAULT_GO_CONFIG.replace
+			const replace = opts?.replace ?? DEFAULT_GO_CONFIG.replace
 
-			if (goConfig?.query) {
-				for (const [key, value] of Object.entries(goConfig.query)) {
+			if (opts?.query) {
+				for (const [key, value] of Object.entries(opts.query)) {
 					url.searchParams.set(key, String(value))
 				}
 			}
 
 			const path = Prefetcher.key(url.toString(), window.location.origin)
+
 			// distinguish an actual prior prefetch from a cache entry we create
 			// opportunistically for this navigation
 			const existing = prefetcher.has(path)
@@ -104,8 +105,6 @@ export function RouterProvider({
 					return path
 				}
 
-				logger.error('[navigation] failed', err)
-
 				window.dispatchEvent(
 					new CustomEvent(Drift.Events.names.NAVIGATION_ERROR, {
 						detail: {
@@ -114,6 +113,8 @@ export function RouterProvider({
 						},
 					}),
 				)
+
+				logger.error('[navigation] failed', err)
 			} finally {
 				if (navigationId === id.current) controller.current = null
 

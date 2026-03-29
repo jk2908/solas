@@ -2,13 +2,15 @@
 
 import { createContext } from 'react'
 
-export type GoConfig = {
-	replace?: boolean
-	query?: Record<string, string | number | boolean>
+export namespace Navigation {
+	export type GoOptions = {
+		replace?: boolean
+		query?: Record<string, string | number | boolean>
+	}
 }
 
 export const RouterContext = createContext<{
-	go: (to: string, config?: GoConfig) => Promise<string>
+	go: (to: string, opts?: Navigation.GoOptions) => Promise<string>
 	prefetch: (path: string) => void
 	isNavigating: boolean
 }>({
