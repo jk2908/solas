@@ -1,6 +1,6 @@
 'use client'
 
-import { useSearchParams } from '@jk2908/drift/navigation'
+import { useSearchParams } from '@jk2908/solas/navigation'
 
 export function Red() {
 	const params = useSearchParams()

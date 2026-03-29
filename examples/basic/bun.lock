@@ -2,9 +2,9 @@
   "lockfileVersion": 1,
   "workspaces": {
     "": {
-      "name": "drift-example-basic",
+      "name": "solas-example-basic",
       "dependencies": {
-        "@jk2908/drift": "link:@jk2908/drift",
+        "@jk2908/solas": "link:@jk2908/solas",
         "@vitejs/plugin-rsc": "latest",
         "react": "^19.2.1",
         "react-dom": "^19.2.1",
@@ -72,7 +72,7 @@
 
     "@esbuild/win32-x64": ["@esbuild/win32-x64@0.25.12", "", { "os": "win32", "cpu": "x64" }, "sha512-alJC0uCZpTFrSL0CCDjcgleBXPnCrEAhTBILpeAp7M/OFgoqtAetfBzX0xM00MUsVVPpVjlPuMbREqnZCXaTnA=="],
 
-    "@jk2908/drift": ["@jk2908/drift@link:@jk2908/drift", {}],
+    "@jk2908/solas": ["@jk2908/solas@link:@jk2908/solas", {}],
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 

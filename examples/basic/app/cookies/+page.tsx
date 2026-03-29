@@ -1,4 +1,4 @@
-import { cookies } from '@jk2908/drift/server'
+import { cookies } from '@jk2908/solas/server'
 
 export default function Page() {
 	const c = cookies()

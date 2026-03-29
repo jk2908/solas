@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import { dynamic, headers, url } from '@jk2908/drift/server'
+import { dynamic, headers, url } from '@jk2908/solas/server'
 
 export default function Page() {
 	return (

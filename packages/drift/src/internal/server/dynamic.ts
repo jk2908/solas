@@ -14,6 +14,7 @@ const NEVER: Promise<never> = new Promise(() => {})
  * @throws if called in prerender mode (the desired effect)
  */
 export function dynamic() {
+	// oxlint-disable-next-line eslint-plugin-react-hooks/rules-of-hooks
 	const { prerender } = RequestContext.use()
 
 	if (!prerender) return

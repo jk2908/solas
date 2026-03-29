@@ -1,4 +1,4 @@
-import type { Route } from '@jk2908/drift'
+import type { Route } from '@jk2908/solas'
 
 import './styles.css'
 

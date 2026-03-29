@@ -1,14 +1,14 @@
 {
-	"name": "drift-website",
+	"name": "solas-website",
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "drift dev",
-		"build": "drift build",
-		"preview": "drift preview"
+		"dev": "solas dev",
+		"build": "solas build",
+		"preview": "solas preview"
 	},
 	"dependencies": {
-		"@jk2908/drift": "workspace:*",
+		"@jk2908/solas": "workspace:*",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
 		"@vitejs/plugin-react": "^5.1.4",

@@ -9,7 +9,7 @@ export function middleware(req: Request, next: () => Promise<Response>) {
 		return next().then(res => {
 			res.headers.append(
 				'set-cookie',
-				'drift_cookie_test=hello; Path=/; HttpOnly; SameSite=Lax',
+				'solas_cookie_test=hello; Path=/; HttpOnly; SameSite=Lax',
 			)
 			return res
 		})

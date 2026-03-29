@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url'
 
 import { defineConfig } from 'vite'
 
-import drift from '@jk2908/drift'
+import solas from '@jk2908/solas'
 import tsconfigPaths from 'vite-tsconfig-paths'
 
 const resolver = (p: string) => resolve(dirname(fileURLToPath(import.meta.url)), p)
@@ -11,11 +11,11 @@ const resolver = (p: string) => resolve(dirname(fileURLToPath(import.meta.url)),
 export default defineConfig(() => {
 	return {
 		plugins: [
-			drift({
+			solas({
 				url: 'http://localhost:8787',
 				prerender: false,
 				metadata: {
-					title: '%s - drift',
+					title: '%s - Solas',
 				},
 			}),
 			tsconfigPaths(),

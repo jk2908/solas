@@ -1,5 +1,5 @@
 export const metadata = {
-	title: 'Drift Example App',
+	title: 'Solas Example App',
 }
 
 export default function Shell({ children }: { children: React.ReactNode }) {
@@ -11,7 +11,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 			</head>
 
 			<body>
-				<header>Drift Example App</header>
+				<header>Solas Example App</header>
 				<main>{children}</main>
 				<footer>Footer</footer>
 			</body>

@@ -30,5 +30,5 @@ jobs:
 
       - name: Package prepublish check
         run: |
-          cd packages/drift
+          cd packages/solas
           bun run prepublishOnly

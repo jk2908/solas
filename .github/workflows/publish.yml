@@ -4,7 +4,7 @@ on:
   push:
     tags:
       - 'v*'
-      - '@jk2908/drift@*'
+      - '@jk2908/solas@*'
 
 jobs:
   publish:
@@ -35,7 +35,7 @@ jobs:
         run: bun run release:check
 
       - name: Publish package
-        working-directory: packages/drift
+        working-directory: packages/solas
         run: npm publish --access public --provenance
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -1,4 +1,4 @@
-import type { HttpException } from '@jk2908/drift/navigation'
+import type { HttpException } from '@jk2908/solas/navigation'
 
 export const metadata = ({ error }: { error?: HttpException }) => {
 	const title =

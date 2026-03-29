@@ -24,11 +24,11 @@
 	},
 	"overrides": [
 		{
-			"files": ["packages/drift/src/internal/server/**/*.ts"],
+			"files": ["packages/solas/src/internal/server/**/*.ts"],
 			"rules": {
 				"rules-of-hooks": "off"
 			}
 		}
 	],
-	"ignorePatterns": ["**/dist/**", "**/.drift/**", "**/node_modules/**"]
+	"ignorePatterns": ["**/dist/**", "**/.solas/**", "**/node_modules/**"]
 }

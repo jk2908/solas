@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 
-import { abort } from '@jk2908/drift/navigation'
-import { dynamic } from '@jk2908/drift/server'
+import { abort } from '@jk2908/solas/navigation'
+import { dynamic } from '@jk2908/solas/server'
 
 export const metadata = async ({ params }: { params?: { id: string } }) => {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)

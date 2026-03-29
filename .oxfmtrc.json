@@ -23,16 +23,16 @@
 				"elementNamePattern": ["react", "react/**", "react-dom", "react-dom/**"]
 			},
 			{
-				"groupName": "drift-packages",
-				"elementNamePattern": ["@jk2908/drift", "@jk2908/drift/**", ".drift", ".drift/**"]
+				"groupName": "solas-packages",
+				"elementNamePattern": ["@jk2908/solas", "@jk2908/solas/**", ".solas", ".solas/**"]
 			},
 			{
 				"groupName": "types",
 				"elementNamePattern": ["**/types", "**/types/**"]
 			},
 			{
-				"groupName": "drift",
-				"elementNamePattern": ["**/drift", "**/drift/**"]
+				"groupName": "solas",
+				"elementNamePattern": ["**/solas", "**/solas/**"]
 			},
 			{
 				"groupName": "utils",
@@ -52,12 +52,12 @@
 			{ "newlinesBetween": true },
 			"react",
 			{ "newlinesBetween": true },
-			"drift-packages",
+			"solas-packages",
 			"value-external",
 			{ "newlinesBetween": true },
 			"types",
 			{ "newlinesBetween": true },
-			"drift",
+			"solas",
 			{ "newlinesBetween": true },
 			"utils",
 			{ "newlinesBetween": true },
@@ -68,5 +68,5 @@
 			"unknown"
 		]
 	},
-	"ignorePatterns": ["**/dist/**", "**/.drift/**", "**/node_modules/**"]
+	"ignorePatterns": ["**/dist/**", "**/.solas/**", "**/node_modules/**"]
 }
