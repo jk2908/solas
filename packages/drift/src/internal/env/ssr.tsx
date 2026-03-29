@@ -212,14 +212,10 @@ async function resume(
 	return htmlStream.pipeThrough(injectRSCPayload(s2, { nonce }))
 }
 
-Object.assign(ssr, { prerender, resume }) satisfies typeof ssr & {
+export type SSRModule = {
 	prerender: typeof prerender
 	resume: typeof resume
+	ssr: typeof ssr
 }
 
-export type SSR = typeof ssr & {
-	prerender: typeof prerender
-	resume: typeof resume
-}
-
-export { ssr }
+export { prerender, resume, ssr }

@@ -1,6 +1,40 @@
-import type { PluginConfig } from './types'
+import type { LogLevel, Route } from './types'
+
+import { ExportReader } from './utils/export-reader'
+
+import { Metadata } from './internal/metadata'
+import { HttpException } from './internal/navigation/http-exception'
+import { Router } from './router'
 
 export namespace Drift {
+	export type PluginConfig = {
+		url?: `http://${string}` | `https://${string}`
+		port?: number
+		precompress?: boolean
+		prerender?: Route.Prerender
+		outDir?: string
+		metadata?: Metadata.Item
+		trailingSlash?: boolean
+		readonly logger?: {
+			level?: LogLevel
+		}
+	}
+
+	export type BuildContext = {
+		outDir?: string
+		prerenderedRoutes: Set<string>
+		exportReader: ExportReader
+	}
+
+	export type DriftRequest = Request & {
+		[Drift.Config.REQUEST_META]: {
+			error?: HttpException | Error
+			action?: boolean
+			match: Router.Match | null
+			parsedFormData?: FormData | null
+		}
+	}
+
 	export namespace Config {
 		export const NAME = 'drift'
 		export const PKG_NAME = `@jk2908/${NAME}`

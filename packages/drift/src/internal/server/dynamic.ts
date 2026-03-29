@@ -21,7 +21,7 @@ export function dynamic() {
 	if (prerender !== 'ppr') {
 		logger.warn(
 			'[dynamic]',
-			"dynamic() was called but prerender mode is not 'ppr'. This means the component will be rendered at build time, which may not be what you intended.",
+			"dynamic() was called but prerender mode is not 'ppr'. This means the component will be rendered at build time, which may not be what you intended",
 		)
 
 		return

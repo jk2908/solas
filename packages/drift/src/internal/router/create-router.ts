@@ -42,8 +42,8 @@ function createHandlerGroups(manifest: Manifest) {
 }
 
 function resolveMiddlewares(entry: ManifestEntry, importMap: ImportMap) {
-	// the manifest keeps middleware paths for serialisable route data, while the
-	// import map carries the actual runtime middleware functions
+	// the manifest keeps middleware paths for serialisable route data, whilst
+	// the import map carries the actual runtime middleware functions
 	const middlewares = importMap[entry.__id]?.middlewares ?? []
 
 	return middlewares.filter(
