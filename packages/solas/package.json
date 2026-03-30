@@ -1,7 +1,7 @@
 {
 	"name": "@jk2908/solas",
 	"version": "0.1.0",
-	"description": "A React Server Components meta-framework powered by Vite.",
+	"description": "A React Server Components meta-framework powered by Vite",
 	"keywords": [
 		"framework",
 		"ppr",
@@ -81,24 +81,23 @@
 		"prepublishOnly": "npm run build && npm run pack:dry"
 	},
 	"dependencies": {
-		"path-to-regexp": "^8.3.0"
+		"@vitejs/plugin-rsc": "^0.5.20",
+		"path-to-regexp": "^8.3.0",
+		"rsc-html-stream": "^0.0.7"
 	},
 	"devDependencies": {
 		"@prettier/plugin-oxc": "^0.1.3",
 		"@types/bun": "^1.2.22",
 		"@typescript/native-preview": "^7.0.0-dev.20260224.1",
-		"network-information-types": "^0.1.1"
+		"network-information-types": "^0.1.1",
+		"typescript": "^5.9.3"
 	},
 	"peerDependencies": {
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
-		"@vitejs/plugin-react": "^5.1.4",
-		"@vitejs/plugin-rsc": "^0.5.20",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
 		"react-server-dom-webpack": "^19.2.4",
-		"rsc-html-stream": "^0.0.7",
-		"typescript": "^5.9.3",
 		"vite": "^7.3.1 || ^8.0.0"
 	},
 	"peerDependenciesMeta": {

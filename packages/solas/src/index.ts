@@ -4,7 +4,6 @@ import path from 'node:path'
 
 import type { PluginOption, UserConfig, ViteDevServer } from 'vite'
 
-import react from '@vitejs/plugin-react'
 import rsc from '@vitejs/plugin-rsc'
 
 import type { BuildContext, PluginConfig } from './types'
@@ -305,7 +304,6 @@ function solas(c: PluginConfig): PluginOption[] {
 				client: `./${Solas.Config.GENERATED_DIR}/${Solas.Config.ENTRY_BROWSER}`,
 			},
 		}),
-		react(),
 	]
 }
 
