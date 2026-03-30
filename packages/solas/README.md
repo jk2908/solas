@@ -1,6 +1,6 @@
 # Solas
 
-Solas is a React Server Components meta-framework powered by Vite.
+Solas is a minimal React meta-framework powered by Vite, created for experimenting with routing, streaming, and prerendering with React Server Components.
 
 ## Install
 
