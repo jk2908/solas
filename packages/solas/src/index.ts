@@ -35,7 +35,7 @@ function solas(c: PluginConfig): PluginOption[] {
 	const config = Solas.Config.validate({
 		...DEFAULT_CONFIG,
 		...c,
-		url: c.url ?? process.env.VITE_APP_URL?.toString() ?? process.env.APP_URL?.toString(),
+		url: c.url ?? process.env.VITE_APP_URL?.toString(),
 	})
 
 	if (config.logger?.level) Logger.defaultLevel = config.logger.level
@@ -243,10 +243,7 @@ function solas(c: PluginConfig): PluginOption[] {
 			viteConfig.server.port = config.port ?? viteConfig.server.port ?? 8787
 
 			viteConfig.define ??= {}
-			viteConfig.define['import.meta.env.APP_URL'] = JSON.stringify(process.env.APP_URL)
-			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(
-				process.env.VITE_APP_URL,
-			)
+			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(config.url)
 			viteConfig.define['import.meta.env.SOLAS_VERSION'] = JSON.stringify(pkg.version)
 
 			viteConfig.resolve ??= {}
@@ -287,6 +284,7 @@ function solas(c: PluginConfig): PluginOption[] {
 				JSON.stringify({
 					prerenderedRoutes: Array.from(buildContext.prerenderedRoutes),
 					precompress: config.precompress,
+					url: config.url,
 				}),
 			)
 

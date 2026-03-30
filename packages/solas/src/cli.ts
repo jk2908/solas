@@ -74,6 +74,7 @@ async function build() {
 		for await (const result of Prerender.Build.run(app, manifest.prerenderedRoutes, {
 			timeout,
 			concurrency,
+			origin: manifest.url,
 		})) {
 			const route = result.route
 

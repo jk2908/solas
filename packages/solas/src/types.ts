@@ -111,6 +111,7 @@ export type LooseNumber<T extends number> = T | (number & {})
 export type BuildManifest = {
 	prerenderedRoutes: string[]
 	precompress: boolean
+	url?: PluginConfig['url']
 }
 
 export namespace Route {

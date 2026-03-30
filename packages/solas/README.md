@@ -72,23 +72,21 @@ All Solas options are passed to `solas()` inside `defineConfig`.
 
 ### `url`
 
-Use `url` to tell Solas what the public application origin is.
+`url` is optional. If you set it, Solas treats it as the public origin for your app.
 
-`url` is optional.
+Solas resolves it in this order:
 
-This happens inside `solas()` when the plugin builds its validated config object. Solas assigns `config.url` with this lookup order:
-
-- `config.url`
+- the `url` option passed to `solas()`
 - `VITE_APP_URL`
-- `APP_URL`
 
 Current behaviour:
 
 - Solas reads that value during plugin configuration.
-- Solas injects `APP_URL` and `VITE_APP_URL` into `import.meta.env`.
-- The current Solas runtime does not otherwise require `config.url` for routing, build, or prerender to work.
+- Solas exposes the resolved value as `import.meta.env.VITE_APP_URL`.
+- If `url` is set, prerender uses it as the request origin for build-time renders.
+- The runtime router does not otherwise require `config.url` for routing to work.
 
-In practice, that means you do not have to pass `url` unless your application code wants a canonical origin value, or you want to standardise that value in config rather than relying on environment variables.
+In practice, you only need `url` if your app code wants to read the public origin from `import.meta.env.VITE_APP_URL`, or if your prerendered output needs a real public origin.
 
 If you do want to set it explicitly, this is the shape:
 
@@ -102,11 +100,7 @@ export default defineConfig(({ mode }) => ({
 }))
 ```
 
-If you prefer environment variables, set one of these instead:
-
-```sh
-APP_URL=https://example.com
-```
+If you prefer an environment variable, set this instead:
 
 ```sh
 VITE_APP_URL=https://example.com
