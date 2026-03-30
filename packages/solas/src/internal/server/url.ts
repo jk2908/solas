@@ -8,7 +8,6 @@ import { dynamic } from './dynamic'
 export function url() {
 	dynamic()
 
-	// oxlint-disable-next-line eslint-plugin-react-hooks/rules-of-hooks
 	const { req, cache } = RequestContext.use()
 	// use request cache if possible
 	if (cache.url) return cache.url
