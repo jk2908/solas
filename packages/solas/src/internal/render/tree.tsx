@@ -8,35 +8,42 @@ import DefaultErr from '../ui/defaults/error'
 type Match = NonNullable<Resolver.EnhancedMatch>
 
 /**
- * Route tree renderer
- * @description stucture is as follows:
- * - shell (layouts[0]) renders immediately as the skeleton
- * - everything inside the shell is wrapped in Suspense so it can stream
- * - error boundaries wrap Suspense so they can catch streaming errors
+ * Render the resolved route tree for a matched page
+ *
+ * The shell is always `layouts[0]`. Every deeper segment is then wrapped from
+ * the inside out in this order:
+ *
+ * 1. `Layout`
+ * 2. `Suspense` with that segment's loading fallback
+ * 3. `HttpExceptionBoundary` with that segment's status boundaries
+ *
+ * The shell level is applied last using the same outer wrapper order:
+ * `HttpExceptionBoundary` -> `Suspense` -> `Shell`
  *
  * @example
- * <Shell>
- *   <Suspense>
- *     <ErrorBoundary>
- *       <Layout[1]>
- *         <Suspense>
- *           <ErrorBoundary>
- *             ...
- *               <Layout[n]>
- *                 <Suspense>
- *                   <ErrorBoundary>
- *                     <Page />
- *                   </ErrorBoundary>
- *                 </Suspense>
- *               </Layout[n]>
- *             ...
- *           </ErrorBoundary>
- *         </Suspense>
- *       </Layout[1]>
- *     </ErrorBoundary>
- *   </Suspense>
- * </Shell>
- *
+ * ```tsx
+ *   <HttpExceptionBoundary shell>
+ *     <Suspense fallback={<ShellLoading />}>
+ *       <Shell>
+ *         <HttpExceptionBoundary segmentN>
+ *           <Suspense fallback={<LoadingN />}>
+ *             <LayoutN>
+ *               ...
+ *                 <HttpExceptionBoundary segment1>
+ *                   <Suspense fallback={<Loading1 />}>
+ *                     <Layout1>
+ *                       <Page />
+ *                     </Layout1>
+ *                   </Suspense>
+ *                 </HttpExceptionBoundary>
+ *               ...
+ *             </LayoutN>
+ *           </Suspense>
+ *         </HttpExceptionBoundary>
+ *       </Shell>
+ *     </Suspense>
+ *   </HttpExceptionBoundary>
+ * ```
  */
 export function Tree({
 	depth,

@@ -5,6 +5,7 @@ export namespace Solas {
 		export const NAME = 'Solas'
 		export const SLUG = NAME.toLowerCase()
 		export const PKG_NAME = `@jk2908/${SLUG}`
+		export const OUT_DIR = 'dist'
 		export const APP_DIR = 'app'
 		export const GENERATED_DIR = `.${SLUG}`
 		export const ENTRY_RSC = 'entry.rsc.tsx'
@@ -19,7 +20,6 @@ export namespace Solas {
 		const CONFIG_KEYS = new Set([
 			'logger',
 			'metadata',
-			'outDir',
 			'precompress',
 			'prerender',
 			'trailingSlash',
@@ -78,12 +78,6 @@ export namespace Solas {
 					)
 				) {
 					errors.push("config.prerender must be 'full', 'ppr', or false")
-				}
-			}
-
-			if ('outDir' in input && input.outDir !== undefined) {
-				if (typeof input.outDir !== 'string' || input.outDir.trim().length === 0) {
-					errors.push('config.outDir must be a non-empty string')
 				}
 			}
 

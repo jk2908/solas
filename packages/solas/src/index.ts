@@ -28,7 +28,6 @@ import { writeMaps } from './internal/codegen/maps'
 const DEFAULT_CONFIG = {
 	precompress: true,
 	prerender: false,
-	outDir: 'dist',
 	trailingSlash: false,
 } as const satisfies Partial<PluginConfig>
 
@@ -39,11 +38,12 @@ function solas(c: PluginConfig): PluginOption[] {
 		url: c.url ?? process.env.VITE_APP_URL?.toString() ?? process.env.APP_URL?.toString(),
 	})
 
+	if (config.logger?.level) Logger.defaultLevel = config.logger.level
+
 	const logger = new Logger()
 	const exportReader = new ExportReader()
 
 	const buildContext = {
-		outDir: config.outDir,
 		prerenderedRoutes: new Set<string>(),
 		exportReader,
 	} satisfies BuildContext
@@ -236,7 +236,7 @@ function solas(c: PluginConfig): PluginOption[] {
 			}
 
 			viteConfig.build ??= {}
-			viteConfig.build.outDir = config.outDir
+			viteConfig.build.outDir = Solas.Config.OUT_DIR
 			viteConfig.build.emptyOutDir = true
 
 			viteConfig.server ??= {}
@@ -286,7 +286,6 @@ function solas(c: PluginConfig): PluginOption[] {
 				path.join(generatedDir, 'build.json'),
 				JSON.stringify({
 					prerenderedRoutes: Array.from(buildContext.prerenderedRoutes),
-					outDir: config.outDir,
 					precompress: config.precompress,
 				}),
 			)

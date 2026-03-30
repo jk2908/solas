@@ -73,7 +73,7 @@ function mergeMiddlewares(
  * Create the application router from the generated manifest and import map
  */
 export function createRouter(
-	config: Pick<PluginConfig, 'outDir' | 'precompress' | 'trailingSlash'>,
+	config: Pick<PluginConfig, 'precompress' | 'trailingSlash'>,
 	manifest: Manifest,
 	importMap: ImportMap,
 	rsc: (req: SolasRequest) => Response | Promise<Response>,

@@ -12,8 +12,12 @@ export function writeConfig(config: PluginConfig) {
     ${AUTOGEN_MSG}
 
     import type { PluginConfig } from '${Solas.Config.PKG_NAME}'
+    import { Logger } from '${Solas.Config.PKG_NAME}/utils/logger'
+
+    const config = ${JSON.stringify(config, null, 2)} as const satisfies PluginConfig
+
+    if (config.logger?.level) Logger.defaultLevel = config.logger.level
     
-    export const config = 
-      ${JSON.stringify(config, null, 2)} as const satisfies PluginConfig
+    export { config }
   `.trim()
 }

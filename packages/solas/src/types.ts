@@ -16,7 +16,6 @@ export type PluginConfig = {
 	port?: number
 	precompress?: boolean
 	prerender?: Route.Prerender
-	outDir?: string
 	metadata?: Metadata.Item
 	trailingSlash?: boolean
 	readonly logger?: {
@@ -24,8 +23,12 @@ export type PluginConfig = {
 	}
 }
 
+export type RuntimeConfig = PluginConfig & {
+	precompress: NonNullable<PluginConfig['precompress']>
+	trailingSlash: NonNullable<PluginConfig['trailingSlash']>
+}
+
 export type BuildContext = {
-	outDir?: string
 	prerenderedRoutes: Set<string>
 	exportReader: ExportReader
 }
@@ -107,7 +110,6 @@ export type LooseNumber<T extends number> = T | (number & {})
 
 export type BuildManifest = {
 	prerenderedRoutes: string[]
-	outDir: string
 	precompress: boolean
 }
 

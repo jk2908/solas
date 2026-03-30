@@ -30,31 +30,20 @@ type LogEntry = {
  * Log messages with different severity levels
  */
 export class Logger {
-	#level: LogLevel
+	static #defaultLevel: LogLevel = 'info'
 
-	constructor(level: LogLevel = Logger.#getEnvLevel()) {
+	#level?: LogLevel
+
+	constructor(level?: LogLevel) {
 		this.#level = level
 	}
 
-	/**
-	 * Check if a value is a valid log level
-	 */
-	static #isValidLevel(value: unknown): value is LogLevel {
-		return typeof value === 'string' && value in LEVELS
+	static set defaultLevel(level: LogLevel) {
+		Logger.#defaultLevel = level
 	}
 
-	/**
-	 * Get the log level from environment variables, defaulting to 'info' if not set or invalid
-	 */
-	static #getEnvLevel() {
-		if (typeof process === 'undefined') return 'info'
-
-		const value = process.env.SOLAS_LOG_LEVEL ?? process.env.LOG_LEVEL
-		if (!value) return 'info'
-
-		const normalised = value.toLowerCase()
-
-		return Logger.#isValidLevel(normalised) ? normalised : 'info'
+	static get defaultLevel() {
+		return Logger.#defaultLevel
 	}
 
 	/**
@@ -84,14 +73,14 @@ export class Logger {
 	}
 
 	get level() {
-		return this.#level
+		return this.#level ?? Logger.#defaultLevel
 	}
 
 	/**
 	 * Log a message with a specific level
 	 */
 	log(level: LogLevel, message: string, error?: Error) {
-		if (LEVELS[level] < LEVELS[this.#level]) return
+		if (LEVELS[level] < LEVELS[this.level]) return
 
 		const entry: LogEntry = {
 			ts: Date.now(),

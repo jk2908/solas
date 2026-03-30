@@ -355,7 +355,7 @@ export class Router {
 	static static(config: PluginConfig) {
 		return async (req: Request) => {
 			const pathname = new URL(req.url).pathname
-			const outDir = path.resolve(config.outDir ?? 'dist')
+			const outDir = path.resolve(Solas.Config.OUT_DIR)
 			const staticRoot = path.resolve(outDir, 'client')
 
 			let decodedPathname = pathname

@@ -46,7 +46,7 @@ async function build() {
 		process.exit(1)
 	}
 
-	const outDir = path.resolve(cwd, manifest.outDir)
+	const outDir = path.resolve(cwd, Solas.Config.OUT_DIR)
 	const rscDir = path.join(outDir, 'rsc')
 	const artifactRoot = Prerender.Artifact.getRootPath(outDir)
 
@@ -230,7 +230,7 @@ async function preview() {
 	process.env.NODE_ENV = 'production'
 
 	const cwd = process.cwd()
-	const outDir = path.resolve(cwd, 'dist')
+	const outDir = path.resolve(cwd, Solas.Config.OUT_DIR)
 	const rscDir = path.join(outDir, 'rsc')
 	const rscEntry = path.join(rscDir, 'index.js')
 
@@ -250,7 +250,7 @@ async function preview() {
 		await fs.access(rscEntry)
 	} catch {
 		logger.error(
-			`[preview] missing dist/rsc/index.js - run \`${Solas.Config.SLUG} build\` first`,
+			`[preview] missing ${path.relative(cwd, rscEntry)} - run \`${Solas.Config.SLUG} build\` first`,
 		)
 		process.exit(1)
 	}

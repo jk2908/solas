@@ -9,7 +9,7 @@ import {
 	renderToReadableStream,
 } from '@vitejs/plugin-rsc/rsc'
 
-import type { ImportMap, Manifest, PluginConfig, SolasRequest } from '../../types'
+import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types'
 
 import { Solas } from '../../solas'
 
@@ -315,13 +315,6 @@ export async function maybeActionWithParsedFormData(req: Request) {
 	return { action: false, formData: null }
 }
 
-type RuntimeConfig = {
-	metadata?: PluginConfig['metadata']
-	outDir: NonNullable<PluginConfig['outDir']>
-	precompress: NonNullable<PluginConfig['precompress']>
-	trailingSlash: NonNullable<PluginConfig['trailingSlash']>
-}
-
 /**
  * Create the object exported by the generated RSC entry. Uses the generated config,
  * route manifest, and import map to build the router once, then returns an object
@@ -411,7 +404,7 @@ export function createHandler(
 		}
 
 		const artifactManifest = runtimePpr
-			? await Prerender.Artifact.loadManifest(config.outDir)
+			? await Prerender.Artifact.loadManifest(Solas.Config.OUT_DIR)
 			: null
 		const artifactManifestEntry = artifactManifest?.routes[pathname] ?? null
 
@@ -421,7 +414,7 @@ export function createHandler(
 			tryPrelude = artifactManifestEntry.mode === 'ppr'
 		} else if (runtimePpr) {
 			const artifactMetadata = await Prerender.Artifact.loadMetadata(
-				config.outDir,
+				Solas.Config.OUT_DIR,
 				pathname,
 			)
 
@@ -432,10 +425,10 @@ export function createHandler(
 
 		if (tryPrelude) {
 			const postponedState = await Prerender.Artifact.loadPostponedState(
-				config.outDir,
+				Solas.Config.OUT_DIR,
 				pathname,
 			)
-			const prelude = await Prerender.Artifact.loadPrelude(config.outDir, pathname)
+			const prelude = await Prerender.Artifact.loadPrelude(Solas.Config.OUT_DIR, pathname)
 
 			// resumable ppr responses splice fresh streamed content into the cached
 			// prelude when postponed state is available for this route
@@ -491,24 +484,26 @@ export function createHandler(
 			) {
 				const pathname = url.pathname
 				let prerenderPath: string | null = null
-				const artifactManifest = await Prerender.Artifact.loadManifest(config.outDir)
+				const artifactManifest = await Prerender.Artifact.loadManifest(
+					Solas.Config.OUT_DIR,
+				)
 				const artifactManifestEntry = artifactManifest?.routes[pathname] ?? null
 
 				if (fullyPrerenderedRoutes.has(pathname)) {
 					prerenderPath =
 						pathname === '/'
-							? config.outDir + '/index.html'
-							: config.outDir + pathname + '/index.html'
+							? Solas.Config.OUT_DIR + '/index.html'
+							: Solas.Config.OUT_DIR + pathname + '/index.html'
 				} else if (artifactManifestEntry) {
 					if (artifactManifestEntry.mode === 'full') {
 						prerenderPath =
 							pathname === '/'
-								? config.outDir + '/index.html'
-								: config.outDir + pathname + '/index.html'
+								? Solas.Config.OUT_DIR + '/index.html'
+								: Solas.Config.OUT_DIR + pathname + '/index.html'
 					}
 				} else {
 					const artifactMetadata = await Prerender.Artifact.loadMetadata(
-						config.outDir,
+						Solas.Config.OUT_DIR,
 						pathname,
 					)
 
@@ -518,8 +513,8 @@ export function createHandler(
 					) {
 						prerenderPath =
 							pathname === '/'
-								? config.outDir + '/index.html'
-								: config.outDir + pathname + '/index.html'
+								? Solas.Config.OUT_DIR + '/index.html'
+								: Solas.Config.OUT_DIR + pathname + '/index.html'
 					}
 				}
 
