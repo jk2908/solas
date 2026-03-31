@@ -289,7 +289,7 @@ export async function action(req: SolasRequest) {
  * Check if a request is an action request and reuse parsed FormData
  * when multipart action detection already had to inspect the body
  */
-export async function detectAction(req: Request) {
+export async function maybeAction(req: Request) {
 	if (req.method !== 'POST') return { action: false, formData: null }
 	if (req.headers.has('x-rsc-action-id')) return { action: true, formData: null }
 
