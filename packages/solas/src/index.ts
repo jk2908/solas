@@ -281,7 +281,9 @@ function solas(c: PluginConfig): PluginOption[] {
 			let sitemapRoutes: string[] = []
 
 			if (config.sitemap && config.url) {
-				const auto = [...new Set([...buildContext.knownRoutes, ...buildContext.prerenderRoutes])]
+				const auto = [
+					...new Set([...buildContext.knownRoutes, ...buildContext.prerenderRoutes]),
+				]
 
 				if (typeof config.sitemap === 'object' && config.sitemap.routes) {
 					sitemapRoutes = await config.sitemap.routes(auto)

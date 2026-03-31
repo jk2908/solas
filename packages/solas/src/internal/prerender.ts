@@ -295,7 +295,8 @@ export namespace Prerender {
 				prelude.lastIndexOf('</html>'),
 				prelude.lastIndexOf('</HTML>'),
 			)
-			const splitAt = bodyClose >= 0 ? bodyClose : htmlClose >= 0 ? htmlClose : prelude.length
+			const splitAt =
+				bodyClose >= 0 ? bodyClose : htmlClose >= 0 ? htmlClose : prelude.length
 
 			return new ReadableStream<Uint8Array>({
 				async start(controller) {
