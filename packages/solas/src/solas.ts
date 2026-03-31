@@ -23,6 +23,7 @@ export namespace Solas {
 			'metadata',
 			'precompress',
 			'prerender',
+			'sitemap',
 			'trailingSlash',
 			'url',
 		])
@@ -69,6 +70,26 @@ export namespace Solas {
 			if ('precompress' in input && input.precompress !== undefined) {
 				if (typeof input.precompress !== 'boolean') {
 					errors.push('config.precompress must be a boolean')
+				}
+			}
+
+			if ('sitemap' in input && input.sitemap !== undefined && input.sitemap !== false) {
+				if (typeof input.sitemap !== 'boolean' && typeof input.sitemap !== 'object') {
+					errors.push(
+						'config.sitemap must be a boolean or an object with a routes function',
+					)
+				}
+
+				if (
+					typeof input.sitemap === 'object' &&
+					input.sitemap !== null &&
+					typeof (input.sitemap as Record<string, unknown>).routes !== 'function'
+				) {
+					errors.push('config.sitemap.routes must be a function')
+				}
+
+				if (!input.url) {
+					errors.push('config.url is required when sitemap is enabled')
 				}
 			}
 

@@ -12,6 +12,8 @@ export class Redirect extends Error {
 		public readonly url: string,
 		public readonly status: RedirectStatusCode = 307,
 	) {
+		validate(url)
+
 		super(`Redirecting to ${url} with status ${status}`)
 
 		this.name = 'Redirect'
@@ -79,6 +81,5 @@ export function isRedirect(err: unknown): err is Redirect {
  * @param status - the HTTP status code for the redirect, defaults to 307
  */
 export function redirect(url: string, status: RedirectStatusCode = 307): never {
-	validate(url)
 	throw new Redirect(url, status)
 }

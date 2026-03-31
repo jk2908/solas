@@ -61,8 +61,16 @@ export class Logger {
 			return err.message + (err.stack ? `\n${err.stack}` : '')
 		}
 
+		// for plain objects, attempt to stringify with indentation
+		// for readability
 		if (typeof err === 'object' && err !== null) {
-			return JSON.stringify(err, null, 2)
+			try {
+				return JSON.stringify(err, null, 2)
+			} catch {
+				// if stringify fails (e.g. circular reference), fall back
+				// to basic string conversion
+				return String(err)
+			}
 		}
 
 		return String(err)

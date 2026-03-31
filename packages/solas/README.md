@@ -286,6 +286,55 @@ export default defineConfig({
 })
 ```
 
+### `sitemap`
+
+Use `sitemap` to generate a `sitemap.xml` at build time.
+
+Default: `false`
+
+When enabled, Solas writes a sitemap containing all routes with deterministic URLs: static routes, prerendered routes, and dynamic routes resolved via `params`. The origin for each URL comes from `config.url`.
+
+```ts
+export default defineConfig(({ mode }) => ({
+	plugins: [
+		solas({
+			url: mode === 'production' ? 'https://example.com' : 'http://localhost:8787',
+			sitemap: true,
+		}),
+	],
+}))
+```
+
+Routes with dynamic segments (`[id]`) or catch-all segments (`[...param]`) are only included if they export `params` and `prerender`.
+
+To add routes that Solas cannot discover automatically (for example, catch-all routes backed by a CMS), pass an object with a `routes` function. The function receives the auto-discovered routes and returns the final list:
+
+```ts
+export default defineConfig(({ mode }) => ({
+	plugins: [
+		solas({
+			url: mode === 'production' ? 'https://example.com' : 'http://localhost:8787',
+			sitemap: {
+				async routes(discovered) {
+					const posts = await fetchPostSlugs()
+					return [...discovered, ...posts.map(s => `/blog/${s}`)]
+				},
+			},
+		}),
+	],
+}))
+```
+
+The `routes` function can be async. The callback also lets you filter routes:
+
+```ts
+sitemap: {
+	routes: (r) => r.filter(route => !route.startsWith('/admin')),
+}
+```
+
+The sitemap is written to the build output directory as `sitemap.xml` after prerendering and before precompression.
+
 ### `logger.level`
 
 Use `logger.level` to control internal Solas logging.

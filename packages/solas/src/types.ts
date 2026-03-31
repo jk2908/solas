@@ -11,8 +11,7 @@ import type { Router } from './internal/router/router'
 
 export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]
 
-export type PluginConfig = {
-	url?: `http://${string}` | `https://${string}`
+type PluginConfigBase = {
 	port?: number
 	precompress?: boolean
 	prerender?: Route.Prerender
@@ -23,13 +22,30 @@ export type PluginConfig = {
 	}
 }
 
+export type PluginConfig = PluginConfigBase &
+	(
+		| {
+				url: `http://${string}` | `https://${string}`
+				sitemap:
+					| true
+					| {
+							routes: (existing: string[]) => string[] | Promise<string[]>
+					  }
+		  }
+		| {
+				url?: `http://${string}` | `https://${string}`
+				sitemap?: false
+		  }
+	)
+
 export type RuntimeConfig = PluginConfig & {
 	precompress: NonNullable<PluginConfig['precompress']>
 	trailingSlash: NonNullable<PluginConfig['trailingSlash']>
 }
 
 export type BuildContext = {
-	prerenderedRoutes: Set<string>
+	prerenderRoutes: Set<string>
+	knownRoutes: Set<string>
 	exportReader: ExportReader
 }
 
@@ -109,7 +125,8 @@ export type Primitive = string | number | boolean | bigint | symbol | null | und
 export type LooseNumber<T extends number> = T | (number & {})
 
 export type BuildManifest = {
-	prerenderedRoutes: string[]
+	prerenderRoutes: string[]
+	sitemapRoutes: string[]
 	precompress: boolean
 	trailingSlash: Route.TrailingSlash
 	url?: PluginConfig['url']

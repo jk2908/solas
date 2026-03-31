@@ -49,12 +49,13 @@ export function RedirectBoundary({ children }: { children: React.ReactNode }) {
 				if (!isRedirect(err)) throw err
 
 				if ('digest' in err && typeof err.digest === 'string') {
-					const [type, ...rest] = err.digest.split(':')
+					// rejoin after status so urls with colons (https://...) stay intact
+					const [type, , ...parts] = err.digest.split(':')
 
 					if (type === REDIRECT_DIGEST_PREFIX) {
-						const [, url] = rest
+						const url = parts.join(':')
 
-						return <meta httpEquiv="refresh" content={`0;url=${url}`} />
+						if (url) return <meta httpEquiv="refresh" content={`0;url=${url}`} />
 					}
 				}
 

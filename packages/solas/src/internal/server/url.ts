@@ -9,11 +9,13 @@ export function url() {
 	dynamic()
 
 	const { req, cache } = RequestContext.use()
-	// use request cache if possible
-	if (cache.url) return cache.url
+
+	// always return a clone so consumers can mutate (e.g. searchParams.set)
+	// without corrupting the cached instance shared across the request
+	if (cache.url) return new URL(cache.url)
 
 	const parsed = new URL(req.url)
 	cache.url = parsed
 
-	return parsed
+	return new URL(parsed)
 }

@@ -81,9 +81,14 @@ export function RouterProvider({
 				// and return early
 				if (navigationId !== id.current) return path
 
-				const response = await promise
-				const resolvedPath = Prefetcher.key(response.url, window.location.origin)
-				const res = await createFromFetch<RSCPayload>(Promise.resolve(response))
+				// we need both the parsed payload and the final response url because
+				// redirects can change the canonical path we should store in history
+				const [res, payload] = await Promise.all([
+					promise,
+					createFromFetch<RSCPayload>(promise),
+				])
+				// use the final response url so client history matches server redirects
+				const resolvedPath = Prefetcher.key(res.url, window.location.origin)
 
 				// check again if another navigation has started while we were awaiting
 				// the response
@@ -91,7 +96,7 @@ export function RouterProvider({
 
 				// this state update is already wrapped in a
 				// transition before being passed as props
-				setPayload?.(res)
+				setPayload?.(payload)
 
 				if (replace) {
 					window.history.replaceState(null, '', resolvedPath)
@@ -139,17 +144,10 @@ export function RouterProvider({
 	)
 
 	/**
-	 * Prefetch a route's assets by fetching the RSC payload
+	 * Prefetch a route's RSC payload
 	 * @param path the route path to prefetch (absolute or relative to origin)
-	 * @returns void
 	 */
 	const prefetch = useCallback((path: string) => {
-		const connection = window.navigator.connection
-
-		if (document.visibilityState === 'hidden') return
-		if (connection?.saveData) return
-		if (['2g', 'slow-2g'].includes(connection?.effectiveType ?? '')) return
-
 		const key = Prefetcher.key(path, window.location.origin)
 
 		if (prefetcher.has(key)) return

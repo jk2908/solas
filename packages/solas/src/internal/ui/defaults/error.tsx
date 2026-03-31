@@ -11,7 +11,9 @@ export default function Err({ error }: { error: HttpException | Error }) {
 			<h1>{title}</h1>
 			<p>{error.message}</p>
 
-			{error?.stack && <pre>{error.stack}</pre>}
+			{process.env.NODE_ENV === 'development' && error?.stack && (
+				<pre>{error.stack}</pre>
+			)}
 		</>
 	)
 }

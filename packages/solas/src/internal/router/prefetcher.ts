@@ -22,7 +22,8 @@ export class Prefetcher {
 	 */
 	static key(path: string, base: string) {
 		const url = new URL(path, base)
-		return url.pathname + url.search + url.hash
+		// hash is client-only and never sent to the server, so exclude it
+		return url.pathname + url.search
 	}
 
 	/**

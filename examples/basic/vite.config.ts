@@ -15,6 +15,11 @@ export default defineConfig(() => {
 			solas({
 				url: 'http://localhost:8787',
 				prerender: false,
+				sitemap: {
+					async routes(existing) {
+						return [...existing, '/extra-sitemap-route']
+					},
+				},
 				metadata: {
 					title: '%s - jk2908',
 					meta: [

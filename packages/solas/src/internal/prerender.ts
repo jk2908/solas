@@ -2,7 +2,7 @@ import path from 'node:path'
 
 import { compile } from 'path-to-regexp'
 
-import type { BuildContext, Route } from '../types'
+import type { BuildContext } from '../types'
 
 import { Solas } from '../solas'
 
@@ -274,6 +274,10 @@ export namespace Prerender {
 			)
 		}
 
+		// shared instances, both are stateless so one per module is fine
+		const encoder = new TextEncoder()
+		const decoder = new TextDecoder()
+
 		/**
 		 * Compose the prelude HTML and the resume stream into a single HTML stream, by injecting the resume stream
 		 * into the prelude at the appropriate location (before </body> or </html>)
@@ -282,17 +286,21 @@ export namespace Prerender {
 			prelude: string,
 			resumeStream: ReadableStream<Uint8Array>,
 		) {
-			const lower = prelude.toLowerCase()
-			const bodyClose = lower.lastIndexOf('</body>')
-			const htmlClose = lower.lastIndexOf('</html>')
-			const splitAt = bodyClose >= 0 && htmlClose > bodyClose ? bodyClose : prelude.length
+			// search both cases to avoid duplicating the full string with toLowerCase
+			const bodyClose = Math.max(
+				prelude.lastIndexOf('</body>'),
+				prelude.lastIndexOf('</BODY>'),
+			)
+			const htmlClose = Math.max(
+				prelude.lastIndexOf('</html>'),
+				prelude.lastIndexOf('</HTML>'),
+			)
+			const splitAt = bodyClose >= 0 ? bodyClose : htmlClose >= 0 ? htmlClose : prelude.length
 
 			return new ReadableStream<Uint8Array>({
 				async start(controller) {
-					const encoder = new TextEncoder()
-					const decoder = new TextDecoder()
-
-					controller.enqueue(new TextEncoder().encode(prelude.slice(0, splitAt)))
+					// send everything before the closing tags so the resume stream can be injected
+					controller.enqueue(encoder.encode(prelude.slice(0, splitAt)))
 
 					const reader = resumeStream.getReader()
 					let strippedLeadingClose = false
@@ -465,16 +473,6 @@ export namespace Prerender {
 				})
 				.filter((value): value is string => value !== null)
 				.filter(r => !r.includes(':') && !r.includes('*'))
-		}
-
-		export function normaliseRoute(
-			route: string,
-			trailingSlash: Route.TrailingSlash = 'never',
-		) {
-			if (route === '/') return route
-			if (trailingSlash === 'always') return route.endsWith('/') ? route : `${route}/`
-
-			return route.endsWith('/') ? route.slice(0, -1) : route
 		}
 
 		/**

@@ -61,10 +61,10 @@ export function HttpExceptionBoundary({
 				if (!isHttpException(err)) throw err
 
 				if ('digest' in err && typeof err.digest === 'string') {
-					const [type, ...rest] = err.digest.split(':')
+					// split with care, the message part may contain colons
+					const [type, code] = err.digest.split(':')
 
 					if (type === HTTP_EXCEPTION_DIGEST_PREFIX) {
-						const [code] = rest
 						const status = Number(code)
 
 						if (!isSupportedStatusCode(status)) throw err

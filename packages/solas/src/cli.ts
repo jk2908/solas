@@ -62,7 +62,7 @@ async function build() {
 	await fs.rm(artifactRoot, { recursive: true, force: true })
 
 	// prerender routes
-	if (manifest.prerenderedRoutes.length > 0) {
+	if (manifest.prerenderRoutes.length > 0) {
 		const timeout = Prerender.Build.getTimeout()
 		const concurrency = Prerender.Build.getConcurrency()
 		// track the extra prerender files we write for preview
@@ -70,7 +70,7 @@ async function build() {
 
 		logger.info(
 			'[prerender]',
-			`prerendering ${manifest.prerenderedRoutes.length} routes (timeout: ${timeout}ms, concurrency: ${concurrency})...`,
+			`prerendering ${manifest.prerenderRoutes.length} routes (timeout: ${timeout}ms, concurrency: ${concurrency})...`,
 		)
 
 		// load the built server entry and render each prerendered route through it
@@ -79,7 +79,7 @@ async function build() {
 		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
 		// run prerender through the built app so build output uses the same path as preview
-		for await (const result of Prerender.Build.run(app, manifest.prerenderedRoutes, {
+		for await (const result of Prerender.Build.run(app, manifest.prerenderRoutes, {
 			timeout,
 			concurrency,
 			origin: manifest.url,
@@ -227,6 +227,24 @@ async function build() {
 				routes: artifactManifestRoutes,
 			}),
 		)
+	}
+
+	// sitemap
+	if (manifest.sitemapRoutes.length > 0 && manifest.url) {
+		const origin = manifest.url.replace(/\/$/, '')
+		const urls = manifest.sitemapRoutes
+			.map(route => `  <url><loc>${origin}${route}</loc></url>`)
+			.join('\n')
+
+		const sitemap = [
+			'<?xml version="1.0" encoding="UTF-8"?>',
+			'<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+			urls,
+			'</urlset>',
+		].join('\n')
+
+		await Bun.write(path.join(outDir, 'sitemap.xml'), sitemap)
+		logger.info('[sitemap]', `generated ${manifest.sitemapRoutes.length} urls`)
 	}
 
 	// precompress

@@ -6,7 +6,7 @@ import type { HttpMethod, PluginConfig, SolasRequest } from '../../types'
 
 import { Solas } from '../../solas'
 
-import { alternatePathname, normalisePathname, toPathPattern } from './utils'
+import { getAlternatePathname, normalisePathname, toPathPattern } from './utils'
 
 import { maybeActionWithParsedFormData } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
@@ -357,7 +357,21 @@ export class Router {
 		for (let i = stack.length - 1; i >= 0; i -= 1) {
 			const handler = stack[i]
 			const prev = run
-			run = () => Promise.resolve(handler(req, prev))
+
+			run = () => {
+				let called = false
+
+				return Promise.resolve(
+					handler(req, () => {
+						// guard against double invocation so handlers/inner middleware
+						// only execute once per request
+						if (called) throw new Error('next() called more than once')
+						called = true
+
+						return prev()
+					}),
+				)
+			}
 		}
 
 		// run composed middleware stack
@@ -453,7 +467,7 @@ export class Router {
 	 */
 	static #candidates(path: string) {
 		if (path === '/') return ['/']
-		return [path, alternatePathname(path)]
+		return [path, getAlternatePathname(path)]
 	}
 
 	/**

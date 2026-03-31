@@ -44,7 +44,8 @@ function solas(c: PluginConfig): PluginOption[] {
 	const exportReader = new ExportReader()
 
 	const buildContext = {
-		prerenderedRoutes: new Set<string>(),
+		prerenderRoutes: new Set<string>(),
+		knownRoutes: new Set<string>(),
 		exportReader,
 	} satisfies BuildContext
 
@@ -113,10 +114,11 @@ function solas(c: PluginConfig): PluginOption[] {
 		])
 
 		const processor = new Build.Finder(buildContext, config)
-		const { manifest, prerenderedRoutes, imports, modules } = await processor.run()
+		const { manifest, prerenderRoutes, knownRoutes, imports, modules } =
+			await processor.run()
 
-		// set prerenderable routes in context for use in closeBundle
-		buildContext.prerenderedRoutes = prerenderedRoutes
+		buildContext.prerenderRoutes = prerenderRoutes
+		buildContext.knownRoutes = knownRoutes
 
 		const files: [string, string][] = [
 			['config.ts', writeConfig(config)],
@@ -275,13 +277,27 @@ function solas(c: PluginConfig): PluginOption[] {
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return
 
+			// resolve sitemap routes
+			let sitemapRoutes: string[] = []
+
+			if (config.sitemap && config.url) {
+				const auto = [...new Set([...buildContext.knownRoutes, ...buildContext.prerenderRoutes])]
+
+				if (typeof config.sitemap === 'object' && config.sitemap.routes) {
+					sitemapRoutes = await config.sitemap.routes(auto)
+				} else {
+					sitemapRoutes = auto
+				}
+			}
+
 			// write build manifest
 			const generatedDir = path.join(process.cwd(), Solas.Config.GENERATED_DIR)
 
 			await Bun.write(
 				path.join(generatedDir, 'build.json'),
 				JSON.stringify({
-					prerenderedRoutes: Array.from(buildContext.prerenderedRoutes),
+					prerenderRoutes: Array.from(buildContext.prerenderRoutes),
+					sitemapRoutes,
 					precompress: config.precompress,
 					trailingSlash: config.trailingSlash,
 					url: config.url,
