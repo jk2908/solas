@@ -19,7 +19,17 @@ import { normalisePathname } from './router/utils'
 
 import { Prerender } from './prerender'
 
+/**
+ * Types, constants, and the Finder class for route discovery and manifest generation.
+ * The Finder walks the app directory, builds inheritance chains, and transforms
+ * the scan result into codegen artifacts consumed by generated entry files
+ */
 export namespace Build {
+	/**
+	 * Raw output of the filesystem scan before any processing. Segments
+	 * are renderable routes (pages and layout wrappers), endpoints are
+	 * API routes with HTTP verb handlers
+	 */
 	export type ScanResult = {
 		segments: {
 			// directory path that defines this segment
@@ -46,12 +56,50 @@ export namespace Build {
 		endpoints: { file: string; middlewares: (string | null)[] }[]
 	}
 
+	/**
+	 * Accumulated file paths inherited from parent directories during the recursive
+	 * scan. Each array slot corresponds to a nesting level; null means that
+	 * level did not declare the given file type
+	 */
+	type InheritedChains = {
+		layouts: (string | null)[]
+		'401s': (string | null)[]
+		'403s': (string | null)[]
+		'404s': (string | null)[]
+		'500s': (string | null)[]
+		loaders: (string | null)[]
+		middlewares: (string | null)[]
+	}
+
+	/**
+	 * Mutable state for the current directory being scanned.
+	 * Populated as route files are discovered in sort order
+	 */
+	type DirState = {
+		layout?: string
+		'401'?: string
+		'403'?: string
+		'404'?: string
+		'500'?: string
+		loader?: string
+		middleware?: string
+	}
+
+	/**
+	 * Collected import paths keyed by entry id. Static imports are eagerly
+	 * loaded, dynamic imports are lazy-loaded via React.lazy
+	 */
 	export type Imports = {
 		endpoints: { static: Map<string, string> }
 		components: { static: Map<string, string>; dynamic: Map<string, string> }
 		middlewares: { static: Map<string, string> }
 	}
 
+	/**
+	 * Maps each entry id to the ids of its shell, layouts, page, error boundaries,
+	 * loaders, and middleware. Used by codegen to produce the import map
+	 * that the resolver reads at runtime
+	 */
 	export type Modules = Record<
 		string,
 		{
@@ -70,6 +118,8 @@ export namespace Build {
 
 	const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] as const
 
+	// short prefixes used to namespace entry ids by kind.
+	// these appear in the generated manifest and import map
 	export const EntryKind = {
 		SHELL: '$S',
 		LAYOUT: '$L',
@@ -85,8 +135,91 @@ export namespace Build {
 
 	const logger = new Logger()
 
+	// file extensions recognised for page components vs api endpoints
+	const EXTENSIONS = {
+		page: ['tsx', 'jsx'],
+		api: ['ts', 'js'],
+	} as const
+
+	// canonical file names for each route file type
+	const TYPES = {
+		page: '+page',
+		'401': '+401',
+		'403': '+403',
+		'404': '+404',
+		'500': '+500',
+		layout: '+layout',
+		loading: '+loading',
+		middleware: '+middleware',
+		endpoint: '+endpoint',
+	} as const
+
+	// pre-computed sets of valid filenames for each type so we can
+	// use O(1) lookups during the recursive scan
+	const validFiles = {
+		[TYPES.page]: new Set(EXTENSIONS.page.map(ext => `${TYPES.page}.${ext}`)),
+		[TYPES['401']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['401']}.${ext}`)),
+		[TYPES['403']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['403']}.${ext}`)),
+		[TYPES['404']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['404']}.${ext}`)),
+		[TYPES['500']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['500']}.${ext}`)),
+		[TYPES.loading]: new Set(EXTENSIONS.page.map(ext => `${TYPES.loading}.${ext}`)),
+		[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
+		[TYPES.middleware]: new Set(EXTENSIONS.api.map(ext => `${TYPES.middleware}.${ext}`)),
+		[TYPES.endpoint]: new Set(EXTENSIONS.api.map(ext => `${TYPES.endpoint}.${ext}`)),
+	}
+
+	const EMPTY_CHAINS: InheritedChains = {
+		layouts: [],
+		'401s': [],
+		'403s': [],
+		'404s': [],
+		'500s': [],
+		loaders: [],
+		middlewares: [],
+	}
+
 	/**
-	 * Finder class to process application routes
+	 * Append the current directory's files to each inherited chain, inserting
+	 * null when the directory does not declare that file type
+	 */
+	function extendChains(prev: InheritedChains, state: DirState): InheritedChains {
+		return {
+			layouts: [...prev.layouts, state.layout ?? null],
+			'401s': [...prev['401s'], state['401'] ?? null],
+			'403s': [...prev['403s'], state['403'] ?? null],
+			'404s': [...prev['404s'], state['404'] ?? null],
+			'500s': [...prev['500s'], state['500'] ?? null],
+			loaders: [...prev.loaders, state.loader ?? null],
+			middlewares: [...prev.middlewares, state.middleware ?? null],
+		}
+	}
+
+	/**
+	 * Create a segment entry from the accumulated chains. Returns null when no
+	 * shell (root layout) exists, which means this path cannot render.
+	 * The shell is always layouts[0]; remaining are nested
+	 */
+	function buildSegment(dir: string, page: string | undefined, chains: InheritedChains) {
+		const shell = chains.layouts[0]
+		if (!shell) return null
+
+		return {
+			dir,
+			page,
+			'401s': chains['401s'],
+			'403s': chains['403s'],
+			'404s': chains['404s'],
+			'500s': chains['500s'],
+			loaders: chains.loaders,
+			middlewares: chains.middlewares,
+			layouts: chains.layouts.length > 1 ? chains.layouts.slice(1) : [],
+			shell,
+		}
+	}
+
+	/**
+	 * Encapsulates the logic for scanning the app directory and processing the
+	 * result into the manifest, import map, and module map
 	 */
 	export class Finder {
 		constructor(
@@ -128,10 +261,8 @@ export namespace Build {
 		}
 
 		/**
-		 * Get the import path for a file
-		 * This finds the relative path from the generated
-		 * directory to the file, removes the extension and
-		 * replaces backslashes with forward slashes.
+		 * Get the import path for a file relative to the generated directory,
+		 * with the extension stripped and backslashes normalised
 		 */
 		static getImportPath(file: string) {
 			const cwd = process.cwd()
@@ -144,8 +275,8 @@ export namespace Build {
 		}
 
 		/**
-		 * Run the Finder to get the app route and associated data
-		 * needed for codegen
+		 * Entry point: scan the app directory then process the result
+		 * into the manifest, import map, and module map
 		 */
 		async run() {
 			try {
@@ -157,71 +288,21 @@ export namespace Build {
 		}
 
 		/**
-		 * Scan the filesystem to get all routes for processing
+		 * Recursively walk the filesystem starting at `dir`, collecting route files
+		 * into segments and endpoints. Inheritable files (layouts, error boundaries,
+		 * loaders, middleware) propagate down through `prev` so child
+		 * directories inherit parent chains.
 		 */
 		async #scan(
 			dir: string,
 			res: ScanResult = { segments: [], endpoints: [] },
-			prev: {
-				layouts: (string | null)[]
-				'401s': (string | null)[]
-				'403s': (string | null)[]
-				'404s': (string | null)[]
-				'500s': (string | null)[]
-				loaders: (string | null)[]
-				middlewares: (string | null)[]
-			} = {
-				layouts: [],
-				'401s': [],
-				'403s': [],
-				'404s': [],
-				'500s': [],
-				loaders: [],
-				middlewares: [],
-			},
+			prev: InheritedChains = EMPTY_CHAINS,
 		) {
 			try {
-				// define valid route files
-				const EXTENSIONS = {
-					page: ['tsx', 'jsx'],
-					api: ['ts', 'js'],
-				} as const
-
-				// define route file types
-				const TYPES = {
-					page: '+page',
-					'401': '+401',
-					'403': '+403',
-					'404': '+404',
-					'500': '+500',
-					layout: '+layout',
-					loading: '+loading',
-					middleware: '+middleware',
-					endpoint: '+endpoint',
-				} as const
-
-				// map of valid files for each type
-				const validFiles = {
-					[TYPES.page]: new Set(EXTENSIONS.page.map(ext => `${TYPES.page}.${ext}`)),
-					[TYPES['401']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['401']}.${ext}`)),
-					[TYPES['403']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['403']}.${ext}`)),
-					[TYPES['404']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['404']}.${ext}`)),
-					[TYPES['500']]: new Set(EXTENSIONS.page.map(ext => `${TYPES['500']}.${ext}`)),
-					[TYPES.loading]: new Set(EXTENSIONS.page.map(ext => `${TYPES.loading}.${ext}`)),
-					[TYPES.layout]: new Set(EXTENSIONS.page.map(ext => `${TYPES.layout}.${ext}`)),
-					[TYPES.middleware]: new Set(
-						EXTENSIONS.api.map(ext => `${TYPES.middleware}.${ext}`),
-					),
-					[TYPES.endpoint]: new Set(
-						EXTENSIONS.api.map(ext => `${TYPES.endpoint}.${ext}`),
-					),
-				}
-
 				const files = await fs.readdir(dir, { withFileTypes: true })
 
-				// keep a predictable order so layout/loading are picked
-				// up before page. Avoids OS dir ordering causing pages
-				// to steal layout/loaders first and drop alignment
+				// keep a predictable order so layout/loading are picked up before page.
+				// Avoids OS dir ordering causing alignment issues
 				files.sort((a, b) => {
 					if (a.isFile() && b.isDirectory()) return -1
 					if (a.isDirectory() && b.isFile()) return 1
@@ -249,107 +330,50 @@ export namespace Build {
 					return 0
 				})
 
-				// current layout, status boundaries, loader, middleware, and page files for this segment
-				let currentLayout: string | undefined
-				let current401: string | undefined
-				let current403: string | undefined
-				let current404: string | undefined
-				let current500: string | undefined
-				let currentLoader: string | undefined
-				let currentMiddleware: string | undefined
+				const state: DirState = {}
 				let currentPage: string | undefined
 
 				for (const file of files) {
 					const route = path.join(dir, file.name)
 
 					if (file.isDirectory()) {
-						// before recursing, create segment for current dir if it
-						// has a layout (defines a wrapper for child routes)
-						if (!currentPage && currentLayout) {
-							const layouts = [...prev.layouts, currentLayout]
-							const unauthorized = [...prev['401s'], current401 ?? null]
-							const forbidden = [...prev['403s'], current403 ?? null]
-							const notFounds = [...prev['404s'], current404 ?? null]
-							const serverErrors = [...prev['500s'], current500 ?? null]
-							const loaders = [...prev.loaders, currentLoader ?? null]
-							const middlewares = [...prev.middlewares, currentMiddleware ?? null]
-							const shell = layouts[0]
-
-							if (shell) {
-								res.segments.push({
-									dir,
-									page: undefined,
-									'401s': unauthorized,
-									'403s': forbidden,
-									'404s': notFounds,
-									'500s': serverErrors,
-									loaders,
-									middlewares,
-									layouts: layouts.length > 1 ? layouts.slice(1) : [],
-									shell,
-								})
-							}
+						// before recursing, create segment for current dir
+						// if it has a layout (wraps child routes)
+						if (!currentPage && state.layout) {
+							const segment = buildSegment(dir, undefined, extendChains(prev, state))
+							if (segment) res.segments.push(segment)
 						}
 
-						const next = {
-							layouts: [...prev.layouts, currentLayout ?? null],
-							'401s': [...prev['401s'], current401 ?? null],
-							'403s': [...prev['403s'], current403 ?? null],
-							'404s': [...prev['404s'], current404 ?? null],
-							'500s': [...prev['500s'], current500 ?? null],
-							loaders: [...prev.loaders, currentLoader ?? null],
-							middlewares: [...prev.middlewares, currentMiddleware ?? null],
-						}
-
-						await this.#scan(route, res, next)
+						await this.#scan(route, res, extendChains(prev, state))
 					} else {
 						const base = path.basename(file.name)
 						const relative = path.relative(process.cwd(), route).replace(/\\/g, '/')
 
 						if (validFiles[TYPES.layout].has(base)) {
-							currentLayout = relative
+							state.layout = relative
 						} else if (validFiles[TYPES['401']].has(base)) {
-							current401 = relative
+							state['401'] = relative
 						} else if (validFiles[TYPES['403']].has(base)) {
-							current403 = relative
+							state['403'] = relative
 						} else if (validFiles[TYPES['404']].has(base)) {
-							current404 = relative
+							state['404'] = relative
 						} else if (validFiles[TYPES['500']].has(base)) {
-							current500 = relative
+							state['500'] = relative
 						} else if (validFiles[TYPES.loading].has(base)) {
-							currentLoader = relative
+							state.loader = relative
 						} else if (validFiles[TYPES.middleware].has(base)) {
-							currentMiddleware = relative
+							state.middleware = relative
 						} else if (validFiles[TYPES.endpoint].has(base)) {
 							res.endpoints.push({
 								file: relative,
-								middlewares: [...prev.middlewares, currentMiddleware ?? null],
+								middlewares: [...prev.middlewares, state.middleware ?? null],
 							})
 						} else if (validFiles[TYPES.page].has(base)) {
 							currentPage = relative
-							const layouts = [...prev.layouts, currentLayout ?? null]
-							const unauthorized = [...prev['401s'], current401 ?? null]
-							const forbidden = [...prev['403s'], current403 ?? null]
-							const notFounds = [...prev['404s'], current404 ?? null]
-							const serverErrors = [...prev['500s'], current500 ?? null]
-							const loaders = [...prev.loaders, currentLoader ?? null]
-							const middlewares = [...prev.middlewares, currentMiddleware ?? null]
-							const shell = layouts?.[0]
 
-							if (!shell) throw new Error('Missing app shell')
-
-							res.segments.push({
-								dir,
-								page: relative,
-								'401s': unauthorized,
-								'403s': forbidden,
-								'404s': notFounds,
-								'500s': serverErrors,
-								loaders,
-								middlewares,
-								layouts: layouts.length > 1 ? layouts.slice(1) : [],
-								shell,
-							})
+							const segment = buildSegment(dir, relative, extendChains(prev, state))
+							if (!segment) throw new Error('Missing app shell')
+							res.segments.push(segment)
 						}
 					}
 				}
@@ -357,40 +381,19 @@ export namespace Build {
 				// warn if segment has status boundaries/loading but no page or layout
 				if (
 					!currentPage &&
-					!currentLayout &&
-					(current401 || current403 || current404 || current500 || currentLoader)
+					!state.layout &&
+					(state['401'] || state['403'] || state['404'] || state['500'] || state.loader)
 				) {
 					logger.warn(
 						`[Build:Finder:#scan]: ${dir} has status route files or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
 					)
 				}
 
-				// create segment if we have a layout but no page and
-				// haven't created one yet (no subdirectories triggered it)
-				if (!currentPage && currentLayout && !res.segments.some(s => s.dir === dir)) {
-					const layouts = [...prev.layouts, currentLayout]
-					const unauthorized = [...prev['401s'], current401 ?? null]
-					const forbidden = [...prev['403s'], current403 ?? null]
-					const notFounds = [...prev['404s'], current404 ?? null]
-					const serverErrors = [...prev['500s'], current500 ?? null]
-					const loaders = [...prev.loaders, currentLoader ?? null]
-					const middlewares = [...prev.middlewares, currentMiddleware ?? null]
-					const shell = layouts[0]
-
-					if (shell) {
-						res.segments.push({
-							dir,
-							page: undefined,
-							'401s': unauthorized,
-							'403s': forbidden,
-							'404s': notFounds,
-							'500s': serverErrors,
-							loaders,
-							middlewares,
-							layouts: layouts.length > 1 ? layouts.slice(1) : [],
-							shell,
-						})
-					}
+				// create segment if we have a layout but no page
+				// and haven't created one yet
+				if (!currentPage && state.layout && !res.segments.some(s => s.dir === dir)) {
+					const segment = buildSegment(dir, undefined, extendChains(prev, state))
+					if (segment) res.segments.push(segment)
 				}
 
 				return res satisfies ScanResult
@@ -405,24 +408,43 @@ export namespace Build {
 		}
 
 		/**
-		 * Process the scanned route data
+		 * Transform the raw scan result into the route manifest, import map,
+		 * and module map for codegen, along with route sets for
+		 * prerendering and sitemap generation
 		 */
 		async process(res: ScanResult) {
 			const processed = new Set<string>()
+
+			// concrete routes to prerender at build time
+			// (static, or dynamic with static params)
 			const prerenderRoutes = new Set<string>()
+
+			// all concrete (non-dynamic, non-wildcard) page
+			// routes for sitemap generation
 			const knownRoutes = new Set<string>()
+
 			const trailingSlash = this.config?.trailingSlash ?? 'never'
 
+			// route path → segment/endpoint entries, used at runtime
+			// to look up the component tree for a matched route
 			const manifest: Record<string, Segment | Endpoint | (Segment | Endpoint)[]> = {}
 
-			// imports for endpoints and components
+			// entry id → import path. Split into static (shell, middleware,
+			// endpoints) and dynamic (layouts, pages, boundaries)
+			// so the bundler can code-split
 			const imports: Imports = {
 				endpoints: { static: new Map() },
 				components: { static: new Map(), dynamic: new Map() },
 				middlewares: { static: new Map() },
 			}
 
+			// entry id → related entry ids. Wires up which shell,
+			// layouts, loaders, and middleware belong
+			// to each page
 			const modules: Modules = {}
+
+			// cache prerender flags per file path so shared layouts
+			// only trigger one export read across routes
 			const prerenderCache = new Map<string, Route.Prerender | undefined>()
 
 			for (const segment of res.segments) {
@@ -442,7 +464,9 @@ export namespace Build {
 						dir,
 					} = segment
 
-					// route is derived from dir path, not page
+					// derive the route pattern from the directory path, falling
+					// back to a synthetic +page.tsx when this is
+					// a layout-only segment
 					const route = Finder.toCanonicalRoute(
 						pagePath ?? `${dir.replace(/\\/g, '/')}/+page.tsx`,
 					)
@@ -452,8 +476,8 @@ export namespace Build {
 					const isDynamic = route.includes(':')
 					const isWildcard = route.includes('*')
 
-					// effective mode for this segment; start from global config then
-					// apply shell/layout/page overrides
+					// effective mode for this segment; start from global
+					// config then apply shell/layout/page overrides
 					let currentPrerenderMode: Route.Prerender = this.config?.prerender ?? false
 
 					/**
@@ -612,8 +636,8 @@ export namespace Build {
 						middlewareIds.push(middlewareId)
 
 						if (!processed.has(middlewarePath)) {
-							// route scanning only tells us this is a +middleware file path so
-							// we still validate that the module actually exports middleware
+							// route scanning only tells us this is a +middleware file path
+							// so we still validate the module exports middleware
 							if (
 								!(await this.buildContext.exportReader.has(middlewarePath, 'middleware'))
 							) {
@@ -641,11 +665,14 @@ export namespace Build {
 						processed.add(pagePath)
 					}
 
+					// resolve final prerender mode after shell → layout → page overrides
 					const shouldPrerender = currentPrerenderMode !== false
 					const prerenderMode: Route.Prerender = shouldPrerender
 						? currentPrerenderMode
 						: false
 
+					// collect concrete prerender routes; for dynamic routes,
+					// expand using the page's exported static params
 					if (shouldPrerender) {
 						if (!isDynamic && !isWildcard) {
 							prerenderRoutes.add(normalisePathname(route, trailingSlash))
@@ -665,6 +692,8 @@ export namespace Build {
 						}
 					}
 
+					// track all concrete routes regardless of prerender mode
+					// so the sitemap can include ssr-only pages too
 					if (!isDynamic && !isWildcard) {
 						knownRoutes.add(normalisePathname(route, trailingSlash))
 					}
@@ -738,6 +767,9 @@ export namespace Build {
 				}
 			}
 
+			// process api endpoints — each file can export multiple HTTP
+			// verbs which become separate manifest entries grouped
+			// under the same route
 			for (const endpoint of res.endpoints) {
 				try {
 					const endpointFilePath = endpoint.file
@@ -773,8 +805,8 @@ export namespace Build {
 								const middlewareId = `${EntryKind.MIDDLEWARE}${Bun.hash(middlewareImport)}`
 
 								if (!processed.has(middlewarePath)) {
-									// endpoint middleware discovery gives us file paths, not proof of the export
-									// so check the module shape before we register the import
+									// endpoint middleware discovery gives us file paths, not proof
+									// of the export so check the module shape first
 									if (
 										!(await this.buildContext.exportReader.has(
 											middlewarePath,
@@ -811,6 +843,9 @@ export namespace Build {
 						processed.add(endpointFilePath)
 					}
 
+					// single-verb endpoints store a plain entry, multi-verb
+					// endpoints store an array so the router can
+					// match by method at request time
 					const entry = group.length === 1 ? group[0] : group
 
 					if (endpointMiddlewarePaths.length) {

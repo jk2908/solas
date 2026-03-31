@@ -139,8 +139,8 @@ function solas(c: PluginConfig): PluginOption[] {
 
 		await Promise.all(
 			changed.map(filePath =>
-				Format.run(filePath).catch(() => {
-					logger.error(`[build] Failed to format file: ${filePath}`)
+				Format.run(filePath).catch(err => {
+					logger.error(`[build] Failed to format file: ${filePath}`, err)
 				}),
 			),
 		)

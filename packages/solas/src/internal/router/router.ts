@@ -8,7 +8,7 @@ import { Solas } from '../../solas'
 
 import { getAlternatePathname, normalisePathname, toPathPattern } from './utils'
 
-import { maybeActionWithParsedFormData } from '../env/rsc'
+import { detectAction } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
 
 export namespace Router {
@@ -283,8 +283,7 @@ export class Router {
 				req = new Request(url.toString(), req)
 			}
 
-			const { action: isAction, formData: parsedFormData } =
-				await maybeActionWithParsedFormData(req)
+			const { action: isAction, formData: parsedFormData } = await detectAction(req)
 			action = isAction
 
 			// action requests stay on the same pathname only the method is

@@ -48,8 +48,8 @@ async function build() {
 	try {
 		const raw = await fs.readFile(manifestPath, 'utf-8')
 		manifest = JSON.parse(raw)
-	} catch {
-		logger.error('[build] failed to read build manifest')
+	} catch (err) {
+		logger.error('[build] failed to read build manifest', err)
 		process.exit(1)
 	}
 
@@ -303,9 +303,10 @@ async function preview() {
 	// the built server entry handles routing, prerendered html, and ssr here
 	try {
 		await fs.access(rscEntry)
-	} catch {
+	} catch (err) {
 		logger.error(
 			`[preview] missing ${path.relative(cwd, rscEntry)} - run \`${Solas.Config.SLUG} build\` first`,
+			err,
 		)
 		process.exit(1)
 	}
