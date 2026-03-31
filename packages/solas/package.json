@@ -23,7 +23,9 @@
 		"solas": "./dist/cli.js"
 	},
 	"files": [
-		"dist"
+		"dist",
+		"README.md",
+		"LICENSE"
 	],
 	"type": "module",
 	"main": "./dist/index.js",
