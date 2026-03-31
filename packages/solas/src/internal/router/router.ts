@@ -6,9 +6,10 @@ import type { HttpMethod, PluginConfig, SolasRequest } from '../../types'
 
 import { Solas } from '../../solas'
 
+import { alternatePathname, normalisePathname, toPathPattern } from './utils'
+
 import { maybeActionWithParsedFormData } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
-import { toPathPattern } from './pattern'
 
 export namespace Router {
 	export type Params = Record<string, string | string[]>
@@ -47,7 +48,7 @@ export namespace Router {
 	}
 
 	export type Options = {
-		trailingSlash?: boolean
+		trailingSlash?: NonNullable<PluginConfig['trailingSlash']>
 	}
 
 	export type Registry = {
@@ -118,7 +119,13 @@ export class Router {
 		params?: string[],
 		middleware: Router.Middleware[] = [],
 	) {
-		const segments = Router.#split(path)
+		// normalise static routes up front so trailingSlash matching
+		// uses the same pathname shape
+		const routePath =
+			!path.includes(':') && !path.includes('*')
+				? normalisePathname(path, this.opts.trailingSlash ?? 'never')
+				: path
+		const segments = Router.#split(routePath)
 		const tokens: Router.Token[] = []
 
 		let score = 0
@@ -144,7 +151,7 @@ export class Router {
 		}
 
 		const route: Router.Route = {
-			path,
+			path: routePath,
 			method: method.toUpperCase(),
 			handler,
 			middleware: [...middleware],
@@ -156,7 +163,7 @@ export class Router {
 
 		// static route, easy map set
 		if (!path.includes(':') && !path.includes('*')) {
-			this.#routes.static.set(`${route.method}:${path}`, route)
+			this.#routes.static.set(`${route.method}:${route.path}`, route)
 			return this
 		}
 
@@ -200,15 +207,15 @@ export class Router {
 	 * Match a path and method, returning params and route
 	 */
 	match(path: string, method: HttpMethod) {
-		const direct = this.#routes.static.get(`${method}:${path}`)
+		for (const candidate of Router.#candidates(path)) {
+			const direct = this.#routes.static.get(`${method}:${candidate}`)
 
-		// direct match - quick return
-		if (direct) return { route: direct, params: {} }
+			if (direct) return { route: direct, params: {} }
 
-		// HEAD falls back to GET when HEAD is not explicitly defined
-		if (method === 'HEAD') {
-			const directGet = this.#routes.static.get(`GET:${path}`)
-			if (directGet) return { route: directGet, params: {} }
+			if (method === 'HEAD') {
+				const directGet = this.#routes.static.get(`GET:${candidate}`)
+				if (directGet) return { route: directGet, params: {} }
+			}
 		}
 
 		// else dynamic/wildcard match
@@ -253,11 +260,22 @@ export class Router {
 	 */
 	async fetch(req: Request) {
 		const url = new URL(req.url)
-		const path = Router.#normalise(url.pathname, this.opts.trailingSlash)
+		const trailingSlash = this.opts.trailingSlash ?? 'never'
+		const path =
+			trailingSlash === 'ignore'
+				? url.pathname
+				: normalisePathname(url.pathname, trailingSlash)
 		let match: Router.Match | null = null
 		let action = false
 
 		try {
+			const method = req.method.toUpperCase() as HttpMethod
+
+			if ((method === 'GET' || method === 'HEAD') && path !== url.pathname) {
+				url.pathname = path
+				return Response.redirect(url.toString(), 308)
+			}
+
 			if (path !== url.pathname) {
 				// rebuild the request with the canonical pathname so downstream code
 				// sees the same url the router matched against
@@ -268,8 +286,6 @@ export class Router {
 			const { action: isAction, formData: parsedFormData } =
 				await maybeActionWithParsedFormData(req)
 			action = isAction
-
-			const method = req.method.toUpperCase() as HttpMethod
 
 			// action requests stay on the same pathname only the method is
 			// normalised to GET this lets page/layout routes match for
@@ -435,16 +451,9 @@ export class Router {
 	/**
 	 * Normalise a path based on router options
 	 */
-	static #normalise(path: string, trailingSlash: boolean = true) {
-		if (!trailingSlash) {
-			// collapse non-root trailing slashes when the router runs in slashless mode
-			return path.endsWith('/') && path !== '/' ? path.slice(0, -1) : path
-		}
-
-		if (path === '/') return path
-
-		// otherwise make non-root paths canonical with a trailing slash
-		return path.endsWith('/') ? path : `${path}/`
+	static #candidates(path: string) {
+		if (path === '/') return ['/']
+		return [path, alternatePathname(path)]
 	}
 
 	/**

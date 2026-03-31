@@ -2,14 +2,13 @@ import path from 'node:path'
 
 import { compile } from 'path-to-regexp'
 
-import type { BuildContext } from '../types'
+import type { BuildContext, Route } from '../types'
 
 import { Solas } from '../solas'
 
 import { Logger } from '../utils/logger'
 import { Time } from '../utils/time'
-
-import { toPathPattern } from './router/pattern'
+import { toPathPattern } from './router/utils'
 
 const logger = new Logger()
 
@@ -466,6 +465,16 @@ export namespace Prerender {
 				})
 				.filter((value): value is string => value !== null)
 				.filter(r => !r.includes(':') && !r.includes('*'))
+		}
+
+		export function normaliseRoute(
+			route: string,
+			trailingSlash: Route.TrailingSlash = 'never',
+		) {
+			if (route === '/') return route
+			if (trailingSlash === 'always') return route.endsWith('/') ? route : `${route}/`
+
+			return route.endsWith('/') ? route.slice(0, -1) : route
 		}
 
 		/**

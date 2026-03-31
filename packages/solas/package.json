@@ -61,6 +61,10 @@
 			"types": "./dist/server.d.ts",
 			"import": "./dist/server.js"
 		},
+		"./utils/logger": {
+			"types": "./dist/utils/logger.d.ts",
+			"import": "./dist/utils/logger.js"
+		},
 		"./error-boundary": {
 			"types": "./dist/error-boundary.d.ts",
 			"import": "./dist/error-boundary.js"

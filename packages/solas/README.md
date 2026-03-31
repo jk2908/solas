@@ -264,15 +264,23 @@ In that example, the final page title becomes `Routing - Solas`.
 
 ### `trailingSlash`
 
-Use `trailingSlash` when you want generated routes to end with `/`.
+Use `trailingSlash` to set the app-wide URL policy.
 
-Default: `false`
+Default: `never`
+
+- `never`: `/about/` redirects to `/about`
+- `always`: `/about` redirects to `/about/`
+- `ignore`: both forms resolve without a canonical redirect
+
+This is a global setting in `solas()`. Solas does not read `trailingSlash` from route files.
+
+Prerendered output follows the same policy. `always` writes route HTML as `about/index.html`, while `never` and `ignore` write it as `about.html`.
 
 ```ts
 export default defineConfig({
 	plugins: [
 		solas({
-			trailingSlash: true,
+			trailingSlash: 'always',
 		}),
 	],
 })

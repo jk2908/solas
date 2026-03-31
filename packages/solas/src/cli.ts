@@ -14,7 +14,14 @@ import { Prerender } from './internal/prerender'
 const logger = new Logger()
 const DEFAULT_PREVIEW_PORT = 4173
 
+/**
+ * The build command does more than just run vite build - it also handles prerendering and
+ * precompressing assets. This is because prerendering needs to run against the built
+ * server entry to ensure the same code paths as preview, and precompressing needs
+ * to include the prerendered html and json files
+ */
 async function build() {
+	// build and prerender should both run in production mode
 	process.env.NODE_ENV = 'production'
 
 	const cwd = process.cwd()
@@ -58,6 +65,7 @@ async function build() {
 	if (manifest.prerenderedRoutes.length > 0) {
 		const timeout = Prerender.Build.getTimeout()
 		const concurrency = Prerender.Build.getConcurrency()
+		// track the extra prerender files we write for preview
 		const artifactManifestRoutes: Prerender.Artifact.Manifest['routes'] = {}
 
 		logger.info(
@@ -65,12 +73,12 @@ async function build() {
 			`prerendering ${manifest.prerenderedRoutes.length} routes (timeout: ${timeout}ms, concurrency: ${concurrency})...`,
 		)
 
-		// ensure production mode for React
-		process.env.NODE_ENV = 'production'
+		// load the built server entry and render each prerendered route through it
 
 		const rscEntry = path.join(rscDir, 'index.js')
 		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
+		// run prerender through the built app so build output uses the same path as preview
 		for await (const result of Prerender.Build.run(app, manifest.prerenderedRoutes, {
 			timeout,
 			concurrency,
@@ -79,8 +87,7 @@ async function build() {
 			const route = result.route
 
 			try {
-				const routeDir = route === '/' ? '' : route.replace(/^\//, '')
-				// folder for this route's build notes/files
+				// store prerender metadata for this route under the framework folder
 				const artifactDir = Prerender.Artifact.getPath(outDir, route)
 
 				if ('error' in result) throw result.error
@@ -93,7 +100,7 @@ async function build() {
 				const artifact = result.artifact
 
 				if (artifact.mode === 'ppr') {
-					// for ppr we save the shell now, and the delayed part for later
+					// for ppr save the shell now and keep the postponed state for later
 					await fs.mkdir(artifactDir, { recursive: true })
 
 					const writes: Promise<number>[] = [
@@ -150,7 +157,7 @@ async function build() {
 
 				// @todo: hash files
 
-				// even for full pages, write metadata so preview/runtime knows to serve built html
+				// full prerender still keeps metadata so preview knows to serve saved html
 				await fs.mkdir(artifactDir, { recursive: true })
 
 				await Bun.write(
@@ -163,10 +170,34 @@ async function build() {
 					}),
 				)
 
+				const routePath = route.replace(/^\//, '').replace(/\/$/, '')
 				const outPath =
 					route === '/'
 						? path.join(outDir, 'index.html')
-						: path.join(outDir, routeDir, 'index.html')
+						: manifest.trailingSlash === 'always'
+							? path.join(outDir, routePath, 'index.html')
+							: path.join(outDir, `${routePath}.html`)
+
+				// remove the old file shape for this route so switching trailingSlash mode does not leave
+				// both variants behind. we have to do this before writing the new file so that if the
+				// route shape changes, we still remove the old one instead of leaving in the output
+				const alternateOutPath =
+					route === '/'
+						? null
+						: manifest.trailingSlash === 'always'
+							? path.join(outDir, `${routePath}.html`)
+							: path.join(outDir, routePath, 'index.html')
+
+				if (alternateOutPath) {
+					// remove the old file shape so switching trailingSlash mode
+					// does not leave both variants behind
+					await Promise.all([
+						fs.rm(alternateOutPath, { force: true }),
+						fs.rm(`${alternateOutPath}.br`, { force: true }),
+					])
+
+					await fs.rmdir(path.dirname(alternateOutPath)).catch(() => {})
+				}
 
 				await fs.mkdir(path.dirname(outPath), { recursive: true })
 				await Bun.write(outPath, artifact.html)
@@ -186,6 +217,7 @@ async function build() {
 			}
 		}
 
+		// write one manifest for the saved prerender files after all routes finish
 		await fs.mkdir(artifactRoot, { recursive: true })
 
 		await Bun.write(
@@ -201,6 +233,7 @@ async function build() {
 	if (manifest.precompress) {
 		logger.info('[precompress]', 'compressing assets...')
 
+		// compress after prerender so generated html and json are included too
 		for await (const { input, compressed } of Compress.run(outDir, {
 			filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
 		})) {
@@ -210,6 +243,7 @@ async function build() {
 	}
 
 	// cleanup
+	// this file is only needed while the build command is running
 	await fs.unlink(manifestPath).catch(() => {})
 
 	logger.info('[build]', 'done')
@@ -228,6 +262,7 @@ async function dev() {
 }
 
 async function preview() {
+	// preview should behave like production, not like vite dev
 	process.env.NODE_ENV = 'production'
 
 	const cwd = process.cwd()
@@ -241,12 +276,13 @@ async function preview() {
 			? Number(args[portFlagIndex + 1])
 			: DEFAULT_PREVIEW_PORT
 
+	// fail fast if the port is invalid
 	if (!Number.isInteger(parsedPort) || parsedPort <= 0 || parsedPort > 65535) {
 		logger.error(`[preview] invalid port: ${args[portFlagIndex + 1] ?? 'undefined'}`)
 		process.exit(1)
 	}
 
-	// import RSC server (handles prerendered HTML, static assets, and ssr)
+	// the built server entry handles routing, prerendered html, and ssr here
 	try {
 		await fs.access(rscEntry)
 	} catch {
@@ -259,6 +295,7 @@ async function preview() {
 	const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
 	try {
+		// keep the preview server thin and let the app handle requests
 		Bun.serve({
 			port: parsedPort,
 			fetch: app.fetch,
@@ -270,11 +307,11 @@ async function preview() {
 
 	logger.info('[preview]', `server running at http://localhost:${parsedPort}`)
 
-	// keep alive
+	// keep the process running after the server starts
 	await new Promise(() => {})
 }
 
-// cli entry point
+// read the subcommand once and dispatch below
 const [, , command, ...args] = process.argv
 
 switch (command) {

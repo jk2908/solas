@@ -28,7 +28,7 @@ import { writeMaps } from './internal/codegen/maps'
 const DEFAULT_CONFIG = {
 	precompress: true,
 	prerender: false,
-	trailingSlash: false,
+	trailingSlash: 'never',
 } as const satisfies Partial<PluginConfig>
 
 function solas(c: PluginConfig): PluginOption[] {
@@ -61,7 +61,6 @@ function solas(c: PluginConfig): PluginOption[] {
 
 				// else, file is missing but cached content is the same as
 				// last time we saw it, write it
-
 				await Bun.write(filePath, content)
 				fileCache.set(filePath, content)
 
@@ -284,6 +283,7 @@ function solas(c: PluginConfig): PluginOption[] {
 				JSON.stringify({
 					prerenderedRoutes: Array.from(buildContext.prerenderedRoutes),
 					precompress: config.precompress,
+					trailingSlash: config.trailingSlash,
 					url: config.url,
 				}),
 			)

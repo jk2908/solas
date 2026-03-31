@@ -16,6 +16,7 @@ export namespace Solas {
 		export const REQUEST_META = `__${SLUG.toUpperCase()}__`
 		export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
 		export const PRERENDER_MODES = ['full', 'ppr', false] as const
+		export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
 
 		const CONFIG_KEYS = new Set([
 			'logger',
@@ -82,8 +83,13 @@ export namespace Solas {
 			}
 
 			if ('trailingSlash' in input && input.trailingSlash !== undefined) {
-				if (typeof input.trailingSlash !== 'boolean') {
-					errors.push('config.trailingSlash must be a boolean')
+				if (
+					typeof input.trailingSlash !== 'string' ||
+					!new Set(TRAILING_SLASH_MODES).has(
+						input.trailingSlash as (typeof TRAILING_SLASH_MODES)[number],
+					)
+				) {
+					errors.push("config.trailingSlash must be 'always', 'never', or 'ignore'")
 				}
 			}
 

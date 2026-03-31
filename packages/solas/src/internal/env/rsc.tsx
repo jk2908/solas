@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import type { ReactFormState } from 'react-dom/client'
 
 import {
@@ -14,6 +16,7 @@ import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../typ
 import { Solas } from '../../solas'
 
 import { Logger } from '../../utils/logger'
+import { normalisePathname } from '../router/utils'
 import { getKnownDigest, isKnownError } from './utils'
 
 import type { SSRModule } from './ssr'
@@ -325,11 +328,12 @@ export function createHandler(
 	manifest: Manifest,
 	importMap: ImportMap,
 ) {
+	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
 	const fullyPrerenderedRoutes = new Set<string>(
 		Object.values(manifest)
 			.flat()
 			.filter(entry => 'prerender' in entry && String(entry.prerender) === 'full')
-			.map(entry => entry.__path),
+			.map(entry => normalisePathname(entry.__path, prerenderPathMode)),
 	)
 
 	/**
@@ -379,6 +383,7 @@ export function createHandler(
 
 		const mod = await import.meta.viteRsc.loadModule<SSRModule>('ssr', 'index')
 		const pathname = new URL(req.url).pathname
+		const lookupPath = normalisePathname(pathname, prerenderPathMode)
 		const runtimePpr = !import.meta.env.DEV && ppr
 
 		// prerender artifact requests bypass the normal document path so the cli
@@ -406,7 +411,7 @@ export function createHandler(
 		const artifactManifest = runtimePpr
 			? await Prerender.Artifact.loadManifest(Solas.Config.OUT_DIR)
 			: null
-		const artifactManifestEntry = artifactManifest?.routes[pathname] ?? null
+		const artifactManifestEntry = artifactManifest?.routes[lookupPath] ?? null
 
 		let tryPrelude = false
 
@@ -415,20 +420,23 @@ export function createHandler(
 		} else if (runtimePpr) {
 			const artifactMetadata = await Prerender.Artifact.loadMetadata(
 				Solas.Config.OUT_DIR,
-				pathname,
+				lookupPath,
 			)
 
 			tryPrelude =
 				!!artifactMetadata &&
-				Prerender.Artifact.isCompatible(artifactMetadata, pathname, 'ppr')
+				Prerender.Artifact.isCompatible(artifactMetadata, lookupPath, 'ppr')
 		}
 
 		if (tryPrelude) {
 			const postponedState = await Prerender.Artifact.loadPostponedState(
 				Solas.Config.OUT_DIR,
-				pathname,
+				lookupPath,
 			)
-			const prelude = await Prerender.Artifact.loadPrelude(Solas.Config.OUT_DIR, pathname)
+			const prelude = await Prerender.Artifact.loadPrelude(
+				Solas.Config.OUT_DIR,
+				lookupPath,
+			)
 
 			// resumable ppr responses splice fresh streamed content into the cached
 			// prelude when postponed state is available for this route
@@ -474,6 +482,20 @@ export function createHandler(
 		async fetch(req: Request) {
 			const url = new URL(req.url)
 			const accept = req.headers.get('accept') ?? ''
+			const method = req.method.toUpperCase()
+			const canonicalPath =
+				config.trailingSlash === 'ignore'
+					? url.pathname
+					: normalisePathname(url.pathname, config.trailingSlash)
+
+			if (
+				(method === 'GET' || method === 'HEAD') &&
+				config.trailingSlash !== 'ignore' &&
+				canonicalPath !== url.pathname
+			) {
+				url.pathname = canonicalPath
+				return Response.redirect(url.toString(), 308)
+			}
 
 			// fully prerendered html can be served straight from disk for normal
 			// document requests, but artifact generation must still hit the runtime path
@@ -482,39 +504,38 @@ export function createHandler(
 				accept.includes('text/html') &&
 				req.headers.get(`x-${Solas.Config.SLUG}-prerender-artifact`) !== '1'
 			) {
-				const pathname = url.pathname
+				const pathname = canonicalPath
+				const lookupPath = normalisePathname(pathname, prerenderPathMode)
+				const routePath = lookupPath.replace(/^\//, '').replace(/\/$/, '')
 				let prerenderPath: string | null = null
 				const artifactManifest = await Prerender.Artifact.loadManifest(
 					Solas.Config.OUT_DIR,
 				)
-				const artifactManifestEntry = artifactManifest?.routes[pathname] ?? null
+				const artifactManifestEntry = artifactManifest?.routes[lookupPath] ?? null
+				const fullHtmlPath =
+					lookupPath === '/'
+						? path.join(Solas.Config.OUT_DIR, 'index.html')
+						: config.trailingSlash === 'always'
+							? path.join(Solas.Config.OUT_DIR, routePath, 'index.html')
+							: path.join(Solas.Config.OUT_DIR, `${routePath}.html`)
 
-				if (fullyPrerenderedRoutes.has(pathname)) {
-					prerenderPath =
-						pathname === '/'
-							? Solas.Config.OUT_DIR + '/index.html'
-							: Solas.Config.OUT_DIR + pathname + '/index.html'
+				if (fullyPrerenderedRoutes.has(lookupPath)) {
+					prerenderPath = fullHtmlPath
 				} else if (artifactManifestEntry) {
 					if (artifactManifestEntry.mode === 'full') {
-						prerenderPath =
-							pathname === '/'
-								? Solas.Config.OUT_DIR + '/index.html'
-								: Solas.Config.OUT_DIR + pathname + '/index.html'
+						prerenderPath = fullHtmlPath
 					}
 				} else {
 					const artifactMetadata = await Prerender.Artifact.loadMetadata(
 						Solas.Config.OUT_DIR,
-						pathname,
+						lookupPath,
 					)
 
 					if (
 						artifactMetadata &&
-						Prerender.Artifact.isCompatible(artifactMetadata, pathname, 'full')
+						Prerender.Artifact.isCompatible(artifactMetadata, lookupPath, 'full')
 					) {
-						prerenderPath =
-							pathname === '/'
-								? Solas.Config.OUT_DIR + '/index.html'
-								: Solas.Config.OUT_DIR + pathname + '/index.html'
+						prerenderPath = fullHtmlPath
 					}
 				}
 

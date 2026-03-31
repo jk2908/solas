@@ -1,3 +1,5 @@
+import type { Route } from '../../types'
+
 export type PathPattern = {
 	path: string
 	wildcardNames: Set<string>
@@ -41,4 +43,21 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
 		.join('')
 
 	return { path: path || '/', wildcardNames }
+}
+
+export function normalisePathname(
+	pathname: string,
+	trailingSlash: Route.TrailingSlash = 'never',
+) {
+	if (pathname === '/') return pathname
+	if (trailingSlash === 'ignore') return pathname
+	if (trailingSlash === 'always')
+		return pathname.endsWith('/') ? pathname : `${pathname}/`
+
+	return pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+}
+
+export function alternatePathname(pathname: string) {
+	if (pathname === '/') return pathname
+	return pathname.endsWith('/') ? pathname.slice(0, -1) : `${pathname}/`
 }

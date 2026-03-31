@@ -17,7 +17,7 @@ export type PluginConfig = {
 	precompress?: boolean
 	prerender?: Route.Prerender
 	metadata?: Metadata.Item
-	trailingSlash?: boolean
+	trailingSlash?: Route.TrailingSlash
 	readonly logger?: {
 		level?: LogLevel
 	}
@@ -111,6 +111,7 @@ export type LooseNumber<T extends number> = T | (number & {})
 export type BuildManifest = {
 	prerenderedRoutes: string[]
 	precompress: boolean
+	trailingSlash: Route.TrailingSlash
 	url?: PluginConfig['url']
 }
 
@@ -120,6 +121,7 @@ export namespace Route {
 		| ((input: Metadata.Input<Router.Params>) => Promise<Metadata.Item> | Metadata.Item)
 
 	export type Prerender = (typeof Solas.Config.PRERENDER_MODES)[number]
+	export type TrailingSlash = (typeof Solas.Config.TRAILING_SLASH_MODES)[number]
 }
 
 export type BoundaryError = Error & { digest?: string }

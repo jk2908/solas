@@ -81,25 +81,31 @@ export function RouterProvider({
 				// and return early
 				if (navigationId !== id.current) return path
 
-				const res = await createFromFetch<RSCPayload>(promise)
+				const response = await promise
+				const resolvedPath = Prefetcher.key(response.url, window.location.origin)
+				const res = await createFromFetch<RSCPayload>(Promise.resolve(response))
 
 				// check again if another navigation has started while we were awaiting
 				// the response
-				if (navigationId !== id.current) return path
+				if (navigationId !== id.current) return resolvedPath
 
 				// this state update is already wrapped in a
 				// transition before being passed as props
 				setPayload?.(res)
 
 				if (replace) {
-					window.history.replaceState(null, '', path)
+					window.history.replaceState(null, '', resolvedPath)
 				} else {
-					window.history.pushState(null, '', path)
+					window.history.pushState(null, '', resolvedPath)
 				}
 
 				window.dispatchEvent(
-					new CustomEvent(Solas.Events.names.NAVIGATION, { detail: { path } }),
+					new CustomEvent(Solas.Events.names.NAVIGATION, {
+						detail: { path: resolvedPath },
+					}),
 				)
+
+				return resolvedPath
 			} catch (err) {
 				if (err instanceof Error && err.name === 'AbortError') {
 					return path

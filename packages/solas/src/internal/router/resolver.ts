@@ -127,6 +127,23 @@ export class Resolver {
 		return 200
 	}
 
+	/**
+	 * Find a manifest entry by path, trying both with and without a trailing slash
+	 */
+	static #getEntryByPath(manifest: Manifest, path: string) {
+		const direct = manifest[path]
+		if (direct) return direct
+
+		if (path !== '/' && path.endsWith('/')) {
+			return manifest[path.slice(0, -1)]
+		}
+
+		return manifest[`${path}/`]
+	}
+
+	/**
+	 * Merge the cached enhanced match with the params and error from this request's match
+	 */
 	static #withRequestState(
 		cached: Resolver.CachedEnhancedMatch,
 		match: NonNullable<Resolver.ReconciledMatch>,
@@ -210,7 +227,9 @@ export class Resolver {
 	 */
 	reconcile(path: string, match: Router.Match | null, error?: Error) {
 		if (match) {
-			const entry = Resolver.narrow(this.#manifest[match.route.path])
+			const entry = Resolver.narrow(
+				Resolver.#getEntryByPath(this.#manifest, match.route.path),
+			)
 
 			if (entry) {
 				// normal case, the router matched a page route so just attach request state

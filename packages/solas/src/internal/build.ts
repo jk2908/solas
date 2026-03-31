@@ -409,6 +409,7 @@ export namespace Build {
 		async process(res: ScanResult) {
 			const processed = new Set<string>()
 			const prerenderedRoutes = new Set<string>()
+			const trailingSlash = this.config?.trailingSlash ?? 'never'
 
 			const manifest: Record<string, Segment | Endpoint | (Segment | Endpoint)[]> = {}
 
@@ -645,7 +646,7 @@ export namespace Build {
 
 					if (shouldPrerender) {
 						if (!isDynamic && !isWildcard) {
-							prerenderedRoutes.add(route)
+							prerenderedRoutes.add(Prerender.Build.normaliseRoute(route, trailingSlash))
 						} else if (pagePath) {
 							const staticParams = await Prerender.Build.getStaticParams(
 								pagePath,
@@ -657,7 +658,7 @@ export namespace Build {
 								params,
 								staticParams,
 							)) {
-								prerenderedRoutes.add(r)
+								prerenderedRoutes.add(Prerender.Build.normaliseRoute(r, trailingSlash))
 							}
 						}
 					}
