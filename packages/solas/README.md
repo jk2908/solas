@@ -315,9 +315,9 @@ export default defineConfig(({ mode }) => ({
 		solas({
 			url: mode === 'production' ? 'https://example.com' : 'http://localhost:8787',
 			sitemap: {
-				async routes(discovered) {
-					const posts = await fetchPostSlugs()
-					return [...discovered, ...posts.map(s => `/blog/${s}`)]
+				async routes(existing) {
+					const posts = await getPosts()
+					return [...existing, ...posts.map(p => `/blog/${p.slug}`)]
 				},
 			},
 		}),
