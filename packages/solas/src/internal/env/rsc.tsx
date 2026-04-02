@@ -1,15 +1,6 @@
-import path from 'node:path'
-
 import type { ReactFormState } from 'react-dom/client'
 
-import {
-	createTemporaryReferenceSet,
-	decodeAction,
-	decodeFormState,
-	decodeReply,
-	loadServerAction,
-	renderToReadableStream,
-} from '@vitejs/plugin-rsc/rsc'
+import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types'
 
@@ -27,6 +18,7 @@ import { Tree } from '../render/tree'
 import { createRouter } from '../router/create-router'
 import { Resolver } from '../router/resolver'
 import { Router } from '../router/router'
+import { processActionRequest } from '../server/actions'
 import DefaultErr from '../ui/defaults/error'
 import { RequestContext } from './request-context'
 
@@ -241,83 +233,6 @@ async function getPayload(
 	}
 }
 
-export async function action(req: SolasRequest) {
-	let returnValue: { ok: boolean; data: unknown } | undefined
-	let formState: ReactFormState | undefined
-	let temporaryReferences: unknown
-
-	const id = req.headers.get('x-rsc-action-id')
-
-	if (id) {
-		// x-rsc-action-id header exists when action is
-		// called via ReactClient.setServerCallback
-		const body = req.headers.get('content-type')?.startsWith('multipart/form-data')
-			? await req.formData()
-			: await req.text()
-
-		temporaryReferences = createTemporaryReferenceSet()
-		const args = await decodeReply(body, {
-			temporaryReferences,
-		})
-
-		const action = await loadServerAction(id)
-
-		try {
-			const data = await action.apply(null, args)
-			returnValue = { ok: true, data }
-		} catch (err) {
-			returnValue = { ok: false, data: err }
-		}
-	} else {
-		// otherwise server function is called via
-		// <form action={...}>
-
-		// we might have already parsed FormData in the router for multipart action
-		// detection should be attached to the SolasRequest, so we can reuse that
-		// to avoid parsing twice
-		const parsedFormData = req[Solas.Config.REQUEST_META]?.parsedFormData
-
-		const formData = parsedFormData ?? (await req.formData())
-		const decodedAction = await decodeAction(formData)
-		const result = await decodedAction()
-		formState = await decodeFormState(result, formData)
-	}
-
-	return { returnValue, formState, temporaryReferences }
-}
-/**
- * Check if a request is an action request and reuse parsed FormData
- * when multipart action detection already had to inspect the body
- */
-export async function maybeAction(req: Request) {
-	if (req.method !== 'POST') return { action: false, formData: null }
-	if (req.headers.has('x-rsc-action-id')) return { action: true, formData: null }
-
-	const contentType = req.headers.get('content-type') ?? ''
-
-	if (!contentType.startsWith('multipart/form-data')) {
-		return { action: false, formData: null }
-	}
-
-	try {
-		const formData = await req.clone().formData()
-
-		for (const key of formData.keys()) {
-			if (
-				key === '$ACTION_KEY' ||
-				key.startsWith('$ACTION_') ||
-				key.startsWith('$ACTION_REF_')
-			) {
-				return { action: true, formData }
-			}
-		}
-	} catch {
-		return { action: false, formData: null }
-	}
-
-	return { action: false, formData: null }
-}
-
 /**
  * Create the object exported by the generated RSC entry. Uses the generated config,
  * route manifest, and import map to build the router once, then returns an object
@@ -327,14 +242,9 @@ export function createHandler(
 	config: RuntimeConfig,
 	manifest: Manifest,
 	importMap: ImportMap,
+	artifactManifest: Prerender.Artifact.Manifest | null = null,
 ) {
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
-	const fullyPrerenderedRoutes = new Set<string>(
-		Object.values(manifest)
-			.flat()
-			.filter(entry => 'prerender' in entry && String(entry.prerender) === 'full')
-			.map(entry => normalisePathname(entry.__path, prerenderPathMode)),
-	)
 
 	/**
 	 * Create the HTTP response for a single incoming request. Runs actions when needed,
@@ -352,7 +262,7 @@ export function createHandler(
 			returnValue: undefined,
 		}
 
-		if (req[Solas.Config.REQUEST_META].action) opts = await action(req)
+		if (req[Solas.Config.REQUEST_META].action) opts = await processActionRequest(req)
 
 		const {
 			stream: rscStream,
@@ -408,10 +318,9 @@ export function createHandler(
 			})
 		}
 
-		const artifactManifest = runtimePpr
-			? await Prerender.Artifact.loadManifest(Solas.Config.OUT_DIR)
+		const artifactManifestEntry = runtimePpr
+			? (artifactManifest?.routes[lookupPath] ?? null)
 			: null
-		const artifactManifestEntry = artifactManifest?.routes[lookupPath] ?? null
 
 		let tryPrelude = false
 
@@ -498,46 +407,23 @@ export function createHandler(
 			}
 
 			// fully prerendered html can be served straight from disk for normal
-			// document requests, but artifact generation must still hit the runtime path
+			// document requests, but build-time artifact requests must bypass
+			// this shortcut so they still render fresh output
 			if (
 				!import.meta.env.DEV &&
 				accept.includes('text/html') &&
 				req.headers.get(`x-${Solas.Config.SLUG}-prerender-artifact`) !== '1'
 			) {
-				const pathname = canonicalPath
-				const lookupPath = normalisePathname(pathname, prerenderPathMode)
-				const routePath = lookupPath.replace(/^\//, '').replace(/\/$/, '')
-				let prerenderPath: string | null = null
-				const artifactManifest = await Prerender.Artifact.loadManifest(
-					Solas.Config.OUT_DIR,
-				)
-				const artifactManifestEntry = artifactManifest?.routes[lookupPath] ?? null
-				const fullHtmlPath =
-					lookupPath === '/'
-						? path.join(Solas.Config.OUT_DIR, 'index.html')
-						: config.trailingSlash === 'always'
-							? path.join(Solas.Config.OUT_DIR, routePath, 'index.html')
-							: path.join(Solas.Config.OUT_DIR, `${routePath}.html`)
-
-				if (fullyPrerenderedRoutes.has(lookupPath)) {
-					prerenderPath = fullHtmlPath
-				} else if (artifactManifestEntry) {
-					if (artifactManifestEntry.mode === 'full') {
-						prerenderPath = fullHtmlPath
-					}
-				} else {
-					const artifactMetadata = await Prerender.Artifact.loadMetadata(
-						Solas.Config.OUT_DIR,
-						lookupPath,
-					)
-
-					if (
-						artifactMetadata &&
-						Prerender.Artifact.isCompatible(artifactMetadata, lookupPath, 'full')
-					) {
-						prerenderPath = fullHtmlPath
-					}
-				}
+				const lookupPath = normalisePathname(canonicalPath, prerenderPathMode)
+				const fullPrerenderFilename =
+					artifactManifest?.routes[lookupPath]?.fullPrerenderFilename
+				const prerenderPath = fullPrerenderFilename
+					? Prerender.Artifact.getFilePath(
+							Solas.Config.OUT_DIR,
+							lookupPath,
+							fullPrerenderFilename,
+						)
+					: null
 
 				if (prerenderPath) {
 					const res = await Router.serve(prerenderPath, req, config.precompress, {

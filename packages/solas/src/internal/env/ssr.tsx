@@ -190,6 +190,7 @@ async function resume(
 	opts: Pick<Opts, 'nonce'> & { injectPayload?: boolean } = {},
 ) {
 	const { nonce, injectPayload = true } = opts
+
 	const [s1, s2] = rscStream.tee()
 	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
 

@@ -37,11 +37,24 @@ export namespace Prerender {
 			mode: Mode
 			createdAt: number
 			files?: File[]
+			fullPrerenderFilename?: string
 		}
 
 		export type Manifest = {
 			generatedAt: number
 			routes: Record<string, ManifestEntry>
+		}
+
+		/**
+		 * Check whether a file name is safe to join under an artifact directory
+		 */
+		function isArtifactFileName(value: unknown): value is string {
+			return (
+				typeof value === 'string' &&
+				value.length > 0 &&
+				path.basename(value) === value &&
+				!value.includes(path.sep)
+			)
 		}
 
 		/**
@@ -74,6 +87,24 @@ export namespace Prerender {
 			}
 
 			return artifactPath
+		}
+
+		/**
+		 * Get the file system path for a single prerender artifact file under a route directory
+		 */
+		export function getFilePath(outDir: string, pathname: string, fileName: string) {
+			if (!isArtifactFileName(fileName)) {
+				throw new Error('[prerender] invalid artifact file name')
+			}
+
+			return path.join(getPath(outDir, pathname), fileName)
+		}
+
+		/**
+		 * Build a deterministic file name for a full prerender html artifact
+		 */
+		export function getFullHtmlFileName(html: string) {
+			return `html.${Bun.hash(html).toString(16)}.html`
 		}
 
 		/**
@@ -155,6 +186,15 @@ export namespace Prerender {
 							}
 						}
 					}
+
+					if (
+						entry.fullPrerenderFilename !== undefined &&
+						!isArtifactFileName(entry.fullPrerenderFilename)
+					) {
+						manifestCache.set(outDir, null)
+						return null
+					}
+
 				}
 
 				const manifest = { generatedAt, routes } as Manifest
@@ -244,13 +284,17 @@ export namespace Prerender {
 				const route = (value as { route?: unknown }).route
 				const createdAt = (value as { createdAt?: unknown }).createdAt
 				const mode = (value as { mode?: unknown }).mode
-
 				if (typeof schema !== 'string') return null
 				if (typeof route !== 'string') return null
 				if (typeof createdAt !== 'number') return null
 				if (mode !== 'full' && mode !== 'ppr') return null
 
-				return { schema, route, createdAt, mode } satisfies Metadata
+				return {
+					schema,
+					route,
+					createdAt,
+					mode,
+				} satisfies Metadata
 			} catch {
 				return null
 			}
@@ -286,6 +330,8 @@ export namespace Prerender {
 			prelude: string,
 			resumeStream: ReadableStream<Uint8Array>,
 		) {
+			// `prelude` is the static shell html as one complete string, usually shaped like
+			// `<html>...<body>static shell...</body></html>` or an html fragment with no close tags
 			// search both cases to avoid duplicating the full string with toLowerCase
 			const bodyClose = Math.max(
 				prelude.lastIndexOf('</body>'),
@@ -295,6 +341,8 @@ export namespace Prerender {
 				prelude.lastIndexOf('</html>'),
 				prelude.lastIndexOf('</HTML>'),
 			)
+			// prefer inserting before </body>, then before </html>, and fall back
+			// to appending when the prelude is only a fragment with no close tags
 			const splitAt =
 				bodyClose >= 0 ? bodyClose : htmlClose >= 0 ? htmlClose : prelude.length
 
@@ -303,6 +351,10 @@ export namespace Prerender {
 					// send everything before the closing tags so the resume stream can be injected
 					controller.enqueue(encoder.encode(prelude.slice(0, splitAt)))
 
+					// resumeStream is the html React emits when it resumes postponed work for this page. Its
+					// first chunk begins with an extra `</body></html>` pair, then continues with the
+					// resumed scripts and markup for the unfinished work. Strip that leading
+					// pair once, then pass the rest through unchanged
 					const reader = resumeStream.getReader()
 					let strippedLeadingClose = false
 
@@ -317,6 +369,9 @@ export namespace Prerender {
 								strippedLeadingClose = true
 
 								const text = decoder.decode(value)
+								// we already wrote the prelude up to the insertion point before its closing tags.
+								// React's first resumed chunk starts with an extra `</body></html>` pair,
+								// so strip that prefix and keep the rest of the chunk
 								const trimmed = text.replace(/^\s*<\/body>\s*<\/html>/i, '')
 
 								if (trimmed.length > 0) controller.enqueue(encoder.encode(trimmed))
@@ -324,6 +379,9 @@ export namespace Prerender {
 								continue
 							}
 
+							// once the duplicated `</body></html>` prefix is removed, stop trying to
+							// interpret the stream and forward each remaining chunk exactly as React
+							// emitted it
 							controller.enqueue(value)
 						}
 					} finally {

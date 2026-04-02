@@ -21,9 +21,13 @@ export class Prefetcher {
 	 * against a base url
 	 */
 	static key(path: string, base: string) {
-		const url = new URL(path, base)
-		// hash is client-only and never sent to the server, so exclude it
-		return url.pathname + url.search
+		try {
+			const url = new URL(path, base)
+			// hash is client-only and never sent to the server, so exclude it
+			return url.pathname + url.search
+		} catch {
+			return null
+		}
 	}
 
 	/**

@@ -60,6 +60,22 @@ export namespace Metadata {
 	export type RunMode = 'always' | 'error'
 
 	/**
+	 * Check whether a value is a supported metadata primitive
+	 */
+	function isTagValue(value: unknown): value is Exclude<TagValue, 'undefined'> {
+		return (
+			typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
+		)
+	}
+
+	/**
+	 * Convert supported metadata primitives to string for title handling
+	 */
+	function toTitleString(value: unknown) {
+		return isTagValue(value) ? String(value) : undefined
+	}
+
+	/**
 	 * A cached way to load one metadata export for a route.
 	 * The export itself is loaded once route structure is known, then resolved
 	 * later with request-specific input such as params or an error.
@@ -101,9 +117,9 @@ export namespace Metadata {
 			const linkMap = new Map<string, LinkTag>()
 
 			for (const item of items) {
-				if (item.title) {
-					const titleStr = item.title.toString()
+				const titleStr = toTitleString(item.title)
 
+				if (titleStr !== undefined) {
 					if (titleStr.includes(TITLE_TEMPLATE_STR)) {
 						titleTemplate = titleStr
 					} else {
@@ -194,13 +210,13 @@ export namespace Metadata {
 
 			let merged = Collection.#clone(this.#base)
 
-			const res = await Promise.allSettled(items.map(entry => entry.task))
+			const res = await Promise.allSettled(items.map(item => item.task))
 			const ok = res
 				.filter(
-					(result): result is PromiseFulfilledResult<Item> =>
+					(result: PromiseSettledResult<Item>): result is PromiseFulfilledResult<Item> =>
 						result.status === 'fulfilled',
 				)
-				.map(result => result.value)
+				.map((result: PromiseFulfilledResult<Item>) => result.value)
 
 			if (ok.length) merged = Collection.#merge(merged, ...ok)
 

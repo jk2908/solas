@@ -41,29 +41,41 @@ export function RouterProvider({
 	 */
 	const go = useCallback(
 		async (to: string, opts: Navigation.GoOptions = {}) => {
+			// increment navigation id to invalidate any in-flight navigations
 			id.current += 1
 			const navigationId = id.current
+
+			// fallback for abort/error paths
+			let path = window.location.pathname + window.location.search
+			const replace = opts?.replace ?? DEFAULT_GO_CONFIG.replace
 
 			controller.current?.abort()
 			controller.current = null
 
-			const url = new URL(to, window.location.origin)
-			const replace = opts?.replace ?? DEFAULT_GO_CONFIG.replace
-
-			if (opts?.query) {
-				for (const [key, value] of Object.entries(opts.query)) {
-					url.searchParams.set(key, String(value))
-				}
-			}
-
-			const path = Prefetcher.key(url.toString(), window.location.origin)
-
 			// distinguish an actual prior prefetch from a cache entry we create
 			// opportunistically for this navigation
-			const existing = prefetcher.has(path)
+			let existing = false
 
 			try {
+				const url = new URL(to, window.location.origin)
+
+				if (opts?.query) {
+					for (const [key, value] of Object.entries(opts.query)) {
+						url.searchParams.set(key, String(value))
+					}
+				}
+
+				const key = Prefetcher.key(url.toString(), window.location.origin)
+				if (!key) throw new Error('Invalid navigation url')
+
+				// switch to the normalized target once the url is valid
+				path = key
+
+				// if the target was already prefetched, use the cached response promise
+				// and set existing to true so we don't remove it from cache
+				// after navigation
 				let promise = prefetcher.get(path)
+				existing = promise !== undefined
 
 				if (!promise) {
 					const ctrl = new AbortController()
@@ -73,9 +85,9 @@ export function RouterProvider({
 						headers: { accept: 'text/x-component' },
 						signal: ctrl.signal,
 					})
-				}
 
-				if (!prefetcher.has(path)) prefetcher.set(path, promise)
+					prefetcher.set(path, promise)
+				}
 
 				// if another navigation has started since this one, ignore the result
 				// and return early
@@ -88,7 +100,7 @@ export function RouterProvider({
 					createFromFetch<RSCPayload>(promise),
 				])
 				// use the final response url so client history matches server redirects
-				const resolvedPath = Prefetcher.key(res.url, window.location.origin)
+				const resolvedPath = Prefetcher.key(res.url, window.location.origin) ?? path
 
 				// check again if another navigation has started while we were awaiting
 				// the response
@@ -129,11 +141,11 @@ export function RouterProvider({
 			} finally {
 				if (navigationId === id.current) controller.current = null
 
-				// preserve entries that were already prefetched so nearby follow-up
-				// navigations can still reuse them within the prefetch TTL window
+				// keep entries that were already in the prefetch cache before go() ran. Only remove
+				// the temporary cache entry go() created for its own in-flight dedupe
 				if (!existing) {
-					// entries created by go() only serve as in-flight dedupe for this
-					// navigation (i.e. not intentionally prefetched)
+					// this fetch was not an intentional prefetch, so do not leave it behind
+					// as a reusable cache entry after navigation finishes
 					prefetcher.remove(path)
 				}
 			}
@@ -149,6 +161,7 @@ export function RouterProvider({
 	 */
 	const prefetch = useCallback((path: string) => {
 		const key = Prefetcher.key(path, window.location.origin)
+		if (!key) return
 
 		if (prefetcher.has(key)) return
 		prefetcher.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))

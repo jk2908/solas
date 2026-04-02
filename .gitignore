@@ -4,3 +4,4 @@ dist
 .env*
 .solas
 benchmarks
+roadmap.md

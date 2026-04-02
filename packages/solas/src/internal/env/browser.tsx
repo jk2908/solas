@@ -1,11 +1,4 @@
-import {
-	StrictMode,
-	Suspense,
-	useCallback,
-	useEffect,
-	useState,
-	useTransition,
-} from 'react'
+import { StrictMode, Suspense, useCallback, useState, useTransition } from 'react'
 import { hydrateRoot } from 'react-dom/client'
 
 import {
@@ -31,7 +24,9 @@ export async function browser() {
 		unstable_allowPartialStream: true,
 	})
 
-	let setPayload: (payload: RSCPayload) => void = () => {}
+	const payloadSetter: { current: (payload: RSCPayload) => void } = {
+		current: () => {},
+	}
 
 	function A() {
 		const [p, setP] = useState<RSCPayload>(payload)
@@ -43,12 +38,9 @@ export async function browser() {
 			})
 		}, [])
 
-		useEffect(() => {
-			// expose external setPayload - used inside
-			// server callback to update payload after
-			// action execution
-			setPayload = setPayloadInTransition
-		}, [setPayloadInTransition])
+		// make the latest payload updater available to action/hmr callbacks
+		// immediately during render, without waiting for an effect to run
+		payloadSetter.current = setPayloadInTransition
 
 		return (
 			<RedirectBoundary>
@@ -79,7 +71,7 @@ export async function browser() {
 			{ temporaryReferences },
 		)
 
-		setPayload(payload)
+		payloadSetter.current(payload)
 
 		const { ok, data } = payload.returnValue ?? {}
 		if (!ok) throw data
@@ -98,9 +90,13 @@ export async function browser() {
 	)
 
 	import.meta.hot?.on?.('rsc:update', async () => {
-		const p = await createFromFetch<RSCPayload>(
-			fetch(window.location.href, { headers: { Accept: 'text/x-component' } }),
-		)
-		setPayload(p)
+		try {
+			const p = await createFromFetch<RSCPayload>(
+				fetch(window.location.href, { headers: { Accept: 'text/x-component' } }),
+			)
+			payloadSetter.current(p)
+		} catch (err) {
+			console.error('[hmr] failed to refresh rsc payload', err)
+		}
 	})
 }
