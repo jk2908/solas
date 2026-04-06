@@ -167,6 +167,8 @@ export namespace Solas {
 		export const names = {
 			NAVIGATION: `${Config.SLUG}navigation`,
 			NAVIGATION_ERROR: `${Config.SLUG}navigationerror`,
+			NAVIGATION_TIMING: `${Config.SLUG}navigationtiming`,
+			WARM_TIMING: `${Config.SLUG}warmtiming`,
 		} as const
 	}
 }

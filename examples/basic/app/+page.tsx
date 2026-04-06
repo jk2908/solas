@@ -21,6 +21,13 @@ export default async function Page() {
 				Go to Dead End with Nested Error (404)
 			</Link>
 			<Link href="/about">Go to About</Link>
+			<Link href="/about" prefetch="hover">
+				Go to About Warm
+			</Link>
+			<Link href="/heavy">Go to Heavy</Link>
+			<Link href="/heavy" prefetch="hover">
+				Go to Heavy Warm
+			</Link>
 			<Red />
 			<ServerCounterForm />
 		</div>

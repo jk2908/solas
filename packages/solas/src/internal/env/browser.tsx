@@ -1,4 +1,13 @@
-import { StrictMode, Suspense, useCallback, useState, useTransition } from 'react'
+import {
+	Activity,
+	StrictMode,
+	Suspense,
+	useCallback,
+	useEffect,
+	useRef,
+	useState,
+	useTransition,
+} from 'react'
 import { hydrateRoot } from 'react-dom/client'
 
 import {
@@ -10,9 +19,13 @@ import {
 } from '@vitejs/plugin-rsc/browser'
 import { rscStream } from 'rsc-html-stream/client'
 
+import { Solas } from '../../solas'
+
 import type { RSCPayload } from './rsc'
 import { RedirectBoundary } from '../navigation/redirect-boundary'
 import { Head } from '../render/head'
+import type { RouteEntry } from '../router/entry'
+import { now, type NavigationTiming, type WarmTiming } from '../router/metrics'
 import { RouterProvider } from '../router/router-provider'
 import { ErrorBoundary } from '../ui/error-boundary'
 
@@ -29,12 +42,40 @@ export async function browser() {
 	}
 
 	function A() {
-		const [p, setP] = useState<RSCPayload>(payload)
+		const [currentEntry, setCurrentEntry] = useState<RouteEntry>(() => {
+			const path = window.location.pathname + window.location.search
+
+			return {
+				id: 0,
+				path,
+				requestedPath: path,
+				payload,
+			}
+		})
+		const [retainedEntry, setRetainedEntry] = useState<RouteEntry | null>(null)
 		const [isPending, startTransition] = useTransition()
+		const pendingNavigationTiming = useRef<NavigationTiming | null>(null)
+		const pendingWarmTiming = useRef<WarmTiming | null>(null)
 
 		const setPayloadInTransition = useCallback((payload: RSCPayload) => {
 			startTransition(() => {
-				setP(payload)
+				setCurrentEntry(current => ({ ...current, payload }))
+			})
+		}, [])
+
+		const setCurrentEntryInTransition = useCallback(
+			(entry: RouteEntry) => {
+				startTransition(() => {
+					setRetainedEntry(currentEntry)
+					setCurrentEntry(entry)
+				})
+			},
+			[currentEntry],
+		)
+
+		const setRetainedEntryInTransition = useCallback((entry: RouteEntry | null) => {
+			startTransition(() => {
+				setRetainedEntry(entry)
 			})
 		}, [])
 
@@ -42,16 +83,69 @@ export async function browser() {
 		// immediately during render, without waiting for an effect to run
 		payloadSetter.current = setPayloadInTransition
 
+		useEffect(() => {
+			const timing = pendingNavigationTiming.current
+			if (!timing) return
+
+			pendingNavigationTiming.current = null
+			const { startedAt, ...detail } = timing
+
+			window.dispatchEvent(
+				new CustomEvent(Solas.Events.names.NAVIGATION_TIMING, {
+					detail: {
+						...detail,
+						commitMs: now() - startedAt,
+					},
+				}),
+			)
+		}, [currentEntry])
+
+		useEffect(() => {
+			if (!retainedEntry) return
+
+			const timing = pendingWarmTiming.current
+			if (!timing || timing.id !== retainedEntry.id) return
+
+			pendingWarmTiming.current = null
+			const { startedAt, ...detail } = timing
+
+			window.dispatchEvent(
+				new CustomEvent(Solas.Events.names.WARM_TIMING, {
+					detail: {
+						...detail,
+						commitMs: now() - startedAt,
+					},
+				}),
+			)
+		}, [retainedEntry])
+
 		return (
 			<RedirectBoundary>
-				<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
+				<RouterProvider
+					currentPath={currentEntry.path}
+					isNavigating={isPending}
+					retainedEntry={retainedEntry}
+					setCurrentEntry={setCurrentEntryInTransition}
+					setRetainedEntry={setRetainedEntryInTransition}
+					onNavigationReady={timing => {
+						pendingNavigationTiming.current = timing
+					}}
+					onWarmReady={timing => {
+						pendingWarmTiming.current = timing
+					}}>
 					<ErrorBoundary fallback={null}>
 						<Suspense fallback={null}>
-							<Head metadata={p.metadata} />
+							<Head metadata={currentEntry.payload.metadata} />
 						</Suspense>
 					</ErrorBoundary>
 
-					{p.root}
+					{currentEntry.payload.root}
+
+					{retainedEntry ? (
+						<Activity mode="hidden" key={`${retainedEntry.path}:${retainedEntry.id}`}>
+							{retainedEntry.payload.root}
+						</Activity>
+					) : null}
 				</RouterProvider>
 			</RedirectBoundary>
 		)
