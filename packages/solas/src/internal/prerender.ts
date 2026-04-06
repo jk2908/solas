@@ -194,7 +194,6 @@ export namespace Prerender {
 						manifestCache.set(outDir, null)
 						return null
 					}
-
 				}
 
 				const manifest = { generatedAt, routes } as Manifest
