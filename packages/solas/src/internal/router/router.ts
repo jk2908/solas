@@ -8,8 +8,8 @@ import { Solas } from '../../solas'
 
 import { getAlternatePathname, normalisePathname, toPathPattern } from './utils'
 
-import { maybeAction } from '../env/rsc'
 import { HttpException } from '../navigation/http-exception'
+import { maybeAction } from '../server/actions'
 
 export namespace Router {
 	export type Params = Record<string, string | string[]>
