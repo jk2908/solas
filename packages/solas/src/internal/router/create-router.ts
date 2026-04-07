@@ -6,9 +6,9 @@ import type {
 	PluginConfig,
 	Segment,
 	SolasRequest,
-} from '../../types'
+} from '../../types.js'
 
-import { Router } from './router'
+import { Router } from './router.js'
 
 type RouteGroup = Segment | Endpoint | [ManifestEntry, ...ManifestEntry[]]
 

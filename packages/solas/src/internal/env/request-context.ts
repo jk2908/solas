@@ -1,7 +1,7 @@
-import type { SolasRequest } from '../../types'
+import type { SolasRequest } from '../../types.js'
 
-import { Context } from '../../utils/context'
-import type { Cookies } from '../../utils/cookies'
+import { Context } from '../../utils/context.js'
+import type { Cookies } from '../../utils/cookies.js'
 
 export type RequestCache = {
 	cookies?: Readonly<ReturnType<typeof Cookies.parse>>

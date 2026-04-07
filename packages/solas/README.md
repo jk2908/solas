@@ -4,6 +4,8 @@ Solas is a minimal React meta-framework powered by Vite, created for experimenti
 
 It has not been rigorously tested yet (there are currently no automated tests) ... and broken behaviour should be expected.
 
+Solas currently requires Bun 1.2+ on your `PATH`. You can still manage dependencies with `npm`, `pnpm`, or `yarn`, but the Solas CLI and Vite plugin runtime use Bun APIs directly.
+
 ## Install
 
 ```sh

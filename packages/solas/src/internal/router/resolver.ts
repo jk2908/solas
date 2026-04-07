@@ -7,14 +7,14 @@ import type {
 	ManifestEntry,
 	Primitive,
 	View,
-} from '../../types'
+} from '../../types.js'
 
-import { Logger } from '../../utils/logger'
+import { Logger } from '../../utils/logger.js'
 
-import type { Router } from './router'
-import { Build } from '../build'
-import { Metadata } from '../metadata'
-import { HttpException, isHttpException } from '../navigation/http-exception'
+import type { Router } from './router.js'
+import { Build } from '../build.js'
+import { Metadata } from '../metadata.js'
+import { HttpException, isHttpException } from '../navigation/http-exception.js'
 
 export namespace Resolver {
 	export type ReconciledMatch = ReturnType<Resolver['reconcile']>

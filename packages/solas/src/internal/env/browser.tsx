@@ -10,11 +10,12 @@ import {
 } from '@vitejs/plugin-rsc/browser'
 import { rscStream } from 'rsc-html-stream/client'
 
-import type { RSCPayload } from './rsc'
-import { RedirectBoundary } from '../navigation/redirect-boundary'
-import { Head } from '../render/head'
-import { RouterProvider } from '../router/router-provider'
-import { ErrorBoundary } from '../ui/error-boundary'
+import type { RSCPayload } from './rsc.js'
+import { renderDocumentRoot } from './document-root.js'
+import { RedirectBoundary } from '../navigation/redirect-boundary.js'
+import { Head } from '../render/head.js'
+import { RouterProvider } from '../router/router-provider.js'
+import { ErrorBoundary } from '../ui/error-boundary.js'
 
 /**
  * Browser RSC hydration entry point
@@ -31,6 +32,13 @@ export async function browser() {
 	function A() {
 		const [p, setP] = useState<RSCPayload>(payload)
 		const [isPending, startTransition] = useTransition()
+		const head = (
+			<ErrorBoundary fallback={null}>
+				<Suspense fallback={null}>
+					<Head metadata={p.metadata} />
+				</Suspense>
+			</ErrorBoundary>
+		)
 
 		const setPayloadInTransition = useCallback((payload: RSCPayload) => {
 			startTransition(() => {
@@ -44,14 +52,11 @@ export async function browser() {
 
 		return (
 			<RedirectBoundary>
-				<RouterProvider setPayload={setPayloadInTransition} isNavigating={isPending}>
-					<ErrorBoundary fallback={null}>
-						<Suspense fallback={null}>
-							<Head metadata={p.metadata} />
-						</Suspense>
-					</ErrorBoundary>
-
-					{p.root}
+				<RouterProvider
+					setPayload={setPayloadInTransition}
+					isNavigating={isPending}
+					url={p.url}>
+					{renderDocumentRoot(p.root, head)}
 				</RouterProvider>
 			</RedirectBoundary>
 		)

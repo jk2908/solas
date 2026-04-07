@@ -2,14 +2,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BuildManifest } from './types'
+import type { BuildManifest } from './types.js'
 
-import { Solas } from './solas'
+import { Solas } from './solas.js'
 
-import { Compress } from './utils/compress'
-import { Logger } from './utils/logger'
+import { Compress } from './utils/compress.js'
+import { Logger } from './utils/logger.js'
 
-import { Prerender } from './internal/prerender'
+import { Prerender } from './internal/prerender.js'
 
 const logger = new Logger()
 const DEFAULT_PREVIEW_PORT = 4173

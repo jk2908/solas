@@ -1,9 +1,9 @@
 import { Suspense } from 'react'
 
-import type { Resolver } from '../router/resolver'
-import { HttpException, isHttpException } from '../navigation/http-exception'
-import { HttpExceptionBoundary } from '../navigation/http-exception-boundary'
-import DefaultErr from '../ui/defaults/error'
+import type { Resolver } from '../router/resolver.js'
+import { HttpException, isHttpException } from '../navigation/http-exception.js'
+import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
+import DefaultErr from '../ui/defaults/error.js'
 
 type Match = NonNullable<Resolver.EnhancedMatch>
 

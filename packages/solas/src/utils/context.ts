@@ -1,6 +1,6 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
-import { Logger } from './logger'
+import { Logger } from './logger.js'
 
 const logger = new Logger()
 

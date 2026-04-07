@@ -1,10 +1,10 @@
 import { use } from 'react'
 
-import { Solas } from '../../solas'
+import { Solas } from '../../solas.js'
 
-import { Logger } from '../../utils/logger'
+import { Logger } from '../../utils/logger.js'
 
-import { type Metadata as Collection } from '../metadata'
+import { type Metadata as Collection } from '../metadata.js'
 
 const logger = new Logger()
 const cache = new WeakMap<object, Promise<Collection.Item>>()

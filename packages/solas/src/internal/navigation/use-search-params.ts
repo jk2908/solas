@@ -1,8 +1,11 @@
 import { useMemo, useSyncExternalStore } from 'react'
 
-import { Solas } from '../../solas'
+import { useRouter } from '../../router.js'
+import { Solas } from '../../solas.js'
 
 export function useSearchParams() {
+	const { url } = useRouter()
+
 	const search = useSyncExternalStore(
 		fn => {
 			window.addEventListener('popstate', fn)
@@ -14,7 +17,7 @@ export function useSearchParams() {
 			}
 		},
 		() => window.location.search,
-		() => '',
+		() => url?.search,
 	)
 
 	return useMemo(() => new URLSearchParams(search), [search])

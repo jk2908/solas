@@ -13,8 +13,13 @@ export const RouterContext = createContext<{
 	go: (to: string, opts?: Navigation.GoOptions) => Promise<string>
 	prefetch: (path: string) => void
 	isNavigating: boolean
+	url: {
+		pathname?: string
+		search?: string
+	}
 }>({
 	go: async () => '',
 	prefetch: () => {},
 	isNavigating: false,
+	url: {},
 })

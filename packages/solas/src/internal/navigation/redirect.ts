@@ -1,4 +1,4 @@
-import { Solas } from '../../solas'
+import { Solas } from '../../solas.js'
 
 export type RedirectStatusCode = 301 | 302 | 307 | 308
 

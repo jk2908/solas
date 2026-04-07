@@ -4,13 +4,12 @@ import { useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
-import { Solas } from '../../solas'
+import { Logger } from '../../utils/logger.js'
 
-import { Logger } from '../../utils/logger'
-
-import type { RSCPayload } from '../env/rsc'
-import { Prefetcher } from './prefetcher'
-import { type Navigation, RouterContext } from './router-context'
+import type { RSCPayload } from '../env/rsc.js'
+import { Solas } from '../../solas.js'
+import { Prefetcher } from './prefetcher.js'
+import { type Navigation, RouterContext } from './router-context.js'
 
 const DEFAULT_GO_CONFIG = {
 	replace: false,
@@ -23,10 +22,15 @@ export function RouterProvider({
 	children,
 	setPayload,
 	isNavigating = false,
+	url,
 }: {
 	children: React.ReactNode
 	setPayload?: (payload: RSCPayload) => void
 	isNavigating?: boolean
+	url?: {
+		pathname?: string
+		search?: string
+	}
 }) {
 	// id to track active navigations
 	const id = useRef(0)
@@ -184,8 +188,12 @@ export function RouterProvider({
 			go,
 			prefetch,
 			isNavigating,
+			url: {
+				pathname: url?.pathname,
+				search: url?.search,
+			},
 		}),
-		[go, prefetch, isNavigating],
+		[go, prefetch, isNavigating, url],
 	)
 
 	return <RouterContext value={value}>{children}</RouterContext>

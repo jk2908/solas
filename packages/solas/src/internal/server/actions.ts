@@ -8,11 +8,11 @@ import {
 	loadServerAction,
 } from '@vitejs/plugin-rsc/rsc'
 
-import { SolasRequest } from '../../types'
+import { SolasRequest } from '../../types.js'
 
-import { Solas } from '../../solas'
+import { Solas } from '../../solas.js'
 
-import { HttpException } from '../navigation/http-exception'
+import { HttpException } from '../navigation/http-exception.js'
 
 /**
  * Check if a request is an action request and reuse parsed FormData

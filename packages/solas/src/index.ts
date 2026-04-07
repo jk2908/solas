@@ -6,24 +6,21 @@ import type { PluginOption, UserConfig, ViteDevServer } from 'vite'
 
 import rsc from '@vitejs/plugin-rsc'
 
-import type { BuildContext, PluginConfig } from './types'
+import { ExportReader } from './utils/export-reader.js'
+import { Logger } from './utils/logger.js'
+import { Time } from './utils/time.js'
 
-import { Solas } from './solas'
-
-import { ExportReader } from './utils/export-reader'
-import { Format } from './utils/format'
-import { Logger } from './utils/logger'
-import { Time } from './utils/time'
-
-import { Build } from './internal/build'
-import { writeConfig } from './internal/codegen/config'
+import type { BuildContext, PluginConfig } from './types.js'
+import { Build } from './internal/build.js'
+import { writeConfig } from './internal/codegen/config.js'
 import {
 	writeBrowserEntry,
 	writeRSCEntry,
 	writeSSREntry,
-} from './internal/codegen/environments'
-import { writeManifest } from './internal/codegen/manifest'
-import { writeMaps } from './internal/codegen/maps'
+} from './internal/codegen/environments.js'
+import { writeManifest } from './internal/codegen/manifest.js'
+import { writeMaps } from './internal/codegen/maps.js'
+import { Solas } from './solas.js'
 
 const DEFAULT_CONFIG = {
 	precompress: true,
@@ -136,14 +133,6 @@ function solas(c: PluginConfig): PluginOption[] {
 		const changed = writes.filter(n => n !== null)
 		// early return if nothing has changed
 		if (!changed.length) return
-
-		await Promise.all(
-			changed.map(filePath =>
-				Format.run(filePath).catch(err => {
-					logger.error(`[build] Failed to format file: ${filePath}`, err)
-				}),
-			),
-		)
 
 		return changed
 	}
@@ -323,6 +312,6 @@ function solas(c: PluginConfig): PluginOption[] {
 }
 
 export default solas
-export { Solas } from './solas'
 export type * from './solas.d.ts'
-export type * from './types'
+export { Solas } from './solas.js'
+export type * from './types.js'

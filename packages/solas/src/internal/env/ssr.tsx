@@ -6,17 +6,17 @@ import { prerender as reactPrerender } from 'react-dom/static.edge'
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 import { injectRSCPayload } from 'rsc-html-stream/server'
 
-import { Solas } from '../../solas'
+import { Logger } from '../../utils/logger.js'
 
-import { Logger } from '../../utils/logger'
-import { getKnownDigest } from './utils'
-
-import type { RSCPayload } from './rsc'
-import { RedirectBoundary } from '../navigation/redirect-boundary'
-import { Prerender } from '../prerender'
-import { Head } from '../render/head'
-import { RouterProvider } from '../router/router-provider'
-import { ErrorBoundary } from '../ui/error-boundary'
+import type { RSCPayload } from './rsc.js'
+import { renderDocumentRoot } from './document-root.js'
+import { Solas } from '../../solas.js'
+import { RedirectBoundary } from '../navigation/redirect-boundary.js'
+import { Prerender } from '../prerender.js'
+import { Head } from '../render/head.js'
+import { RouterProvider } from '../router/router-provider.js'
+import { ErrorBoundary } from '../ui/error-boundary.js'
+import { getKnownDigest } from './utils.js'
 
 type Opts = {
 	formState?: ReactFormState
@@ -29,17 +29,18 @@ const logger = new Logger()
 
 function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
 	const payload = use(payloadPromise)
+	const head = (
+		<ErrorBoundary fallback={null}>
+			<Suspense fallback={null}>
+				<Head metadata={payload.metadata} />
+			</Suspense>
+		</ErrorBoundary>
+	)
 
 	return (
 		<RedirectBoundary>
-			<RouterProvider>
-				<ErrorBoundary fallback={null}>
-					<Suspense fallback={null}>
-						<Head metadata={payload.metadata} />
-					</Suspense>
-				</ErrorBoundary>
-
-				{payload.root}
+			<RouterProvider url={payload.url}>
+				{renderDocumentRoot(payload.root, head)}
 			</RouterProvider>
 		</RedirectBoundary>
 	)

@@ -1,4 +1,4 @@
-export { cookies } from './internal/server/cookies'
-export { dynamic } from './internal/server/dynamic'
-export { headers } from './internal/server/headers'
-export { url } from './internal/server/url'
+export { cookies } from './internal/server/cookies.js'
+export { dynamic } from './internal/server/dynamic.js'
+export { headers } from './internal/server/headers.js'
+export { url } from './internal/server/url.js'

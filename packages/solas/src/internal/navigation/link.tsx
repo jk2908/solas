@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 
-import { useRouter } from '../router/use-router'
+import { useRouter } from '../router/use-router.js'
 
 type Props = {
 	href: string

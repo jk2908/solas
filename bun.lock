@@ -29,9 +29,27 @@
         "vite-tsconfig-paths": "^5.1.4",
       },
     },
+    "examples/minimal-repro": {
+      "name": "solas-example-minimal-repro",
+      "dependencies": {
+        "@jk2908/solas": "workspace:*",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+        "react-server-dom-webpack": "^19.2.4",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.2.22",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^5.1.4",
+        "typescript": "^5.9.3",
+        "vite": "^7.3.1",
+        "vite-tsconfig-paths": "^5.1.4",
+      },
+    },
     "packages/solas": {
       "name": "@jk2908/solas",
-      "version": "0.1.0",
+      "version": "0.2.3",
       "bin": {
         "solas": "./dist/cli.js",
       },
@@ -45,6 +63,7 @@
         "@types/bun": "^1.2.22",
         "@typescript/native-preview": "^7.0.0-dev.20260224.1",
         "network-information-types": "^0.1.1",
+        "oxfmt": "^0.35.0",
         "typescript": "^5.9.3",
       },
       "peerDependencies": {
@@ -63,9 +82,9 @@
       "name": "solas-website",
       "dependencies": {
         "@jk2908/solas": "workspace:*",
-        "react": "^19.2.4",
-        "react-dom": "^19.2.4",
-        "react-server-dom-webpack": "^19.2.4",
+        "react": "^19.3.0-canary-1b45e243-20260402",
+        "react-dom": "^19.3.0-canary-1b45e243-20260402",
+        "react-server-dom-webpack": "^19.3.0-canary-1b45e243-20260402",
       },
       "devDependencies": {
         "@types/bun": "^1.2.22",
@@ -587,6 +606,8 @@
 
     "solas-example-basic": ["solas-example-basic@workspace:examples/basic"],
 
+    "solas-example-minimal-repro": ["solas-example-minimal-repro@workspace:examples/minimal-repro"],
+
     "solas-website": ["solas-website@workspace:packages/www"],
 
     "source-map": ["source-map@0.6.1", "", {}, "sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g=="],
@@ -637,6 +658,8 @@
 
     "yallist": ["yallist@3.1.1", "", {}, "sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g=="],
 
+    "yaml": ["yaml@2.8.3", "", { "bin": { "yaml": "bin.mjs" } }, "sha512-AvbaCLOO2Otw/lW5bmh9d/WEdcDFdQp2Z2ZUH3pX9U2ihyUY0nvLv7J6TrWowklRGPYbB/IuIMfYgxaCPg5Bpg=="],
+
     "zimmerframe": ["zimmerframe@1.1.4", "", {}, "sha512-B58NGBEoc8Y9MWWCQGl/gq9xBCe4IiKM0a2x7GZdQKOW5Exr8S1W24J6OgM1njK8xCRGvAJIL/MxXHf6SkmQKQ=="],
 
     "@babel/code-frame/js-tokens": ["js-tokens@4.0.0", "", {}, "sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ=="],
@@ -647,6 +670,14 @@
 
     "rollup/fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
 
+    "solas-website/react": ["react@19.3.0-canary-1b45e243-20260402", "", {}, "sha512-CUTHdpLPSvcJovRhEegguvA6z5d76SoR/CXY32EnDoB22ScDV/PYjvKzAmxwRooY2VcZHzpD3WfcSgHRjocbPA=="],
+
+    "solas-website/react-dom": ["react-dom@19.3.0-canary-1b45e243-20260402", "", { "dependencies": { "scheduler": "0.28.0-canary-1b45e243-20260402" }, "peerDependencies": { "react": "19.3.0-canary-1b45e243-20260402" } }, "sha512-GUAjHZZGLPaq0oWL8JAT/Aeal/Urbk6mrzvvhxAmcT0xJkiZnMKkiWNFm4AV84tmgrHmKQzCTxfIs9LG5P228A=="],
+
+    "solas-website/react-server-dom-webpack": ["react-server-dom-webpack@19.3.0-canary-1b45e243-20260402", "", { "dependencies": { "acorn-loose": "^8.3.0", "neo-async": "^2.6.1", "webpack-sources": "^3.2.0" }, "peerDependencies": { "react": "19.3.0-canary-1b45e243-20260402", "react-dom": "19.3.0-canary-1b45e243-20260402", "webpack": "^5.59.0" } }, "sha512-qIeHkuCR05b3n2S9HXBnLdJ4BR1tbTWTEB8fLaZxTehedJNvLCNReY3h6rNPN6y4Oi8TJMqlp9qJO9EOfOhSrw=="],
+
     "vite/fsevents": ["fsevents@2.3.3", "", { "os": "darwin" }, "sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw=="],
+
+    "solas-website/react-dom/scheduler": ["scheduler@0.28.0-canary-1b45e243-20260402", "", {}, "sha512-9tsooPtKSPIsXs2Z4v3/QzR30fRDMlJncEqbb/TAadkfT54lKGbZuTpuNIt1N68IEhq5y4dxvaqC1pTYOYwA9Q=="],
   }
 }

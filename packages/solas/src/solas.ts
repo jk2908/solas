@@ -1,4 +1,4 @@
-import type { PluginConfig } from './types'
+import type { PluginConfig } from './types.js'
 
 export namespace Solas {
 	export namespace Config {
@@ -19,6 +19,7 @@ export namespace Solas {
 		export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
 
 		const CONFIG_KEYS = new Set([
+			'port',
 			'logger',
 			'metadata',
 			'precompress',

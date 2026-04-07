@@ -2,13 +2,13 @@ import path from 'node:path'
 
 import { compile } from 'path-to-regexp'
 
-import type { BuildContext } from '../types'
+import type { BuildContext } from '../types.js'
 
-import { Solas } from '../solas'
+import { Solas } from '../solas.js'
 
-import { Logger } from '../utils/logger'
-import { Time } from '../utils/time'
-import { toPathPattern } from './router/utils'
+import { Logger } from '../utils/logger.js'
+import { Time } from '../utils/time.js'
+import { toPathPattern } from './router/utils.js'
 
 const logger = new Logger()
 

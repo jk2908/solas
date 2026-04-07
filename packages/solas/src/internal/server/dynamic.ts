@@ -1,6 +1,6 @@
-import { Logger } from '../../utils/logger'
+import { Logger } from '../../utils/logger.js'
 
-import { RequestContext } from '../env/request-context'
+import { RequestContext } from '../env/request-context.js'
 
 const logger = new Logger()
 const NEVER: Promise<never> = new Promise(() => {})

@@ -1,4 +1,4 @@
-import type { ImportMap, Manifest } from './types'
+import type { ImportMap, Manifest } from './types.js'
 
 declare module 'solas/manifest' {
 	export const manifest: Manifest

@@ -2,14 +2,14 @@ import path from 'node:path'
 
 import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 
-import type { HttpMethod, PluginConfig, SolasRequest } from '../../types'
+import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
 
-import { Solas } from '../../solas'
+import { Solas } from '../../solas.js'
 
-import { getAlternatePathname, normalisePathname, toPathPattern } from './utils'
+import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
 
-import { HttpException } from '../navigation/http-exception'
-import { maybeAction } from '../server/actions'
+import { HttpException } from '../navigation/http-exception.js'
+import { maybeAction } from '../server/actions.js'
 
 export namespace Router {
 	export type Params = Record<string, string | string[]>

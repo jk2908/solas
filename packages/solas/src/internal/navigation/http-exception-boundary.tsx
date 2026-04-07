@@ -2,13 +2,13 @@
 
 import { Component } from 'react'
 
-import type { BoundaryError } from '../../types'
+import type { BoundaryError } from '../../types.js'
 
 import {
 	HTTP_EXCEPTION_DIGEST_PREFIX,
 	type HttpException,
 	isHttpException,
-} from './http-exception'
+} from './http-exception.js'
 
 type ComponentsMap = Partial<Record<HttpException.StatusCode, React.ReactElement | null>>
 

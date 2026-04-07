@@ -2,31 +2,33 @@ import type { ReactFormState } from 'react-dom/client'
 
 import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
-import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types'
+import { Logger } from '../../utils/logger.js'
 
-import { Solas } from '../../solas'
-
-import { Logger } from '../../utils/logger'
-import { normalisePathname } from '../router/utils'
-import { getKnownDigest, isKnownError } from './utils'
-
-import type { SSRModule } from './ssr'
-import { Metadata } from '../metadata'
-import { HttpException, isHttpException } from '../navigation/http-exception'
-import { Prerender } from '../prerender'
-import { Tree } from '../render/tree'
-import { createRouter } from '../router/create-router'
-import { Resolver } from '../router/resolver'
-import { Router } from '../router/router'
-import { processActionRequest } from '../server/actions'
-import DefaultErr from '../ui/defaults/error'
-import { RequestContext } from './request-context'
+import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
+import type { SSRModule } from './ssr.js'
+import { Solas } from '../../solas.js'
+import { Metadata } from '../metadata.js'
+import { HttpException, isHttpException } from '../navigation/http-exception.js'
+import { Prerender } from '../prerender.js'
+import { Tree } from '../render/tree.js'
+import { createRouter } from '../router/create-router.js'
+import { Resolver } from '../router/resolver.js'
+import { Router } from '../router/router.js'
+import { normalisePathname } from '../router/utils.js'
+import { processActionRequest } from '../server/actions.js'
+import DefaultErr from '../ui/defaults/error.js'
+import { RequestContext } from './request-context.js'
+import { getKnownDigest, isKnownError } from './utils.js'
 
 export type RSCPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
 	metadata?: Promise<Metadata.Item>
+	url?: {
+		pathname?: string
+		search?: string
+	}
 }
 
 /**
@@ -85,6 +87,10 @@ async function getPayload(
 			),
 			returnValue,
 			formState,
+			url: {
+				pathname: url.pathname,
+				search: url.search,
+			},
 		}
 
 		return {
@@ -140,6 +146,10 @@ async function getPayload(
 		returnValue,
 		formState,
 		metadata,
+		url: {
+			pathname: url.pathname,
+			search: url.search,
+		},
 	}
 
 	// status code comes from route match error if any
@@ -221,6 +231,10 @@ async function getPayload(
 							),
 							returnValue,
 							formState,
+							url: {
+								pathname: url.pathname,
+								search: url.search,
+							},
 						},
 						{
 							temporaryReferences,

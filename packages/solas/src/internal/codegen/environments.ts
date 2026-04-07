@@ -1,28 +1,27 @@
-import { Solas } from '../../solas'
-
-import { AUTOGEN_MSG } from './utils'
+import { Solas } from '../../solas.js'
+import { AUTOGEN_MSG } from './utils.js'
 
 /**
  * Generates the RSC entry code
  */
 export function writeRSCEntry() {
 	return `
-    ${AUTOGEN_MSG}
+		${AUTOGEN_MSG}
 
-    import { createHandler } from '${Solas.Config.PKG_NAME}/env/rsc'
-    import { Prerender } from '${Solas.Config.PKG_NAME}/prerender'
-    import { Solas } from '${Solas.Config.PKG_NAME}'
+		import { createHandler } from '${Solas.Config.PKG_NAME}/env/rsc'
+		import { Prerender } from '${Solas.Config.PKG_NAME}/prerender'
+		import { Solas } from '${Solas.Config.PKG_NAME}'
 
-    import { manifest } from './manifest'
-    import { importMap } from './maps'
-    import { config } from './config'
+		import { manifest } from './manifest.js'
+		import { importMap } from './maps.js'
+		import { config } from './config.js'
 
-    const artifactManifest = await Prerender.Artifact.loadManifest(Solas.Config.OUT_DIR)
+		const artifactManifest = await Prerender.Artifact.loadManifest(Solas.Config.OUT_DIR)
 
-    export default createHandler(config, manifest, importMap, artifactManifest)
+		export default createHandler(config, manifest, importMap, artifactManifest)
 
-    import.meta.hot?.accept()
-  `.trim()
+		import.meta.hot?.accept()
+	`.trim()
 }
 
 /**
@@ -30,10 +29,10 @@ export function writeRSCEntry() {
  */
 export function writeSSREntry() {
 	return `
-    ${AUTOGEN_MSG}
-    
-    export { prerender, resume, ssr } from '${Solas.Config.PKG_NAME}/env/ssr'
-  `.trim()
+		${AUTOGEN_MSG}
+
+		export { prerender, resume, ssr } from '${Solas.Config.PKG_NAME}/env/ssr'
+	`.trim()
 }
 
 /**
@@ -41,10 +40,10 @@ export function writeSSREntry() {
  */
 export function writeBrowserEntry() {
 	return `
-    ${AUTOGEN_MSG}
+		${AUTOGEN_MSG}
 
-    import { browser } from '${Solas.Config.PKG_NAME}/env/browser'
+		import { browser } from '${Solas.Config.PKG_NAME}/env/browser'
 
-    browser()
-  `.trim()
+		browser()
+	`.trim()
 }

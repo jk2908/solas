@@ -1,7 +1,7 @@
-import { Cookies } from '../../utils/cookies'
+import { Cookies } from '../../utils/cookies.js'
 
-import { RequestContext } from '../env/request-context'
-import { dynamic } from './dynamic'
+import { RequestContext } from '../env/request-context.js'
+import { dynamic } from './dynamic.js'
 
 /**
  * Get the request cookies as a Cookies instance

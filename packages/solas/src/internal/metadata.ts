@@ -1,6 +1,6 @@
-import type { HttpException } from './navigation/http-exception'
-import { Build } from './build'
-import { isHttpException } from './navigation/http-exception'
+import type { HttpException } from './navigation/http-exception.js'
+import { Build } from './build.js'
+import { isHttpException } from './navigation/http-exception.js'
 
 type EntryKind = typeof Build.EntryKind
 

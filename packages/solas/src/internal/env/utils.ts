@@ -1,5 +1,5 @@
-import { HTTP_EXCEPTION_DIGEST_PREFIX } from '../navigation/http-exception'
-import { REDIRECT_DIGEST_PREFIX } from '../navigation/redirect'
+import { HTTP_EXCEPTION_DIGEST_PREFIX } from '../navigation/http-exception.js'
+import { REDIRECT_DIGEST_PREFIX } from '../navigation/redirect.js'
 
 const possibilities = [HTTP_EXCEPTION_DIGEST_PREFIX, REDIRECT_DIGEST_PREFIX]
 

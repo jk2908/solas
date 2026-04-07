@@ -10,14 +10,14 @@ import type {
 	PluginConfig,
 	Route,
 	Segment,
-} from '../types'
+} from '../types.js'
 
-import { Solas } from '../solas'
+import { Solas } from '../solas.js'
 
-import { Logger } from '../utils/logger'
-import { normalisePathname } from './router/utils'
+import { Logger } from '../utils/logger.js'
+import { normalisePathname } from './router/utils.js'
 
-import { Prerender } from './prerender'
+import { Prerender } from './prerender.js'
 
 /**
  * Types, constants, and the Finder class for route discovery and manifest generation.

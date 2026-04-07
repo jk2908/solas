@@ -1,13 +1,13 @@
 type BunRequest = Request & { params?: Record<string, string | string[]> }
 
-import { Solas } from './solas'
+import { Solas } from './solas.js'
 
-import { ExportReader } from './utils/export-reader'
+import { ExportReader } from './utils/export-reader.js'
 
-import type { Build } from './internal/build'
-import type { Metadata } from './internal/metadata'
-import type { HttpException } from './internal/navigation/http-exception'
-import type { Router } from './internal/router/router'
+import type { Build } from './internal/build.js'
+import type { Metadata } from './internal/metadata.js'
+import type { HttpException } from './internal/navigation/http-exception.js'
+import type { Router } from './internal/router/router.js'
 
 export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]
 

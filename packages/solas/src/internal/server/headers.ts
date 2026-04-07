@@ -1,5 +1,5 @@
-import { RequestContext } from '../env/request-context'
-import { dynamic } from './dynamic'
+import { RequestContext } from '../env/request-context.js'
+import { dynamic } from './dynamic.js'
 
 /**
  * Get the request headers as a read-only map
