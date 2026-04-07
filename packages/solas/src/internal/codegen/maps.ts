@@ -2,6 +2,8 @@ import type { Build } from '../build.js'
 import { Solas } from '../../solas.js'
 import {
 	AUTOGEN_MSG,
+	indent,
+	source,
 	toIdentifier,
 	toIdentifierList,
 	toRelativeModuleSpecifier,
@@ -90,32 +92,27 @@ export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 			parts.push(`middlewares: [${middleware}]`)
 		}
 
-		if (parts.length === 0) return `\t${toStringLiteral(moduleId)}: {}`
+		if (parts.length === 0) return `${toStringLiteral(moduleId)}: {}`
 
-		return `\t${toStringLiteral(moduleId)}: {\n\t\t${parts.join(',\n\t\t')}\n\t}`
+		return `${toStringLiteral(moduleId)}: {\n${parts.map(part => indent(part, 1)).join(',\n')}\n}`
 	})
 
-	return `
+	const importLines = [...statics, ...dynamics].join('\n')
+	const entries = map.map(entry => indent(entry, 1)).join(',\n')
+
+	return source`
 		${AUTOGEN_MSG}
 
 		import type { ImportMap } from '${Solas.Config.PKG_NAME}'
-
-		${
-			statics.length
-				? `${statics.join('\n')}
-
-		`
-				: ''
-		}${
-			dynamics.length
-				? `${dynamics.join('\n')}
-
-		`
-				: ''
-		}
+${
+	importLines
+		? `
+${importLines}`
+		: ''
+}
 
 		export const importMap = {
-		${map.join(',\n')}
+${entries}
 		} as const satisfies ImportMap
-	`.trim()
+	`
 }

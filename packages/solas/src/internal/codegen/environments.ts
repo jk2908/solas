@@ -1,11 +1,11 @@
 import { Solas } from '../../solas.js'
-import { AUTOGEN_MSG } from './utils.js'
+import { AUTOGEN_MSG, source } from './utils.js'
 
 /**
  * Generates the RSC entry code
  */
 export function writeRSCEntry() {
-	return `
+	return source`
 		${AUTOGEN_MSG}
 
 		import { createHandler } from '${Solas.Config.PKG_NAME}/env/rsc'
@@ -21,29 +21,29 @@ export function writeRSCEntry() {
 		export default createHandler(config, manifest, importMap, artifactManifest)
 
 		import.meta.hot?.accept()
-	`.trim()
+	`
 }
 
 /**
  * Generates the SSR entry code
  */
 export function writeSSREntry() {
-	return `
+	return source`
 		${AUTOGEN_MSG}
 
 		export { prerender, resume, ssr } from '${Solas.Config.PKG_NAME}/env/ssr'
-	`.trim()
+	`
 }
 
 /**
  * Generates the browser entry code
  */
 export function writeBrowserEntry() {
-	return `
+	return source`
 		${AUTOGEN_MSG}
 
 		import { browser } from '${Solas.Config.PKG_NAME}/env/browser'
 
 		browser()
-	`.trim()
+	`
 }

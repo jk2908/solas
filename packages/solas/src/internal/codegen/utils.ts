@@ -78,6 +78,41 @@ export function toStringLiteral(value: string, quoteStyle: "'" | '"' = "'") {
 }
 
 /**
+ * Dedent an interpolated template literal while preserving indentation for
+ * multiline substitutions
+ */
+export function source(
+	strings: TemplateStringsArray,
+	...values: Array<string | number | boolean | false | null | undefined>
+) {
+	let text = strings[0] ?? ''
+
+	for (let index = 0; index < values.length; index += 1) {
+		const value = values[index]
+		const indentation = text.match(/(?:^|\n)([ \t]*)$/)?.[1] ?? ''
+		const chunk = value === false || value == null ? '' : String(value)
+
+		text += chunk.replace(/\n/g, `\n${indentation}`)
+		text += strings[index + 1] ?? ''
+	}
+
+	const lines = text.replace(/^\n+|\n+$/g, '').split('\n')
+	const margin = lines
+		.filter(line => line.trim().length > 0)
+		.reduce((smallest, line) => {
+			const indentation = line.match(/^[ \t]*/)?.[0].length ?? 0
+
+			return Math.min(smallest, indentation)
+		}, Number.POSITIVE_INFINITY)
+
+	if (!Number.isFinite(margin) || margin === 0) {
+		return lines.join('\n')
+	}
+
+	return lines.map(line => line.slice(margin)).join('\n')
+}
+
+/**
  * Convert a string into a valid unquoted property key if possible, otherwise quote it
  * as a string literal for generated source
  */
@@ -147,7 +182,7 @@ export function toSourceLiteral(value: unknown, level = 0): string {
 						return `${prefix}${source.replace(/\n/g, `\n${INDENT.repeat(level + 1)}`)}`
 					}
 
-					return `${prefix}${toSourceLiteral(entryValue, level + 1).replace(/\n/g, `\n${INDENT.repeat(level + 1)}`)}`
+					return `${prefix}${toSourceLiteral(entryValue, level + 1)}`
 				})
 				.join(',\n'),
 			`${INDENT.repeat(level)}}`,
@@ -161,7 +196,7 @@ export function toSourceLiteral(value: unknown, level = 0): string {
  * Indent each line of a block of source code by the specified level for embedding in
  * generated output
  */
-function indent(value: string, level = 1) {
+export function indent(value: string, level = 1) {
 	const prefix = INDENT.repeat(level)
 
 	return value

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.1 - 2026-04-07
+
+- Fixed `useSearchParams()` client builds.
+- Reworked the code generators to keep the source templates readable while still emitting tidy generated files.
+- Added a shared template dedent helper for generated source and tightened nested object and route map indentation.
+- Made generated config output emit logger code only when a logger level is configured.
+
 ## 0.3.0 - 2026-04-07
 
 - Fixed `useSearchParams()` hydration so query-driven ui uses the initial request url on first render.
