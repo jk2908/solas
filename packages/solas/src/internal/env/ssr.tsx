@@ -9,7 +9,6 @@ import { injectRSCPayload } from 'rsc-html-stream/server'
 import { Logger } from '../../utils/logger.js'
 
 import type { RSCPayload } from './rsc.js'
-import { renderDocumentRoot } from './document-root.js'
 import { Solas } from '../../solas.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Prerender } from '../prerender.js'
@@ -29,18 +28,17 @@ const logger = new Logger()
 
 function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
 	const payload = use(payloadPromise)
-	const head = (
-		<ErrorBoundary fallback={null}>
-			<Suspense fallback={null}>
-				<Head metadata={payload.metadata} />
-			</Suspense>
-		</ErrorBoundary>
-	)
 
 	return (
 		<RedirectBoundary>
 			<RouterProvider url={payload.url}>
-				{renderDocumentRoot(payload.root, head)}
+				<ErrorBoundary fallback={null}>
+					<Suspense fallback={null}>
+						<Head metadata={payload.metadata} />
+					</Suspense>
+				</ErrorBoundary>
+
+				{payload.root}
 			</RouterProvider>
 		</RedirectBoundary>
 	)
