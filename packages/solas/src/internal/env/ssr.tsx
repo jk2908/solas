@@ -64,6 +64,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 			bootstrapScriptContent,
 			onError(err) {
 				const digest = getKnownDigest(err)
+
 				if (digest) return digest
 				if (isKnownError(err)) return
 
@@ -80,6 +81,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 		formState,
 		onError(err) {
 			const digest = getKnownDigest(err)
+
 			if (digest) return digest
 			if (isKnownError(err)) return
 
@@ -130,6 +132,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 					if (Prerender.Runtime.isPostponed(err)) return
 
 					const digest = getKnownDigest(err)
+
 					if (digest) return digest
 					if (isKnownError(err)) return
 
@@ -166,6 +169,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		bootstrapScriptContent,
 		onError(err) {
 			const digest = getKnownDigest(err)
+
 			if (digest) return digest
 			if (isKnownError(err)) return
 
@@ -204,6 +208,7 @@ async function resume(
 			nonce,
 			onError(err) {
 				const digest = getKnownDigest(err)
+
 				if (digest) return digest
 				if (isKnownError(err)) return
 

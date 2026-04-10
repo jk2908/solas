@@ -32,11 +32,11 @@ export type RSCPayload = {
 }
 
 /**
- * Get the streamed RSC payload and response metadata for a single request.
+ * Create the streamed RSC payload and response metadata for a single request.
  * Resolves the route match, collects metadata, and returns the stream,
  * status code, and prerender mode needed by the response layer
  */
-async function getPayload(
+async function createPayload(
 	req: SolasRequest,
 	manifest: Manifest,
 	importMap: ImportMap,
@@ -282,7 +282,7 @@ export function createHandler(
 			stream: rscStream,
 			status,
 			ppr,
-		} = await getPayload(
+		} = await createPayload(
 			req,
 			manifest,
 			importMap,
@@ -401,6 +401,7 @@ export function createHandler(
 
 	const router = createRouter(config, manifest, importMap, createResponse)
 
+	// vite-plugin-rsc entrypoint
 	return {
 		async fetch(req: Request) {
 			const url = new URL(req.url)
