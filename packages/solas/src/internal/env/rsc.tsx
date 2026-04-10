@@ -56,8 +56,8 @@ async function getPayload(
 	const match = resolver.enhance(
 		resolver.reconcile(
 			pathname,
-			req[Solas.Config.REQUEST_META].match,
-			req[Solas.Config.REQUEST_META].error,
+			req[Solas.Config.REQUEST_META_KEY].match,
+			req[Solas.Config.REQUEST_META_KEY].error,
 		),
 	)
 
@@ -66,7 +66,7 @@ async function getPayload(
 	// error screen
 	if (!match) {
 		const error =
-			req[Solas.Config.REQUEST_META].error ?? new HttpException(404, 'Not found')
+			req[Solas.Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found')
 		const title = `${'status' in error ? `${error.status} -` : ''}${error.message}`
 
 		const rscPayload: RSCPayload = {
@@ -276,7 +276,7 @@ export function createHandler(
 			returnValue: undefined,
 		}
 
-		if (req[Solas.Config.REQUEST_META].action) opts = await processActionRequest(req)
+		if (req[Solas.Config.REQUEST_META_KEY].action) opts = await processActionRequest(req)
 
 		const {
 			stream: rscStream,

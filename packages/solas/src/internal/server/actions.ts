@@ -8,10 +8,8 @@ import {
 	loadServerAction,
 } from '@vitejs/plugin-rsc/rsc'
 
-import { SolasRequest } from '../../types.js'
-
 import { Solas } from '../../solas.js'
-
+import { SolasRequest } from '../../types.js'
 import { HttpException } from '../navigation/http-exception.js'
 
 /**
@@ -91,7 +89,7 @@ export async function processActionRequest(req: SolasRequest) {
 		// we might have already parsed FormData in the router for multipart action
 		// detection should be attached to the SolasRequest, so we can reuse that
 		// to avoid parsing twice
-		const parsedFormData = req[Solas.Config.REQUEST_META]?.parsedFormData
+		const parsedFormData = req[Solas.Config.REQUEST_META_KEY]?.parsedFormData
 
 		const formData = parsedFormData ?? (await req.formData())
 		const decodedAction = await decodeAction(formData)

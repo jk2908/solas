@@ -1,5 +1,7 @@
 import { lazy } from 'react'
 
+import { Logger } from '../../utils/logger.js'
+
 import type {
 	DynamicImport,
 	ImportMap,
@@ -8,9 +10,6 @@ import type {
 	Primitive,
 	View,
 } from '../../types.js'
-
-import { Logger } from '../../utils/logger.js'
-
 import type { Router } from './router.js'
 import { Build } from '../build.js'
 import { Metadata } from '../metadata.js'

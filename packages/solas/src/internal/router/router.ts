@@ -3,13 +3,10 @@ import path from 'node:path'
 import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 
 import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
-
 import { Solas } from '../../solas.js'
-
-import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
-
 import { HttpException } from '../navigation/http-exception.js'
 import { maybeAction } from '../server/actions.js'
+import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
 
 export namespace Router {
 	export type Params = Record<string, string | string[]>
@@ -301,7 +298,7 @@ export class Router {
 					this.#onError?.(
 						error,
 						Object.assign(req, {
-							[Solas.Config.REQUEST_META]: { match: null, error, action },
+							[Solas.Config.REQUEST_META_KEY]: { match: null, error, action },
 						}),
 					) ?? new Response(error.message, { status: error.status })
 				)
@@ -311,7 +308,7 @@ export class Router {
 			// attach routing state to the request once so middleware and handlers can
 			// read the same per-request metadata
 			const request: SolasRequest = Object.assign(req, {
-				[Solas.Config.REQUEST_META]: { match: matched, action, parsedFormData },
+				[Solas.Config.REQUEST_META_KEY]: { match: matched, action, parsedFormData },
 			})
 
 			// global middleware stays outside route middleware by preserving
@@ -328,7 +325,7 @@ export class Router {
 			// normalise unknown throwables so the error hook always receives an Error
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
 			const request = Object.assign(req, {
-				[Solas.Config.REQUEST_META]: { match, error, action },
+				[Solas.Config.REQUEST_META_KEY]: { match, error, action },
 			})
 
 			if (this.#onError) return this.#onError(error, request)

@@ -13,7 +13,7 @@ export namespace Solas {
 		export const ENTRY_BROWSER = 'entry.browser.tsx'
 		export const ASSETS_DIR = 'assets'
 		export const $ = Symbol(SLUG)
-		export const REQUEST_META = `__${SLUG.toUpperCase()}__`
+		export const REQUEST_META_KEY = `__${SLUG.toUpperCase()}__`
 		export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
 		export const PRERENDER_MODES = ['full', 'ppr', false] as const
 		export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const

@@ -1,11 +1,16 @@
 import { Suspense } from 'react'
 
 import type { Resolver } from '../router/resolver.js'
-import { HttpException, isHttpException } from '../navigation/http-exception.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
+import { HttpException, isHttpException } from '../navigation/http-exception.js'
 import DefaultErr from '../ui/defaults/error.js'
 
 type Match = NonNullable<Resolver.EnhancedMatch>
+
+const UNAUTHORISED_ERROR = new HttpException(401, 'Unauthorised')
+const FORBIDDEN_ERROR = new HttpException(403, 'Forbidden')
+const NOT_FOUND_ERROR = new HttpException(404, 'Not found')
+const SERVER_ERROR = new HttpException(500, 'Internal Server Error')
 
 /**
  * Render the resolved route tree for a matched page
@@ -59,7 +64,7 @@ export function Tree({
 	const {
 		layouts,
 		Page,
-		'401s': unauthorized,
+		'401s': unauthorised,
 		'403s': forbidden,
 		'404s': notFounds,
 		'500s': serverErrors,
@@ -80,7 +85,7 @@ export function Tree({
 			error?: HttpException | undefined
 		}> | null)[]
 	> = {
-		401: unauthorized,
+		401: unauthorised,
 		403: forbidden,
 		404: notFounds,
 		500: serverErrors,
@@ -105,7 +110,7 @@ export function Tree({
 	for (let idx = layouts.length - 1; idx >= 1; idx--) {
 		const Layout = layouts[idx]
 		const Loading = loaders[idx]
-		const Unauthorized = unauthorized[idx]
+		const Unauthorised = unauthorised[idx]
 		const Forbidden = forbidden[idx]
 		const NotFound = notFounds[idx]
 		const ServerError = serverErrors[idx]
@@ -125,14 +130,10 @@ export function Tree({
 		}
 
 		const errorBoundaries = {
-			401: Unauthorized ? (
-				<Unauthorized error={new HttpException(401, 'Unauthorized')} />
-			) : null,
-			403: Forbidden ? <Forbidden error={new HttpException(403, 'Forbidden')} /> : null,
-			404: NotFound ? <NotFound error={new HttpException(404, 'Not found')} /> : null,
-			500: ServerError ? (
-				<ServerError error={new HttpException(500, 'Internal Server Error')} />
-			) : null,
+			401: Unauthorised ? <Unauthorised error={UNAUTHORISED_ERROR} /> : null,
+			403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,
+			404: NotFound ? <NotFound error={NOT_FOUND_ERROR} /> : null,
+			500: ServerError ? <ServerError error={SERVER_ERROR} /> : null,
 		}
 
 		// wrap in error boundaries (if supplied for this segment's http errors)
@@ -148,7 +149,7 @@ export function Tree({
 	// now wrap with shell structure: shell renders immediately,
 	// inner streams inside Suspense
 	const ShellLoading = loaders[0]
-	const ShellUnauthorized = unauthorized[0]
+	const Shellunauthorised = unauthorised[0]
 	const ShellForbidden = forbidden[0]
 	const ShellNotFound = notFounds[0]
 	const ShellServerError = serverErrors[0]
@@ -156,10 +157,10 @@ export function Tree({
 	return (
 		<HttpExceptionBoundary
 			components={{
-				401: ShellUnauthorized ? <ShellUnauthorized /> : null,
-				403: ShellForbidden ? <ShellForbidden /> : null,
-				404: ShellNotFound ? <ShellNotFound /> : null,
-				500: ShellServerError ? <ShellServerError /> : null,
+				401: Shellunauthorised ? <Shellunauthorised error={UNAUTHORISED_ERROR} /> : null,
+				403: ShellForbidden ? <ShellForbidden error={FORBIDDEN_ERROR} /> : null,
+				404: ShellNotFound ? <ShellNotFound error={NOT_FOUND_ERROR} /> : null,
+				500: ShellServerError ? <ShellServerError error={SERVER_ERROR} /> : null,
 			}}>
 			<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
 				<Shell params={params}>{inner}</Shell>

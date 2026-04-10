@@ -15,7 +15,7 @@ import { Prerender } from '../prerender.js'
 import { Head } from '../render/head.js'
 import { RouterProvider } from '../router/router-provider.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
-import { getKnownDigest } from './utils.js'
+import { getKnownDigest, isKnownError } from './utils.js'
 
 type Opts = {
 	formState?: ReactFormState
@@ -65,6 +65,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 			onError(err) {
 				const digest = getKnownDigest(err)
 				if (digest) return digest
+				if (isKnownError(err)) return
 
 				logger.error('[ssr:ppr]', err)
 			},
@@ -80,6 +81,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 		onError(err) {
 			const digest = getKnownDigest(err)
 			if (digest) return digest
+			if (isKnownError(err)) return
 
 			logger.error('[ssr]', err)
 		},
@@ -129,6 +131,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 
 					const digest = getKnownDigest(err)
 					if (digest) return digest
+					if (isKnownError(err)) return
 
 					logger.error('[ssr:prerender:ppr]', err)
 				},
@@ -164,6 +167,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		onError(err) {
 			const digest = getKnownDigest(err)
 			if (digest) return digest
+			if (isKnownError(err)) return
 
 			logger.error('[ssr:prerender:full]', err)
 		},
@@ -201,6 +205,7 @@ async function resume(
 			onError(err) {
 				const digest = getKnownDigest(err)
 				if (digest) return digest
+				if (isKnownError(err)) return
 
 				logger.error('[ssr:resume]', err)
 			},

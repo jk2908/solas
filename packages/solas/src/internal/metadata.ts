@@ -157,17 +157,6 @@ export namespace Metadata {
 		}
 
 		/**
-		 * Clones an object using structuredClone w/ JSON fallback
-		 */
-		static #clone<T>(obj: T) {
-			if (typeof structuredClone === 'function') {
-				return structuredClone(obj) as T
-			}
-
-			return JSON.parse(JSON.stringify(obj)) as T
-		}
-
-		/**
 		 * Gets a unique key for the meta tag
 		 */
 		static #getMetaTagKey(tag: MetaTag) {
@@ -201,6 +190,17 @@ export namespace Metadata {
 		}
 
 		/**
+		 * Clones an object using structuredClone w/ JSON fallback
+		 */
+		static #clone<T>(obj: T) {
+			if (typeof structuredClone === 'function') {
+				return structuredClone(obj) as T
+			}
+
+			return JSON.parse(JSON.stringify(obj)) as T
+		}
+
+		/**
 		 * Merges metadata from all sources, sorted by priority
 		 */
 		async run() {
@@ -208,7 +208,7 @@ export namespace Metadata {
 
 			if (items.length === 0) return Collection.#clone(this.#base)
 
-			let merged = Collection.#clone(this.#base)
+			let merged = this.#base
 
 			const res = await Promise.allSettled(items.map(item => item.task))
 			const ok = res

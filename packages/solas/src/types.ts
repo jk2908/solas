@@ -1,13 +1,12 @@
 type BunRequest = Request & { params?: Record<string, string | string[]> }
 
-import { Solas } from './solas.js'
-
 import { ExportReader } from './utils/export-reader.js'
 
 import type { Build } from './internal/build.js'
 import type { Metadata } from './internal/metadata.js'
 import type { HttpException } from './internal/navigation/http-exception.js'
 import type { Router } from './internal/router/router.js'
+import { Solas } from './solas.js'
 
 export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]
 
@@ -49,13 +48,16 @@ export type BuildContext = {
 	exportReader: ExportReader
 }
 
+export type RequestMeta = {
+	error?: HttpException | Error
+	action?: boolean
+	match: Router.Match | null
+	parsedFormData?: FormData | null
+	url?: URL
+}
+
 export type SolasRequest = Request & {
-	[Solas.Config.REQUEST_META]: {
-		error?: HttpException | Error
-		action?: boolean
-		match: Router.Match | null
-		parsedFormData?: FormData | null
-	}
+	[Solas.Config.REQUEST_META_KEY]: RequestMeta
 }
 
 export type Segment = {
