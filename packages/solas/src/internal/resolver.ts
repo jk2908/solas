@@ -1,6 +1,6 @@
 import { lazy } from 'react'
 
-import { Logger } from '../../utils/logger.js'
+import { Logger } from '../utils/logger.js'
 
 import type {
 	DynamicImport,
@@ -9,11 +9,11 @@ import type {
 	ManifestEntry,
 	Primitive,
 	View,
-} from '../../types.js'
-import type { Router } from './router.js'
-import { Build } from '../build.js'
-import { Metadata } from '../metadata.js'
-import { HttpException, isHttpException } from '../navigation/http-exception.js'
+} from '../types.js'
+import { Build } from './build.js'
+import { HttpRouter } from './http-router/router.js'
+import { Metadata } from './metadata.js'
+import { HttpException, isHttpException } from './navigation/http-exception.js'
 
 export namespace Resolver {
 	export type ReconciledMatch = ReturnType<Resolver['reconcile']>
@@ -23,11 +23,11 @@ export namespace Resolver {
 		ui: {
 			layouts: (View<{
 				children?: React.ReactNode
-				params?: Router.Params
+				params?: HttpRouter.Params
 			}> | null)[]
 			Page: View<{
 				children?: React.ReactNode
-				params?: Router.Params
+				params?: HttpRouter.Params
 			}> | null
 			'401s': (View<{
 				children?: React.ReactNode
@@ -50,8 +50,8 @@ export namespace Resolver {
 			}> | null)[]
 		}
 		error?: HttpException | Error
-		endpoint?: (req?: Request & { params?: Router.Params }) => unknown
-		metadata?: (input: Metadata.Input<Router.Params>) => Metadata.Task[]
+		endpoint?: (req?: Request & { params?: HttpRouter.Params }) => unknown
+		metadata?: (input: Metadata.Input<HttpRouter.Params>) => Metadata.Task[]
 	}
 }
 
@@ -59,7 +59,7 @@ const logger = new Logger()
 const IS_DEV = import.meta.env.DEV
 
 /**
- * Resolve router matches against the application manifest and import map
+ * Resolve HttpRouter matches against the application manifest and import map
  */
 export class Resolver {
 	/**
@@ -222,16 +222,16 @@ export class Resolver {
 	}
 
 	/**
-	 * Reconcile a router match against a manifest entry
+	 * Reconcile a HttpRouter match against a manifest entry
 	 */
-	reconcile(path: string, match: Router.Match | null, error?: Error) {
+	reconcile(path: string, match: HttpRouter.Match | null, error?: Error) {
 		if (match) {
 			const entry = Resolver.narrow(
 				Resolver.#getEntryByPath(this.#manifest, match.route.path),
 			)
 
 			if (entry) {
-				// normal case, the router matched a page route so just attach request state
+				// normal case, the HttpRouter matched a page route so just attach request state
 				return {
 					...entry,
 					params: match.params,
@@ -475,7 +475,7 @@ export class Resolver {
 			}
 		}
 
-		enhanced.metadata = ({ params, error }: Metadata.Input<Router.Params>) =>
+		enhanced.metadata = ({ params, error }: Metadata.Input<HttpRouter.Params>) =>
 			// metadata execution still happens per request because params and errors
 			// can differ
 			Metadata.tasks(metadataSources, { params, error }, err => {

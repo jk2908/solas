@@ -12,6 +12,7 @@ import { Time } from './utils/time.js'
 
 import type { BuildContext, PluginConfig } from './types.js'
 import { Build } from './internal/build.js'
+import { writeArtifactManifest } from './internal/codegen/artifacts.js'
 import { writeConfig } from './internal/codegen/config.js'
 import {
 	writeBrowserEntry,
@@ -20,6 +21,7 @@ import {
 } from './internal/codegen/environments.js'
 import { writeManifest } from './internal/codegen/manifest.js'
 import { writeMaps } from './internal/codegen/maps.js'
+import { writeTypes } from './internal/codegen/types.js'
 import { Solas } from './solas.js'
 
 const DEFAULT_CONFIG = {
@@ -120,7 +122,9 @@ function solas(c: PluginConfig): PluginOption[] {
 		const files: [string, string][] = [
 			['config.ts', writeConfig(config)],
 			['manifest.ts', writeManifest(manifest)],
+			['artifacts.ts', writeArtifactManifest(manifest)],
 			['maps.ts', writeMaps(imports, modules)],
+			[`${Solas.Config.SLUG}.d.ts`, writeTypes(manifest)],
 			[Solas.Config.ENTRY_RSC, writeRSCEntry()],
 			[Solas.Config.ENTRY_SSR, writeSSREntry()],
 			[Solas.Config.ENTRY_BROWSER, writeBrowserEntry()],

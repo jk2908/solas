@@ -1,6 +1,8 @@
 import type { PluginConfig } from './types.js'
 
 export namespace Solas {
+	export interface Routes {}
+
 	export namespace Config {
 		export const NAME = 'Solas'
 		export const SLUG = NAME.toLowerCase()

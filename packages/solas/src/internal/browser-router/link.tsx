@@ -2,12 +2,16 @@
 
 import { useEffect, useRef } from 'react'
 
-import { useRouter } from '../router/use-router.js'
+import { BrowserRouter } from './router.js'
+import { useRouter } from './use-router.js'
 
-type Props = {
-	href: string
+type AnchorProps = React.ComponentPropsWithRef<'a'> & { href: string }
+
+type BaseProps = {
 	prefetch?: 'intent' | 'hover' | 'none'
-} & React.ComponentPropsWithRef<'a'>
+} & AnchorProps
+
+type Props = BaseProps & BrowserRouter.LinkProps
 
 function guard(path: string, prefetcher: (path: string) => void) {
 	const connection = window.navigator.connection
@@ -20,15 +24,27 @@ function guard(path: string, prefetcher: (path: string) => void) {
 }
 
 /**
- * A link component that navigates to a given href
- * @param href - the href to navigate to
+ * A link component that navigates to a given target
+ * @param href - the route target to navigate to
  * @param prefetch - when to prefetch the linked page, defaults to 'none'
  * @param rest - other props to pass to the underlying anchor element
- * @returns a link element that navigates to the given href
+ * @returns a link element that navigates to the given target
  */
-export function Link({ children, href, prefetch = 'none', ...rest }: Props) {
+export function Link(props: Props): React.JSX.Element
+export function Link({
+	children,
+	href,
+	params,
+	prefetch = 'none',
+	query,
+	...rest
+}: Props) {
 	const { go, prefetch: prefetcher } = useRouter()
+
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+	const handled = useRef(false)
+
+	const target = BrowserRouter.toTarget(href, params, query)
 
 	// clear any pending hover-prefetch timer on unmount
 	useEffect(
@@ -38,10 +54,16 @@ export function Link({ children, href, prefetch = 'none', ...rest }: Props) {
 		[],
 	)
 
+	useEffect(() => {
+		handled.current =
+			BrowserRouter.isHashOnlyTarget(target) ||
+			BrowserRouter.isExternalTarget(target, window.location.origin)
+	}, [target])
+
 	return (
 		<a
 			{...rest}
-			href={href}
+			href={target}
 			onClick={e => {
 				rest.onClick?.(e)
 				if (e.defaultPrevented) return
@@ -51,34 +73,35 @@ export function Link({ children, href, prefetch = 'none', ...rest }: Props) {
 				if (e.metaKey || e.altKey || e.ctrlKey || e.shiftKey) return
 				if (rest.target && rest.target !== '_self') return
 				if (rest.download) return
-
-				const to = new URL(href, window.location.origin)
-				if (to.origin !== window.location.origin) return
+				if (handled.current) return
 
 				e.preventDefault()
-				go(to.pathname + to.search + to.hash)
+				go(href, { params, query })
 			}}
 			onFocus={e => {
 				rest.onFocus?.(e)
 				if (e.defaultPrevented) return
-
 				if (prefetch !== 'intent') return
-				guard(href, prefetcher)
+				if (handled.current) return
+
+				guard(target, prefetcher)
 			}}
 			onTouchStart={e => {
 				rest.onTouchStart?.(e)
 				if (e.defaultPrevented) return
-
 				if (prefetch !== 'intent') return
-				guard(href, prefetcher)
+				if (handled.current) return
+
+				guard(target, prefetcher)
 			}}
 			onMouseEnter={e => {
 				rest.onMouseEnter?.(e)
 				if (e.defaultPrevented) return
 				if (prefetch !== 'hover') return
+				if (handled.current) return
 
 				timer.current = setTimeout(() => {
-					guard(href, prefetcher)
+					guard(target, prefetcher)
 				}, 100)
 			}}
 			onMouseLeave={e => {

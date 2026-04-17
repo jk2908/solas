@@ -3,9 +3,10 @@ type BunRequest = Request & { params?: Record<string, string | string[]> }
 import { ExportReader } from './utils/export-reader.js'
 
 import type { Build } from './internal/build.js'
+import type { HttpRouter } from './internal/http-router/router.js'
 import type { Metadata } from './internal/metadata.js'
 import type { HttpException } from './internal/navigation/http-exception.js'
-import type { Router } from './internal/router/router.js'
+import { BrowserRouter } from './internal/browser-router/router.js'
 import { Solas } from './solas.js'
 
 export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]
@@ -15,7 +16,7 @@ type PluginConfigBase = {
 	precompress?: boolean
 	prerender?: Route.Prerender
 	metadata?: Metadata.Item
-	trailingSlash?: Route.TrailingSlash
+	trailingSlash?: (typeof Solas.Config.TRAILING_SLASH_MODES)[number]
 	readonly logger?: {
 		level?: LogLevel
 	}
@@ -51,7 +52,7 @@ export type BuildContext = {
 export type RequestMeta = {
 	error?: HttpException | Error
 	action?: boolean
-	match: Router.Match | null
+	match: HttpRouter.Match | null
 	parsedFormData?: FormData | null
 	url?: URL
 }
@@ -93,6 +94,7 @@ export type Endpoint = {
 }
 
 export type ManifestEntry = Segment | Endpoint
+export type ManifestEntryGroup = ManifestEntry | [ManifestEntry, ...ManifestEntry[]]
 
 export type Manifest = Awaited<
 	ReturnType<typeof Build.Finder.prototype.process>
@@ -114,7 +116,7 @@ export type MapEntry = {
 	'404s'?: readonly (DynamicImport | null)[]
 	'500s'?: readonly (DynamicImport | null)[]
 	loaders?: readonly (DynamicImport | null)[]
-	middlewares?: readonly (Router.Middleware | null)[]
+	middlewares?: readonly (HttpRouter.Middleware | null)[]
 	endpoint?: (req?: BunRequest) => unknown
 }
 
@@ -130,17 +132,18 @@ export type BuildManifest = {
 	prerenderRoutes: string[]
 	sitemapRoutes: string[]
 	precompress: boolean
-	trailingSlash: Route.TrailingSlash
+	trailingSlash: (typeof Solas.Config.TRAILING_SLASH_MODES)[number]
 	url?: PluginConfig['url']
 }
 
 export namespace Route {
 	export type Metadata =
 		| Metadata.Item
-		| ((input: Metadata.Input<Router.Params>) => Promise<Metadata.Item> | Metadata.Item)
+		| ((
+				input: Metadata.Input<BrowserRouter.Params>,
+		  ) => Promise<Metadata.Item> | Metadata.Item)
 
 	export type Prerender = (typeof Solas.Config.PRERENDER_MODES)[number]
-	export type TrailingSlash = (typeof Solas.Config.TRAILING_SLASH_MODES)[number]
 }
 
 export type BoundaryError = Error & { digest?: string }

@@ -71,10 +71,6 @@
 		"./error-boundary": {
 			"types": "./dist/error-boundary.d.ts",
 			"import": "./dist/error-boundary.js"
-		},
-		"./solas": {
-			"types": "./dist/solas.d.ts",
-			"import": "./dist/solas.js"
 		}
 	},
 	"scripts": {

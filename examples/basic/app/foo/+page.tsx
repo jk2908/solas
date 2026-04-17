@@ -1,4 +1,4 @@
-import { Link } from '@jk2908/solas/navigation'
+import { Link } from '@jk2908/solas/router'
 
 export default async function Page() {
 	await new Promise(resolve => setTimeout(resolve, 2000))

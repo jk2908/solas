@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import type { Resolver } from '../router/resolver.js'
+import type { Resolver } from '../resolver.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import { HttpException, isHttpException } from '../navigation/http-exception.js'
 import DefaultErr from '../ui/defaults/error.js'

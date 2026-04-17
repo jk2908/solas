@@ -7,20 +7,20 @@ import { Logger } from '../../utils/logger.js'
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
 import type { SSRModule } from './ssr.js'
 import { Solas } from '../../solas.js'
+import { createHttpRouter } from '../http-router/create-http-router.js'
+import { HttpRouter } from '../http-router/router.js'
+import { normalisePathname } from '../http-router/utils.js'
 import { Metadata } from '../metadata.js'
 import { HttpException, isHttpException } from '../navigation/http-exception.js'
 import { Prerender } from '../prerender.js'
 import { Tree } from '../render/tree.js'
-import { createRouter } from '../router/create-router.js'
-import { Resolver } from '../router/resolver.js'
-import { Router } from '../router/router.js'
-import { normalisePathname } from '../router/utils.js'
+import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
-export type RSCPayload = {
+export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
@@ -69,7 +69,7 @@ async function createPayload(
 			req[Solas.Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found')
 		const title = `${'status' in error ? `${error.status} -` : ''}${error.message}`
 
-		const rscPayload: RSCPayload = {
+		const rscPayload: RscPayload = {
 			root: (
 				<html lang="en">
 					<head>
@@ -132,7 +132,7 @@ async function createPayload(
 		.add(...(match.metadata?.({ params: match.params, error: match.error }) ?? []))
 		.run()
 
-	const rscPayload: RSCPayload = {
+	const rscPayload: RscPayload = {
 		root: (
 			<>
 				<Tree
@@ -333,7 +333,7 @@ export function createHandler(
 		}
 
 		const artifactManifestEntry = runtimePpr
-			? (artifactManifest?.routes[lookupPath] ?? null)
+			? (artifactManifest?.[lookupPath] ?? null)
 			: null
 
 		let tryPrelude = false
@@ -399,7 +399,7 @@ export function createHandler(
 		})
 	}
 
-	const router = createRouter(config, manifest, importMap, createResponse)
+	const httpRouter = createHttpRouter(config, manifest, importMap, createResponse)
 
 	// vite-plugin-rsc entrypoint
 	return {
@@ -429,19 +429,21 @@ export function createHandler(
 				accept.includes('text/html') &&
 				req.headers.get(`x-${Solas.Config.SLUG}-prerender-artifact`) !== '1'
 			) {
+				// turn the request path into the normal route shape we use for artifact lookups
 				const lookupPath = normalisePathname(canonicalPath, prerenderPathMode)
-				const fullPrerenderFilename =
-					artifactManifest?.routes[lookupPath]?.fullPrerenderFilename
-				const prerenderPath = fullPrerenderFilename
-					? Prerender.Artifact.getFilePath(
-							Solas.Config.OUT_DIR,
-							lookupPath,
-							fullPrerenderFilename,
-						)
-					: null
+
+				// only full prerender routes have a saved html file we can serve directly
+				const prerenderPath =
+					artifactManifest?.[lookupPath]?.mode === 'full'
+						? Prerender.Artifact.getFilePath(
+								Solas.Config.OUT_DIR,
+								lookupPath,
+								Prerender.Artifact.FULL_PRERENDER_FILENAME,
+							)
+						: null
 
 				if (prerenderPath) {
-					const res = await Router.serve(prerenderPath, req, config.precompress, {
+					const res = await HttpRouter.serve(prerenderPath, req, config.precompress, {
 						// avoid shared or proxy caching unless users opt into public caching later
 						'Cache-Control': 'private, no-store',
 						'Content-Type': 'text/html; charset=utf-8',
@@ -451,7 +453,7 @@ export function createHandler(
 				}
 			}
 
-			return router.fetch(req)
+			return httpRouter.fetch(req)
 		},
 	}
 }

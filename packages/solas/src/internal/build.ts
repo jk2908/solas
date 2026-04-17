@@ -3,6 +3,8 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { Logger } from '../utils/logger.js'
+
 import type {
 	BuildContext,
 	Endpoint,
@@ -11,12 +13,8 @@ import type {
 	Route,
 	Segment,
 } from '../types.js'
-
 import { Solas } from '../solas.js'
-
-import { Logger } from '../utils/logger.js'
-import { normalisePathname } from './router/utils.js'
-
+import { normalisePathname } from './http-router/utils.js'
 import { Prerender } from './prerender.js'
 
 /**

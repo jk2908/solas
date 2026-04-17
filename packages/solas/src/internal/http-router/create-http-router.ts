@@ -3,14 +3,12 @@ import type {
 	ImportMap,
 	Manifest,
 	ManifestEntry,
+	ManifestEntryGroup,
 	PluginConfig,
 	Segment,
 	SolasRequest,
 } from '../../types.js'
-
-import { Router } from './router.js'
-
-type RouteGroup = Segment | Endpoint | [ManifestEntry, ...ManifestEntry[]]
+import { HttpRouter } from './router.js'
 
 function callEndpoint(
 	fn: (...args: [] | [Request]) => Response | Promise<Response>,
@@ -24,7 +22,7 @@ function callEndpoint(
 function createHandlerGroups(manifest: Manifest) {
 	return Object.values(manifest)
 		.flat()
-		.reduce<Map<string, RouteGroup>>((acc, entry) => {
+		.reduce<Map<string, ManifestEntryGroup>>((acc, entry) => {
 			// group by method + path so page and endpoint pairs can share one GET handler
 			const key = `${entry.method}/${entry.__path}`
 			const existing = acc.get(key)
@@ -52,10 +50,10 @@ function resolveMiddlewares(entry: ManifestEntry, importMap: ImportMap) {
 }
 
 function mergeMiddlewares(
-	left: readonly (Router.Middleware | null)[] | undefined,
-	right: readonly (Router.Middleware | null)[] | undefined,
+	left: readonly (HttpRouter.Middleware | null)[] | undefined,
+	right: readonly (HttpRouter.Middleware | null)[] | undefined,
 ) {
-	const merged: Router.Middleware[] = []
+	const merged: HttpRouter.Middleware[] = []
 
 	// unified page plus endpoint routes need one middleware chain, preserving the
 	// declared order but dropping duplicate functions shared by both sides
@@ -70,20 +68,20 @@ function mergeMiddlewares(
 }
 
 /**
- * Create the application router from the generated manifest and import map
+ * Create the HTTP router from the generated manifest and import map
  */
-export function createRouter(
+export function createHttpRouter(
 	config: Pick<PluginConfig, 'precompress' | 'trailingSlash'>,
 	manifest: Manifest,
 	importMap: ImportMap,
 	rsc: (req: SolasRequest) => Response | Promise<Response>,
 ) {
-	const router = new Router({
+	const router = new HttpRouter({
 		trailingSlash: config.trailingSlash,
 	})
 
 	// static assets stay outside route middleware conventions and are registered once
-	router.add('/assets/*', 'GET', Router.static(config))
+	router.add('/assets/*', 'GET', HttpRouter.static(config))
 
 	for (const [, group] of createHandlerGroups(manifest)) {
 		if (!Array.isArray(group)) {

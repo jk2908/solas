@@ -2,13 +2,12 @@ import path from 'node:path'
 
 import { compile } from 'path-to-regexp'
 
-import type { BuildContext } from '../types.js'
-
-import { Solas } from '../solas.js'
-
 import { Logger } from '../utils/logger.js'
 import { Time } from '../utils/time.js'
-import { toPathPattern } from './router/utils.js'
+
+import type { BuildContext } from '../types.js'
+import { Solas } from '../solas.js'
+import { toPathPattern } from './http-router/utils.js'
 
 const logger = new Logger()
 
@@ -35,15 +34,10 @@ export namespace Prerender {
 
 		export type ManifestEntry = {
 			mode: Mode
-			createdAt: number
 			files?: File[]
-			fullPrerenderFilename?: string
 		}
 
-		export type Manifest = {
-			generatedAt: number
-			routes: Record<string, ManifestEntry>
-		}
+		export type Manifest = Record<string, ManifestEntry>
 
 		/**
 		 * Check whether a file name is safe to join under an artifact directory
@@ -101,11 +95,9 @@ export namespace Prerender {
 		}
 
 		/**
-		 * Build a deterministic file name for a full prerender html artifact
+		 * File name used for saved full-prerender html inside each route artifact directory
 		 */
-		export function getFullHtmlFileName(html: string) {
-			return `html.${Bun.hash(html).toString(16)}.html`
-		}
+		export const FULL_PRERENDER_FILENAME = 'prerendered.html'
 
 		/**
 		 * Load the prerender artifact manifest for faster runtime route mode checks
@@ -134,13 +126,7 @@ export namespace Prerender {
 					return null
 				}
 
-				const generatedAt = (value as { generatedAt?: unknown }).generatedAt
 				const routes = (value as { routes?: unknown }).routes
-
-				if (typeof generatedAt !== 'number') {
-					manifestCache.set(outDir, null)
-					return null
-				}
 
 				if (!routes || typeof routes !== 'object') {
 					manifestCache.set(outDir, null)
@@ -154,15 +140,10 @@ export namespace Prerender {
 						return null
 					}
 
-					const { mode, createdAt, files } = entry
+					const { mode, files } = entry
 
 					// only allow known modes
 					if (mode !== 'full' && mode !== 'ppr') {
-						manifestCache.set(outDir, null)
-						return null
-					}
-
-					if (typeof createdAt !== 'number') {
 						manifestCache.set(outDir, null)
 						return null
 					}
@@ -187,16 +168,9 @@ export namespace Prerender {
 						}
 					}
 
-					if (
-						entry.fullPrerenderFilename !== undefined &&
-						!isArtifactFileName(entry.fullPrerenderFilename)
-					) {
-						manifestCache.set(outDir, null)
-						return null
-					}
 				}
 
-				const manifest = { generatedAt, routes } as Manifest
+				const manifest = { routes } as Manifest
 				// cache validated manifest to avoid reparsing on every request
 				manifestCache.set(outDir, manifest)
 

@@ -8,7 +8,7 @@ import { HttpException } from '../navigation/http-exception.js'
 import { maybeAction } from '../server/actions.js'
 import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
 
-export namespace Router {
+export namespace HttpRouter {
 	export type Params = Record<string, string | string[]>
 
 	export type Handler = (req: SolasRequest) => Response | Promise<Response>
@@ -64,10 +64,10 @@ export namespace Router {
 /**
  * Handle routing and matching for server requests
  */
-export class Router {
-	static #matchers = new WeakMap<Router.Route, MatchFunction<Router.Params>>()
+export class HttpRouter {
+	static #matchers = new WeakMap<HttpRouter.Route, MatchFunction<HttpRouter.Params>>()
 
-	#routes: Router.Registry = {
+	#routes: HttpRouter.Registry = {
 		// exact match by method + path
 		static: new Map(),
 		dynamic: {
@@ -82,17 +82,17 @@ export class Router {
 			fallback: [],
 		},
 	}
-	#middleware: { global: Router.Middleware[] } = { global: [] }
+	#middleware: { global: HttpRouter.Middleware[] } = { global: [] }
 	#onError?: (err: Error, req: SolasRequest) => Response | Promise<Response>
 
-	constructor(public opts: Router.Options = {}) {
+	constructor(public opts: HttpRouter.Options = {}) {
 		this.fetch = this.fetch.bind(this)
 	}
 
 	/**
 	 * Register middleware for all routes
 	 */
-	use(...middleware: Router.Middleware[]) {
+	use(...middleware: HttpRouter.Middleware[]) {
 		this.#middleware.global.push(...middleware)
 
 		return this
@@ -101,7 +101,7 @@ export class Router {
 	/**
 	 * Register an error handler for routing failures
 	 */
-	error(handler: Router.ErrorHandler) {
+	error(handler: HttpRouter.ErrorHandler) {
 		this.#onError = handler
 		return this
 	}
@@ -112,9 +112,9 @@ export class Router {
 	add(
 		path: string,
 		method: string,
-		handler: Router.Handler,
+		handler: HttpRouter.Handler,
 		params?: string[],
-		middleware: Router.Middleware[] = [],
+		middleware: HttpRouter.Middleware[] = [],
 	) {
 		// normalise static routes up front so trailingSlash matching
 		// uses the same pathname shape
@@ -122,8 +122,8 @@ export class Router {
 			!path.includes(':') && !path.includes('*')
 				? normalisePathname(path, this.opts.trailingSlash ?? 'never')
 				: path
-		const segments = Router.#split(routePath)
-		const tokens: Router.Token[] = []
+		const segments = HttpRouter.#split(routePath)
+		const tokens: HttpRouter.Token[] = []
 
 		let score = 0
 		let wildcard = false
@@ -147,7 +147,7 @@ export class Router {
 			score += 2
 		}
 
-		const route: Router.Route = {
+		const route: HttpRouter.Route = {
 			path: routePath,
 			method: method.toUpperCase(),
 			handler,
@@ -204,7 +204,7 @@ export class Router {
 	 * Match a path and method, returning params and route
 	 */
 	match(path: string, method: HttpMethod) {
-		for (const candidate of Router.#candidates(path)) {
+		for (const candidate of HttpRouter.#candidates(path)) {
 			const direct = this.#routes.static.get(`${method}:${candidate}`)
 
 			if (direct) return { route: direct, params: {} }
@@ -216,17 +216,17 @@ export class Router {
 		}
 
 		// else dynamic/wildcard match
-		const segments = Router.#split(path)
+		const segments = HttpRouter.#split(path)
 
 		// try the leading-static prefix bucket first
 		const prefixed = this.#routes.dynamic.byPrefix.get(segments[0] ?? '')
-		const prefixedMatch = prefixed ? Router.#pick(prefixed, segments, method) : null
+		const prefixedMatch = prefixed ? HttpRouter.#pick(prefixed, segments, method) : null
 
 		if (prefixedMatch) return prefixedMatch
 
 		// if the prefix bucket has no winner, fall back to all dynamic
 		// routes with the same segment count
-		const dynamicMatch = Router.#pick(
+		const dynamicMatch = HttpRouter.#pick(
 			this.#routes.dynamic.byLength.get(segments.length) ?? [],
 			segments,
 			method,
@@ -237,11 +237,11 @@ export class Router {
 		// finally check wildcard routes, prefixed first, then fully generic ones
 		const wildcardPrefixed = this.#routes.wildcard.byPrefix.get(segments[0] ?? '')
 		const wildcardMatch = wildcardPrefixed
-			? Router.#pick(wildcardPrefixed, segments, method)
+			? HttpRouter.#pick(wildcardPrefixed, segments, method)
 			: null
 		if (wildcardMatch) return wildcardMatch
 
-		const wildcardFallbackMatch = Router.#pick(
+		const wildcardFallbackMatch = HttpRouter.#pick(
 			this.#routes.wildcard.fallback,
 			segments,
 			method,
@@ -262,7 +262,7 @@ export class Router {
 			trailingSlash === 'ignore'
 				? url.pathname
 				: normalisePathname(url.pathname, trailingSlash)
-		let match: Router.Match | null = null
+		let match: HttpRouter.Match | null = null
 		let action = false
 
 		try {
@@ -342,7 +342,7 @@ export class Router {
 	 * Run middleware stack
 	 */
 	#run(
-		stack: Router.Middleware[],
+		stack: HttpRouter.Middleware[],
 		req: SolasRequest,
 		next: () => Promise<Response> | Response,
 	) {
@@ -403,7 +403,7 @@ export class Router {
 			}
 
 			// emitted assets are fingerprinted so they can be cached aggressively
-			return Router.serve(filePath, req, config.precompress, {
+			return HttpRouter.serve(filePath, req, config.precompress, {
 				'Cache-Control': 'public, immutable, max-age=31536000',
 			})
 		}
@@ -493,8 +493,8 @@ export class Router {
 	/**
 	 * Get or create a path matcher for a route using path-to-regexp
 	 */
-	static #getMatcher(route: Router.Route) {
-		const cached = Router.#matchers.get(route)
+	static #getMatcher(route: HttpRouter.Route) {
+		const cached = HttpRouter.#matchers.get(route)
 		if (cached) return cached
 
 		// convert route tokens back into a path pattern for path-to-regexp to compile
@@ -504,18 +504,18 @@ export class Router {
 		)
 
 		// create a matcher function for this route and cache it
-		const matcher = createMatch<Router.Params>(path, {
+		const matcher = createMatch<HttpRouter.Params>(path, {
 			decode: false,
 		})
 
-		Router.#matchers.set(route, matcher)
+		HttpRouter.#matchers.set(route, matcher)
 		return matcher
 	}
 
 	/**
 	 * Rank token kinds so more specific segments win before broader ones
 	 */
-	static #getTokenRank(token: Router.Token | undefined) {
+	static #getTokenRank(token: HttpRouter.Token | undefined) {
 		if (!token) return -1
 		if (token.kind === 'static') return 2
 		if (token.kind === 'dynamic') return 1
@@ -525,14 +525,15 @@ export class Router {
 	/**
 	 * Compare two routes and prefer the one with the more specific segment pattern
 	 */
-	static #compare(a: Router.Route, b: Router.Route) {
+	static #compare(a: HttpRouter.Route, b: HttpRouter.Route) {
 		const length = Math.max(a.tokens.length, b.tokens.length)
 
 		for (let index = 0; index < length; index += 1) {
 			// prefer static over dynamic and dynamic over wildcard at the
 			// first segment position where the two routes differ
 			const diff =
-				Router.#getTokenRank(a.tokens[index]) - Router.#getTokenRank(b.tokens[index])
+				HttpRouter.#getTokenRank(a.tokens[index]) -
+				HttpRouter.#getTokenRank(b.tokens[index])
 			if (diff !== 0) return diff
 		}
 
@@ -547,9 +548,9 @@ export class Router {
 	/**
 	 * Find the best matching route from a candidate list using explicit specificity rules
 	 */
-	static #pick(routes: Router.Route[], segments: string[], method: HttpMethod) {
-		let best: Router.Route | null = null
-		let bestParams: Router.Params | null = null
+	static #pick(routes: HttpRouter.Route[], segments: string[], method: HttpMethod) {
+		let best: HttpRouter.Route | null = null
+		let bestParams: HttpRouter.Params | null = null
 
 		for (const route of routes) {
 			// HEAD can reuse GET routes when HEAD is not registered explicitly
@@ -559,11 +560,11 @@ export class Router {
 
 			// skip routes that do not fit this path. Only compare specificity
 			// across matched routes
-			const params = Router.#fit(route, segments)
+			const params = HttpRouter.#fit(route, segments)
 			if (!params) continue
 
 			// replace the winner only when this route is strictly more specific
-			if (!best || Router.#compare(route, best) > 0) {
+			if (!best || HttpRouter.#compare(route, best) > 0) {
 				best = route
 				bestParams = params
 			}
@@ -577,7 +578,7 @@ export class Router {
 	/**
 	 * Fit a route against path segments
 	 */
-	static #fit(route: Router.Route, segments: string[]) {
+	static #fit(route: HttpRouter.Route, segments: string[]) {
 		if (route.wildcard) {
 			// wildcard routes only require the fixed prefix before the catch-all segment
 			if (segments.length < route.length - 1) return null
@@ -587,7 +588,7 @@ export class Router {
 
 		// defer the actual param extraction to the cached path-to-regexp matcher so
 		// dynamic and wildcard params stay consistent with registration
-		const matched = Router.#getMatcher(route)(
+		const matched = HttpRouter.#getMatcher(route)(
 			segments.length ? `/${segments.join('/')}` : '/',
 		)
 		if (!matched) return null

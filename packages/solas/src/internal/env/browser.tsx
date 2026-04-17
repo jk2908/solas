@@ -10,29 +10,29 @@ import {
 } from '@vitejs/plugin-rsc/browser'
 import { rscStream } from 'rsc-html-stream/client'
 
-import type { RSCPayload } from './rsc.js'
+import type { RscPayload } from './rsc.js'
+import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
-import { RouterProvider } from '../router/router-provider.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
 
 /**
  * Browser RSC hydration entry point
  */
 export async function browser() {
-	const payload = await createFromReadableStream<RSCPayload>(rscStream, {
+	const payload = await createFromReadableStream<RscPayload>(rscStream, {
 		unstable_allowPartialStream: true,
 	})
 
-	const payloadSetter: { current: (payload: RSCPayload) => void } = {
+	const payloadSetter: { current: (payload: RscPayload) => void } = {
 		current: () => {},
 	}
 
 	function A() {
-		const [p, setP] = useState<RSCPayload>(payload)
+		const [p, setP] = useState<RscPayload>(payload)
 		const [isPending, startTransition] = useTransition()
 
-		const setPayloadInTransition = useCallback((payload: RSCPayload) => {
+		const setPayloadInTransition = useCallback((payload: RscPayload) => {
 			startTransition(() => {
 				setP(payload)
 			})
@@ -44,7 +44,7 @@ export async function browser() {
 
 		return (
 			<RedirectBoundary>
-				<RouterProvider
+				<BrowserRouterProvider
 					setPayload={setPayloadInTransition}
 					isNavigating={isPending}
 					url={p.url}>
@@ -55,7 +55,7 @@ export async function browser() {
 					</ErrorBoundary>
 
 					{p.root}
-				</RouterProvider>
+				</BrowserRouterProvider>
 			</RedirectBoundary>
 		)
 	}
@@ -63,7 +63,7 @@ export async function browser() {
 	setServerCallback(async (id, args) => {
 		const url = new URL(window.location.href)
 		const temporaryReferences = createTemporaryReferenceSet()
-		const payload = await createFromFetch<RSCPayload>(
+		const payload = await createFromFetch<RscPayload>(
 			fetch(url, {
 				method: 'POST',
 				body: await encodeReply(args, { temporaryReferences }),
@@ -94,7 +94,7 @@ export async function browser() {
 
 	import.meta.hot?.on?.('rsc:update', async () => {
 		try {
-			const p = await createFromFetch<RSCPayload>(
+			const p = await createFromFetch<RscPayload>(
 				fetch(window.location.href, { headers: { Accept: 'text/x-component' } }),
 			)
 			payloadSetter.current(p)

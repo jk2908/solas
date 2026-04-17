@@ -14,14 +14,16 @@ const NEVER: Promise<never> = new Promise(() => {})
  * @throws if called in prerender mode (the desired effect)
  */
 export function dynamic() {
-	const { prerender } = RequestContext.use()
+	const { prerender, req } = RequestContext.use()
 
 	if (!prerender) return
 
 	if (prerender !== 'ppr') {
+		const pathname = new URL(req.url).pathname
+
 		logger.warn(
 			'[dynamic]',
-			"dynamic() was called but prerender mode is not 'ppr'. This means the component will be rendered at build time, which may not be what you intended",
+			`dynamic() was called for ${pathname} but prerender mode is not 'ppr'. This means the component will be rendered at build time, which may not be what you intended`,
 		)
 
 		return

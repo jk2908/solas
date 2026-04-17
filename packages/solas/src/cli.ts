@@ -2,14 +2,12 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { BuildManifest } from './types.js'
-
-import { Solas } from './solas.js'
-
 import { Compress } from './utils/compress.js'
 import { Logger } from './utils/logger.js'
 
+import type { BuildManifest } from './types.js'
 import { Prerender } from './internal/prerender.js'
+import { Solas } from './solas.js'
 
 const logger = new Logger()
 const DEFAULT_PREVIEW_PORT = 4173
@@ -67,7 +65,7 @@ async function build() {
 		const concurrency = Prerender.Build.getConcurrency()
 
 		// track the extra prerender files we write for preview
-		const artifactManifestRoutes: Prerender.Artifact.Manifest['routes'] = {}
+		const artifactManifestRoutes: Prerender.Artifact.Manifest = {}
 
 		// keep in-flight artifact writes bounded so result handling does not block on one route at a time
 		const pendingWrites = new Set<Promise<void>>()
@@ -149,7 +147,6 @@ async function build() {
 
 						artifactManifestRoutes[route] = {
 							mode: artifact.mode,
-							createdAt: artifact.createdAt,
 							files:
 								artifact.postponed !== undefined
 									? ['metadata', 'prelude', 'postponed']
@@ -177,9 +174,7 @@ async function build() {
 
 					// full prerender still keeps metadata so preview knows to serve saved html
 					await fs.mkdir(artifactDir, { recursive: true })
-					const fullPrerenderFilename = Prerender.Artifact.getFullHtmlFileName(
-						artifact.html,
-					)
+					const fullPrerenderFilename = Prerender.Artifact.FULL_PRERENDER_FILENAME
 
 					await Promise.all([
 						Bun.write(
@@ -199,9 +194,7 @@ async function build() {
 
 					artifactManifestRoutes[route] = {
 						mode: artifact.mode,
-						createdAt: artifact.createdAt,
 						files: ['metadata', 'html'],
-						fullPrerenderFilename,
 					}
 
 					logger.info(`[prerender]: ${route} (full)`)
@@ -221,7 +214,6 @@ async function build() {
 		await Bun.write(
 			Prerender.Artifact.getManifestPath(outDir),
 			JSON.stringify({
-				generatedAt: Date.now(),
 				routes: artifactManifestRoutes,
 			}),
 		)

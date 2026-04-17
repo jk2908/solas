@@ -2,6 +2,8 @@ import { Suspense } from 'react'
 
 import { dynamic, headers, url } from '@jk2908/solas/server'
 
+export const prerender = 'ppr'
+
 export default function Page() {
 	return (
 		<>

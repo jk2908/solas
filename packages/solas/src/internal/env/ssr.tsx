@@ -8,12 +8,12 @@ import { injectRSCPayload } from 'rsc-html-stream/server'
 
 import { Logger } from '../../utils/logger.js'
 
-import type { RSCPayload } from './rsc.js'
+import type { RscPayload } from './rsc.js'
 import { Solas } from '../../solas.js'
+import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Prerender } from '../prerender.js'
 import { Head } from '../render/head.js'
-import { RouterProvider } from '../router/router-provider.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
@@ -26,12 +26,12 @@ type Opts = {
 
 const logger = new Logger()
 
-function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
+function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
 	const payload = use(payloadPromise)
 
 	return (
 		<RedirectBoundary>
-			<RouterProvider url={payload.url}>
+			<BrowserRouterProvider url={payload.url}>
 				<ErrorBoundary fallback={null}>
 					<Suspense fallback={null}>
 						<Head metadata={payload.metadata} />
@@ -39,7 +39,7 @@ function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
 				</ErrorBoundary>
 
 				{payload.root}
-			</RouterProvider>
+			</BrowserRouterProvider>
 		</RedirectBoundary>
 	)
 }
@@ -50,7 +50,7 @@ function A({ payloadPromise }: { payloadPromise: Promise<RSCPayload> }) {
 async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	const { formState, nonce, ppr = false } = opts
 	const [s1, s2] = rscStream.tee()
-	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
+	const payloadPromise: Promise<RscPayload> = createFromReadableStream<RscPayload>(s1)
 
 	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
 		'index',
@@ -107,7 +107,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 	}
 
 	const [s1, s2] = rscStream.tee()
-	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
+	const payloadPromise: Promise<RscPayload> = createFromReadableStream<RscPayload>(s1)
 
 	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
 		'index',
@@ -199,7 +199,7 @@ async function resume(
 	const { nonce, injectPayload = true } = opts
 
 	const [s1, s2] = rscStream.tee()
-	const payloadPromise: Promise<RSCPayload> = createFromReadableStream<RSCPayload>(s1)
+	const payloadPromise: Promise<RscPayload> = createFromReadableStream<RscPayload>(s1)
 
 	const htmlStream = await reactResume(
 		<A payloadPromise={payloadPromise} />,

@@ -1,4 +1,4 @@
-import type { Route } from '../../types.js'
+import type { PluginConfig } from '../../types.js'
 
 export type PathPattern = {
 	path: string
@@ -60,7 +60,7 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
  */
 export function normalisePathname(
 	pathname: string,
-	trailingSlash: Route.TrailingSlash = 'never',
+	trailingSlash: PluginConfig['trailingSlash'] = 'never',
 ) {
 	if (pathname === '/') return pathname
 	// ignore mode keeps the incoming pathname shape as-is
@@ -72,7 +72,15 @@ export function normalisePathname(
 }
 
 /**
- * Return the other pathname shape for a non-root route
+ * Return the other pathname shape for a non-root route. For use within 
+ * trailingSlash logic to easily switch between shapes
+ * 
+ * @example
+ * ```ts
+ * 	getAlternatePathname('/about') // '/about/'
+ * 	getAlternatePathname('/about/') // '/about'
+ * 	getAlternatePathname('/') // '/'
+ * ```
  */
 export function getAlternatePathname(pathname: string) {
 	if (pathname === '/') return pathname
