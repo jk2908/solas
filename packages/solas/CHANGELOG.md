@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2 - 2026-04-21
+
+- Fixed PPR flight transport and closed-connection handling by replacing `rsc-html-stream` with the local runtime transport.
+- Fixed prerender artifact manifest handling for dynamic params by writing the final built artifact manifest and using it for runtime artifact lookups.
+
 ## 0.3.1 - 2026-04-07
 
 - Fixed `useSearchParams()` client builds.

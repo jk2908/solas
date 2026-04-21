@@ -73,12 +73,23 @@ export const rscStream = new ReadableStream<Uint8Array>({
 		// That lets hydration read the early rows first
 		for (const entry of flightData) handle(entry)
 
-		// later inline scripts call __FLIGHT_DATA.push(...). Keep that row in the shared
-		// array first, then mirror it into the open stream React is already reading from
+		// clear the array to release memory
+		window.__FLIGHT_DATA.length = 0
+
+		// later inline scripts call __FLIGHT_DATA.push(...). Forward each new row
+		// into the open stream, then clear the array so old rows do not pile up
+		// in memory
 		flightData.push = (...entries: Chunk[]) => {
 			const length = push(...entries)
 
 			for (const entry of entries) handle(entry)
+
+			// once React has the row, we no longer need to keep it in the array
+			if (typeof window !== 'undefined' && window.__FLIGHT_DATA) {
+				window.__FLIGHT_DATA.length = 0
+			}
+
+			// return the new length so the array behaves as expected
 			return length
 		}
 	},
