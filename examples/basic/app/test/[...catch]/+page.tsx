@@ -1,9 +1,9 @@
-export const metadata = ({ params }: { params?: { catch: string[] } }) => {
+export const metadata = ({ params }: { params?: { catch: string } }) => {
 	return {
-		title: `Catch all route - ${params?.catch.join('/')}`,
+		title: `Catch all route - ${params?.catch}`,
 	}
 }
 
-export default function Post({ params }: { params?: { catch: string[] } }) {
+export default function Post({ params }: { params?: { catch: string } }) {
 	return <>Post {JSON.stringify(params)}</>
 }
