@@ -3,7 +3,6 @@
 import { Component } from 'react'
 
 import type { BoundaryError } from '../../types.js'
-
 import { isRedirect, REDIRECT_DIGEST_PREFIX } from './redirect.js'
 
 export type Props = {

@@ -3,7 +3,6 @@
 import { Component } from 'react'
 
 import type { BoundaryError } from '../../types.js'
-
 import { isKnownError } from '../env/utils.js'
 
 export type Props = {

@@ -167,10 +167,9 @@ export namespace Prerender {
 							}
 						}
 					}
-
 				}
 
-				const manifest = { routes } as Manifest
+				const manifest = routes as Manifest
 				// cache validated manifest to avoid reparsing on every request
 				manifestCache.set(outDir, manifest)
 

@@ -1,6 +1,5 @@
-import { Solas } from '../solas.js'
-
 import { HttpException } from '../internal/navigation/http-exception.js'
+import { Solas } from '../solas.js'
 
 const LEVELS = {
 	debug: 0,

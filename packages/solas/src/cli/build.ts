@@ -63,7 +63,7 @@ export async function build() {
 		const concurrency = Prerender.Build.getConcurrency()
 
 		// track the extra prerender files we write for preview
-		const artifactManifestRoutes: Prerender.Artifact.Manifest = {}
+		const artifactManifest: Prerender.Artifact.Manifest = {}
 
 		// keep in-flight artifact writes bounded so result handling does not block on one route at a time
 		const pendingWrites = new Set<Promise<void>>()
@@ -74,7 +74,6 @@ export async function build() {
 		)
 
 		// load the built server entry and render each prerendered route through it
-
 		const rscEntry = path.join(rscDir, 'index.js')
 		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
@@ -143,7 +142,7 @@ export async function build() {
 
 						await Promise.all(writes)
 
-						artifactManifestRoutes[route] = {
+						artifactManifest[route] = {
 							mode: artifact.mode,
 							files:
 								artifact.postponed !== undefined
@@ -190,7 +189,7 @@ export async function build() {
 						),
 					])
 
-					artifactManifestRoutes[route] = {
+					artifactManifest[route] = {
 						mode: artifact.mode,
 						files: ['metadata', 'html'],
 					}
@@ -212,7 +211,7 @@ export async function build() {
 		await Bun.write(
 			Prerender.Artifact.getManifestPath(outDir),
 			JSON.stringify({
-				routes: artifactManifestRoutes,
+				routes: artifactManifest,
 			}),
 		)
 	}

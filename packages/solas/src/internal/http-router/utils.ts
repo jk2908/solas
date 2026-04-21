@@ -72,9 +72,9 @@ export function normalisePathname(
 }
 
 /**
- * Return the other pathname shape for a non-root route. For use within 
+ * Return the other pathname shape for a non-root route. For use within
  * trailingSlash logic to easily switch between shapes
- * 
+ *
  * @example
  * ```ts
  * 	getAlternatePathname('/about') // '/about/'

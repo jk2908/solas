@@ -1,9 +1,8 @@
 import { use } from 'react'
 
-import { Solas } from '../../solas.js'
-
 import { Logger } from '../../utils/logger.js'
 
+import { Solas } from '../../solas.js'
 import { type Metadata as Collection } from '../metadata.js'
 
 const logger = new Logger()
