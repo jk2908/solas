@@ -34,7 +34,7 @@ export namespace Prerender {
 
 		export type ManifestEntry = {
 			mode: Mode
-			files?: File[]
+			files?: readonly File[]
 		}
 
 		export type Manifest = Record<string, ManifestEntry>

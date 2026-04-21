@@ -2,6 +2,8 @@ import { Suspense } from 'react'
 
 import { dynamic, headers, url } from '@jk2908/solas/server'
 
+import { ClientButton } from '../client-button.js'
+
 export const prerender = 'ppr'
 
 export default function Page() {
@@ -18,12 +20,14 @@ export default function Page() {
 			<Suspense fallback={<div>Loading...</div>}>
 				<D3 />
 			</Suspense>
+
+			<ClientButton />
 		</>
 	)
 }
 
 async function D1() {
-	dynamic()
+	await dynamic()
 
 	return <div>{Date.now()}</div>
 }
@@ -32,9 +36,9 @@ function D2() {
 	return <div>{Date.now()}</div>
 }
 
-function D3() {
-	const h = headers()
-	const u = url()
+async function D3() {
+	const h = await headers()
+	const u = await url()
 
 	return (
 		<div>

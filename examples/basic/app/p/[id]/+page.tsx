@@ -35,7 +35,7 @@ export default function Post({ params }: { params?: { id: string } }) {
 
 async function Timestamp({ slug }: { slug: string }) {
 	if (slug === 'post-2') {
-		dynamic()
+		await dynamic()
 	}
 
 	return <div>{Date.now()}</div>

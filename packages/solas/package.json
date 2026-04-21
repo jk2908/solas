@@ -85,8 +85,7 @@
 	},
 	"dependencies": {
 		"@vitejs/plugin-rsc": "^0.5.20",
-		"path-to-regexp": "^8.3.0",
-		"rsc-html-stream": "^0.0.7"
+		"path-to-regexp": "^8.3.0"
 	},
 	"devDependencies": {
 		"@prettier/plugin-oxc": "^0.1.3",

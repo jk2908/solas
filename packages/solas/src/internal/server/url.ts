@@ -7,10 +7,10 @@ const logger = new Logger()
 
 /**
  * Get the request url as a URL instance
- * @returns a URL instance containing the request url
+ * @returns a Promise resolving to a URL instance containing the request url
  */
-export function url() {
-	dynamic()
+export async function url() {
+	await dynamic()
 
 	const { req, cache } = RequestContext.use()
 

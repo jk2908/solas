@@ -4,7 +4,6 @@ import { resume as reactResume, renderToReadableStream } from 'react-dom/server.
 import { prerender as reactPrerender } from 'react-dom/static.edge'
 
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
-import { injectRSCPayload } from 'rsc-html-stream/server'
 
 import { Logger } from '../../utils/logger.js'
 
@@ -15,6 +14,7 @@ import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Prerender } from '../prerender.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
+import { captureBuffered, injectPayload } from './flight.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
 type Opts = {
@@ -72,7 +72,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 			},
 		})
 
-		return prelude.pipeThrough(injectRSCPayload(s2, { nonce }))
+		return prelude.pipeThrough(injectPayload(s2, { nonce }))
 	}
 
 	const htmlStream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
@@ -89,7 +89,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 		},
 	})
 
-	return htmlStream.pipeThrough(injectRSCPayload(s2, { nonce }))
+	return htmlStream.pipeThrough(injectPayload(s2, { nonce }))
 }
 
 /**
@@ -150,17 +150,23 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 				createdAt: Date.now(),
 				mode: 'full',
 				html: await new Response(
-					prelude.pipeThrough(injectRSCPayload(s2, { nonce })),
+					prelude.pipeThrough(injectPayload(s2, { nonce })),
 				).text(),
 			}
 		}
+
+		// save the static payload rows in the cached prelude and leave the
+		// postponed work for the later resume response
+		const partialPayload = await captureBuffered(s2)
 
 		return {
 			schema,
 			route,
 			createdAt: Date.now(),
 			mode: 'ppr',
-			html: await new Response(prelude).text(),
+			html: await new Response(
+				prelude.pipeThrough(injectPayload(partialPayload, { nonce })),
+			).text(),
 			postponed,
 		}
 	}
@@ -184,7 +190,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		route,
 		createdAt: Date.now(),
 		mode: 'full',
-		html: await new Response(stream.pipeThrough(injectRSCPayload(s2, { nonce }))).text(),
+		html: await new Response(stream.pipeThrough(injectPayload(s2, { nonce }))).text(),
 	}
 }
 
@@ -196,8 +202,6 @@ async function resume(
 	postponedState: unknown,
 	opts: Pick<Opts, 'nonce'> & { injectPayload?: boolean } = {},
 ) {
-	const { nonce, injectPayload = true } = opts
-
 	const [s1, s2] = rscStream.tee()
 	const payloadPromise: Promise<RscPayload> = createFromReadableStream<RscPayload>(s1)
 
@@ -205,7 +209,7 @@ async function resume(
 		<A payloadPromise={payloadPromise} />,
 		postponedState as never,
 		{
-			nonce,
+			nonce: opts.nonce,
 			onError(err) {
 				const digest = getKnownDigest(err)
 
@@ -217,9 +221,11 @@ async function resume(
 		},
 	)
 
-	if (!injectPayload) return htmlStream
+	// cached ppr preludes already embed the static payload, so resume usually
+	// only needs to send the html completion scripts
+	if (opts.injectPayload === false) return htmlStream
 
-	return htmlStream.pipeThrough(injectRSCPayload(s2, { nonce }))
+	return htmlStream.pipeThrough(injectPayload(s2, { nonce: opts.nonce }))
 }
 
 export type SSRModule = {

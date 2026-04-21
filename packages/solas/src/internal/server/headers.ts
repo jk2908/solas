@@ -3,10 +3,10 @@ import { dynamic } from './dynamic.js'
 
 /**
  * Get the request headers as a read-only map
- * @returns a read-only map of request headers
+ * @returns a Promise resolving to a read-only map of request headers
  */
-export function headers(): ReadonlyMap<string, string> {
-	dynamic()
+export async function headers(): Promise<ReadonlyMap<string, string>> {
+	await dynamic()
 
 	const { req, cache } = RequestContext.use()
 	// use request cache if possible to avoid reconstructing the map

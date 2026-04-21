@@ -8,21 +8,21 @@ import {
 	encodeReply,
 	setServerCallback,
 } from '@vitejs/plugin-rsc/browser'
-import { rscStream } from 'rsc-html-stream/client'
 
 import type { RscPayload } from './rsc.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
+import { rscStream } from './flight.js'
 
 /**
  * Browser RSC hydration entry point
  */
 export async function browser() {
-	const payload = await createFromReadableStream<RscPayload>(rscStream, {
-		unstable_allowPartialStream: true,
-	})
+	// read the initial payload from the inline __FLIGHT_DATA pushes that were
+	// injected into the html document during ssr/prerender
+	const payload = await createFromReadableStream<RscPayload>(rscStream)
 
 	const payloadSetter: { current: (payload: RscPayload) => void } = {
 		current: () => {},

@@ -1,8 +1,5 @@
-import { Logger } from '../../utils/logger.js'
-
 import { RequestContext } from '../env/request-context.js'
 
-const logger = new Logger()
 const NEVER: Promise<never> = new Promise(() => {})
 
 /**
@@ -10,24 +7,10 @@ const NEVER: Promise<never> = new Promise(() => {})
  * @description in prerender mode this suspends forever so the nearest Suspense
  * boundary renders its fallback into the static shell. In request mode this
  * resolves immediately
- * @returns void during normal requests or prerender not in ppr mode
- * @throws if called in prerender mode (the desired effect)
  */
-export function dynamic() {
-	const { prerender, req } = RequestContext.use()
+export async function dynamic() {
+	const { prerender } = RequestContext.use()
+	if (prerender !== 'ppr') return
 
-	if (!prerender) return
-
-	if (prerender !== 'ppr') {
-		const pathname = new URL(req.url).pathname
-
-		logger.warn(
-			'[dynamic]',
-			`dynamic() was called for ${pathname} but prerender mode is not 'ppr'. This means the component will be rendered at build time, which may not be what you intended`,
-		)
-
-		return
-	}
-
-	throw NEVER
+	await NEVER
 }

@@ -336,20 +336,7 @@ export function createHandler(
 			? (artifactManifest?.[lookupPath] ?? null)
 			: null
 
-		let tryPrelude = false
-
-		if (artifactManifestEntry) {
-			tryPrelude = artifactManifestEntry.mode === 'ppr'
-		} else if (runtimePpr) {
-			const artifactMetadata = await Prerender.Artifact.loadMetadata(
-				Solas.Config.OUT_DIR,
-				lookupPath,
-			)
-
-			tryPrelude =
-				!!artifactMetadata &&
-				Prerender.Artifact.isCompatible(artifactMetadata, lookupPath, 'ppr')
-		}
+		const tryPrelude = artifactManifestEntry?.mode === 'ppr'
 
 		if (tryPrelude) {
 			const postponedState = await Prerender.Artifact.loadPostponedState(
@@ -364,9 +351,11 @@ export function createHandler(
 			// resumable ppr responses splice fresh streamed content into the cached
 			// prelude when postponed state is available for this route
 			if (postponedState) {
+				// the cached prelude already carries the static payload, only needs to
+				// stream the html completions for postponed boundaries
 				const resumeStream = await mod.resume(stream, postponedState, {
 					nonce: undefined,
-					injectPayload: true,
+					injectPayload: false,
 				})
 
 				const body = prelude
