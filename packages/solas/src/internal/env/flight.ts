@@ -114,20 +114,21 @@ export function injectPayload(payload: ReadableStream<Uint8Array>, opts: Opts = 
 
 			// hold the final closing tags back so payload scripts land inside the document,
 			// not after it
-			if (html.endsWith(HTML_TRAIL)) {
-				html = html.slice(0, -HTML_TRAIL.length)
-			}
+			if (html.endsWith(HTML_TRAIL)) html = html.slice(0, -HTML_TRAIL.length)
 
+			// write the buffered html before the payload scripts, so they are guaranteed to be
+			// parsed in the right place
 			if (html) controller.enqueue(encoder.encode(html))
 		}
 
 		// flush any decoder state left over from split utf-8/html chunks
 		let remaining = decoder.decode()
 
-		if (remaining.endsWith(HTML_TRAIL)) {
-			remaining = remaining.slice(0, -HTML_TRAIL.length)
-		}
+		// if the remaining buffered html ends with the closing tags, remove them so they
+		// can be re-appended after the payload
+		if (remaining.endsWith(HTML_TRAIL)) remaining = remaining.slice(0, -HTML_TRAIL.length)
 
+		// if there is any html left after removing the closing tags, write it before the payload
 		if (remaining) controller.enqueue(encoder.encode(remaining))
 
 		buffered = []
@@ -198,7 +199,7 @@ async function writePayload(
 		} catch {
 			// most rows are text, but keep binary chunks intact when a payload
 			// row cannot be decoded as utf-8
-			const base64 = JSON.stringify(btoa(String.fromCodePoint(...chunk)))
+			const base64 = JSON.stringify(window.btoa(String.fromCodePoint(...chunk)))
 			writePayloadScript(
 				`Uint8Array.from(atob(${base64}), value => value.codePointAt(0))`,
 				controller,
