@@ -15,6 +15,9 @@ export const HTTP_EXCEPTION_NAME_MAP: Record<HttpException.StatusCode, string> =
 	500: 'INTERNAL_SERVER_ERROR',
 } as const
 
+export type HttpExceptionLike = Pick<Error, 'name' | 'message' | 'stack'> &
+	Partial<Pick<HttpException, 'digest' | 'payload' | 'status'>>
+
 /**
  * An exception representing an HTTP error, with an optional payload
  * and cause
@@ -40,7 +43,6 @@ export const HTTP_EXCEPTION_DIGEST_PREFIX = 'HTTP_EXCEPTION'
 
 /**
  * Check if an error is an HTTPException
- * @description uses the digest property to work across server/client boundaries
  */
 export function isHttpException(err: unknown): err is HttpException {
 	return (
@@ -50,6 +52,25 @@ export function isHttpException(err: unknown): err is HttpException {
 		typeof err.digest === 'string' &&
 		err.digest.startsWith(HTTP_EXCEPTION_DIGEST_PREFIX)
 	)
+}
+
+/**
+ * Convert an HttpException or any Error into a plain object that can be
+ * safely serialised
+ */
+export function toHttpExceptionLike(error: HttpException | Error): HttpExceptionLike {
+	return {
+		name: error.name,
+		message: error.message,
+		stack: error.stack,
+		...('digest' in error && typeof error.digest === 'string'
+			? { digest: error.digest }
+			: {}),
+		...('payload' in error && error.payload !== undefined
+			? { payload: error.payload }
+			: {}),
+		...('status' in error ? { status: error.status } : {}),
+	}
 }
 
 /**

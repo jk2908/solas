@@ -1,6 +1,6 @@
 {
 	"name": "@jk2908/solas",
-	"version": "0.3.2",
+	"version": "0.3.3",
 	"description": "A React Server Components meta-framework powered by Vite",
 	"keywords": [
 		"framework",

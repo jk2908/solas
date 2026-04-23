@@ -1,6 +1,6 @@
-import type { HttpException } from '../../navigation/http-exception.js'
+import type { HttpExceptionLike } from '../../navigation/http-exception.js'
 
-export default function Err({ error }: { error: HttpException | Error }) {
+export default function Err({ error }: { error: HttpExceptionLike }) {
 	const title = 'status' in error ? `${error.status} - ${error.message}` : error.message
 
 	return (

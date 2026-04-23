@@ -11,7 +11,11 @@ import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
 import { normalisePathname } from '../http-router/utils.js'
 import { Metadata } from '../metadata.js'
-import { HttpException, isHttpException } from '../navigation/http-exception.js'
+import {
+	HttpException,
+	isHttpException,
+	toHttpExceptionLike,
+} from '../navigation/http-exception.js'
 import { Prerender } from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
@@ -65,9 +69,11 @@ async function createPayload(
 	// has been found, and we should server render a default
 	// error screen
 	if (!match) {
-		const error =
-			req[Solas.Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found')
-		const title = `${'status' in error ? `${error.status} -` : ''}${error.message}`
+		const error = toHttpExceptionLike(
+			req[Solas.Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found'),
+		)
+
+		const title = `${error.status ? `${error.status} -` : ''}${error.message}`
 
 		const rscPayload: RscPayload = {
 			root: (
@@ -131,16 +137,12 @@ async function createPayload(
 	const metadata = collection
 		.add(...(match.metadata?.({ params: match.params, error: match.error }) ?? []))
 		.run()
+	const error = match.error ? toHttpExceptionLike(match.error) : undefined
 
 	const rscPayload: RscPayload = {
 		root: (
 			<>
-				<Tree
-					depth={match.__depth}
-					params={match.params}
-					error={match.error}
-					ui={match.ui}
-				/>
+				<Tree depth={match.__depth} params={match.params} error={error} ui={match.ui} />
 			</>
 		),
 		returnValue,
@@ -193,9 +195,11 @@ async function createPayload(
 					? `${err.status} - ${err.message}`
 					: `500 - ${err.message}`
 				: '500 - Unknown server error'
-		const error = new Error(err instanceof Error ? err.message : 'Unknown server error', {
-			cause: err,
-		})
+		const error = toHttpExceptionLike(
+			new Error(err instanceof Error ? err.message : 'Unknown server error', {
+				cause: err,
+			}),
+		)
 
 		return {
 			// this branch renders the minimal error shell after the

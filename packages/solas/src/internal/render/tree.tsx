@@ -2,7 +2,11 @@ import { Suspense } from 'react'
 
 import type { Resolver } from '../resolver.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
-import { HttpException, isHttpException } from '../navigation/http-exception.js'
+import {
+	HttpException,
+	type HttpExceptionLike,
+	isHttpException,
+} from '../navigation/http-exception.js'
 import DefaultErr from '../ui/defaults/error.js'
 
 type Match = NonNullable<Resolver.EnhancedMatch>
@@ -58,7 +62,7 @@ export function Tree({
 }: {
 	depth: Match['__depth']
 	params: Match['params']
-	error: Match['error']
+	error?: HttpExceptionLike
 	ui: Match['ui']
 }) {
 	const {
