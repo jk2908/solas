@@ -244,13 +244,6 @@ function solas(c: PluginConfig): PluginOption[] {
 				'.solas': path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
 			}
 
-			viteConfig.optimizeDeps ??= {}
-			viteConfig.optimizeDeps.exclude = [
-				...(Array.isArray(viteConfig.optimizeDeps.exclude)
-					? viteConfig.optimizeDeps.exclude
-					: []),
-				'react-dom/client',
-			]
 		},
 		configureServer(server: ViteDevServer) {
 			logger.info(

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.4 - 2026-04-23
+
+- Fixed `hydrateRoot` missing named export error in the browser by removing the erroneous `optimizeDeps.exclude` for `react-dom/client`. Excluding it prevented Vite from pre-bundling the CommonJS wrapper, so the named export was never exposed to browser ESM consumers.
+
 ## 0.3.3 - 2026-04-23
 
 - Fixed HTML missing-route rendering when Solas is installed from npm by serialising `HttpException` and `Error` values into transport-safe objects before they cross the RSC payload boundary, preserving the expected 404 flow instead of crashing during SSR.
