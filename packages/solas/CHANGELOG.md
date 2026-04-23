@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.5 - 2026-04-23
+
+- Fixed client-side navigation to same-origin routes that later resolve to a 404 or error state by committing the target URL to browser history before the RSC payload finishes loading, so broken internal links no longer leave the route unchanged.
+
 ## 0.3.4 - 2026-04-23
 
 - Fixed `hydrateRoot` missing named export error in the browser by removing the erroneous `optimizeDeps.exclude` for `react-dom/client`. Excluding it prevented Vite from pre-bundling the CommonJS wrapper, so the named export was never exposed to browser ESM consumers.

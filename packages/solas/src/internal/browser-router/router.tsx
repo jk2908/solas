@@ -344,7 +344,8 @@ export function BrowserRouterProvider({
 			const navigationId = id.current
 
 			// fallback for abort/error paths
-			let path = window.location.pathname + window.location.search
+			const currentPath = window.location.pathname + window.location.search
+			let path = currentPath
 			const replace = opts?.replace ?? DEFAULT_GO_CONFIG.replace
 
 			controller.current?.abort()
@@ -368,6 +369,16 @@ export function BrowserRouterProvider({
 
 				// switch to the normalised target once the url is valid
 				path = key
+
+				// internal client navigation should update the route immediately, even
+				// if the subsequent fetch resolves to a 404 or other error state
+				if (path !== currentPath) {
+					if (replace) {
+						window.history.replaceState(null, '', path)
+					} else {
+						window.history.pushState(null, '', path)
+					}
+				}
 
 				// if the target was already prefetched, use the cached response promise
 				// and set existing to true so we don't remove it from cache
@@ -404,15 +415,13 @@ export function BrowserRouterProvider({
 				// the response
 				if (navigationId !== id.current) return resolvedPath
 
+				if (resolvedPath !== path) {
+					window.history.replaceState(null, '', resolvedPath)
+				}
+
 				// this state update is already wrapped in a
 				// transition before being passed as props
 				setPayload?.(payload)
-
-				if (replace) {
-					window.history.replaceState(null, '', resolvedPath)
-				} else {
-					window.history.pushState(null, '', resolvedPath)
-				}
 
 				window.dispatchEvent(
 					new CustomEvent(Solas.Events.names.NAVIGATION, {
