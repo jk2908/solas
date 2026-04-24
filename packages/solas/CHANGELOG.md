@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.6 - 2026-04-24
+
+- Fixed broken client-side `<Link />` navigation in Vite dev by excluding Solas browser runtime entry points from `optimizeDeps`, so the browser entry and client-reference router modules share a single `BrowserRouterContext` instance.
+
 ## 0.3.5 - 2026-04-23
 
 - Fixed client-side navigation to same-origin routes that later resolve to a 404 or error state by committing the target URL to browser history before the RSC payload finishes loading, so broken internal links no longer leave the route unchanged.

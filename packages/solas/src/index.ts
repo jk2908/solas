@@ -223,6 +223,10 @@ function solas(c: PluginConfig): PluginOption[] {
 				fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
 			)
 
+			if (typeof pkg.name !== 'string' || pkg.name.length === 0) {
+				throw new Error(`Missing ${Solas.Config.NAME} package name`)
+			}
+
 			if (typeof pkg.version !== 'string' || pkg.version.length === 0) {
 				throw new Error(`Missing ${Solas.Config.NAME} package version`)
 			}
@@ -238,11 +242,29 @@ function solas(c: PluginConfig): PluginOption[] {
 			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(config.url)
 			viteConfig.define['import.meta.env.SOLAS_VERSION'] = JSON.stringify(pkg.version)
 
+			viteConfig.optimizeDeps ??= {}
+			viteConfig.optimizeDeps.exclude = [
+				...new Set([
+					...(viteConfig.optimizeDeps.exclude ?? []),
+					pkg.name,
+					`${pkg.name}/env/browser`,
+					`${pkg.name}/router`,
+				]),
+			]
+
 			viteConfig.resolve ??= {}
-			viteConfig.resolve.alias = {
-				...(viteConfig.resolve.alias ?? {}),
-				'.solas': path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
-			}
+			viteConfig.resolve.alias = Array.isArray(viteConfig.resolve.alias)
+				? [
+						...viteConfig.resolve.alias,
+						{
+							find: '.solas',
+							replacement: path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
+						},
+					]
+				: {
+						...viteConfig.resolve.alias,
+						'.solas': path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
+					}
 
 		},
 		configureServer(server: ViteDevServer) {
