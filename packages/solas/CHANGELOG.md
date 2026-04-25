@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.7 - 2026-04-25
+
+- Fixed shell rendering so routes without a root `+loading` fallback no longer wrap the entire document in `Suspense`, which removes misplaced `<!--html-->`, `<!--head-->`, and `<!--body-->` markers from streamed HTML.
+
 ## 0.3.6 - 2026-04-24
 
 - Fixed broken client-side `<Link />` navigation in Vite dev by excluding Solas browser runtime entry points from `optimizeDeps`, so the browser entry and client-reference router modules share a single `BrowserRouterContext` instance.

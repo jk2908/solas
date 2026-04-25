@@ -199,7 +199,7 @@ async function writePayload(
 		} catch {
 			// most rows are text, but keep binary chunks intact when a payload
 			// row cannot be decoded as utf-8
-			const base64 = JSON.stringify(window.btoa(String.fromCodePoint(...chunk)))
+			const base64 = JSON.stringify(btoa(String.fromCodePoint(...chunk)))
 			writePayloadScript(
 				`Uint8Array.from(atob(${base64}), value => value.codePointAt(0))`,
 				controller,

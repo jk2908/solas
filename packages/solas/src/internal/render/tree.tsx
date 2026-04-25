@@ -153,22 +153,22 @@ export function Tree({
 	// now wrap with shell structure: shell renders immediately,
 	// inner streams inside Suspense
 	const ShellLoading = loaders[0]
-	const Shellunauthorised = unauthorised[0]
+	const ShellUnauthorised = unauthorised[0]
 	const ShellForbidden = forbidden[0]
 	const ShellNotFound = notFounds[0]
 	const ShellServerError = serverErrors[0]
 
+	const shell = <Shell params={params}>{inner}</Shell>
+
 	return (
 		<HttpExceptionBoundary
 			components={{
-				401: Shellunauthorised ? <Shellunauthorised error={UNAUTHORISED_ERROR} /> : null,
+				401: ShellUnauthorised ? <ShellUnauthorised error={UNAUTHORISED_ERROR} /> : null,
 				403: ShellForbidden ? <ShellForbidden error={FORBIDDEN_ERROR} /> : null,
 				404: ShellNotFound ? <ShellNotFound error={NOT_FOUND_ERROR} /> : null,
 				500: ShellServerError ? <ShellServerError error={SERVER_ERROR} /> : null,
 			}}>
-			<Suspense fallback={ShellLoading ? <ShellLoading /> : null}>
-				<Shell params={params}>{inner}</Shell>
-			</Suspense>
+			{ShellLoading ? <Suspense fallback={<ShellLoading />}>{shell}</Suspense> : shell}
 		</HttpExceptionBoundary>
 	)
 }

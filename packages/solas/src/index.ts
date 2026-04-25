@@ -265,7 +265,6 @@ function solas(c: PluginConfig): PluginOption[] {
 						...viteConfig.resolve.alias,
 						'.solas': path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
 					}
-
 		},
 		configureServer(server: ViteDevServer) {
 			logger.info(
