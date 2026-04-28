@@ -1,6 +1,12 @@
+import type { HttpRouter } from '../../http-router/router.js'
 import type { HttpExceptionLike } from '../../navigation/http-exception.js'
 
-export default function Err({ error }: { error: HttpExceptionLike }) {
+export default function Err({
+	error,
+}: {
+	error: HttpExceptionLike
+	params?: HttpRouter.Params
+}) {
 	const title = 'status' in error ? `${error.status} - ${error.message}` : error.message
 
 	return (

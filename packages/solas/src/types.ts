@@ -44,8 +44,8 @@ export type RuntimeConfig = PluginConfig & {
 }
 
 export type BuildContext = {
-	prerenderRoutes: Set<string>
 	knownRoutes: Set<string>
+	prerenderRoutes: Set<string>
 	exportReader: ExportReader
 }
 
@@ -137,11 +137,30 @@ export type BuildManifest = {
 }
 
 export namespace Route {
-	export type Metadata =
+	type ParamsOf<TRoute> = TRoute extends {
+		params?: infer TParams extends BrowserRouter.Params
+	}
+		? TParams
+		: never
+
+	type ErrorPropsOf<TError> = [TError] extends [never] ? {} : { error?: TError }
+
+	export type Params<TRoute> = ParamsOf<TRoute>
+
+	export type Metadata<TRoute = { params?: BrowserRouter.Params }, TError = never> =
 		| Metadata.Item
 		| ((
-				input: Metadata.Input<BrowserRouter.Params>,
+				input: Metadata.Input<ParamsOf<TRoute>, TError>,
 		  ) => Promise<Metadata.Item> | Metadata.Item)
+
+	export type StaticParams<TRoute> = [ParamsOf<TRoute>] extends [never]
+		? never
+		: () => readonly ParamsOf<TRoute>[] | Promise<readonly ParamsOf<TRoute>[]>
+
+	export type Props<TRoute, TError = never> = ([ParamsOf<TRoute>] extends [never]
+		? { params?: never }
+		: { params: ParamsOf<TRoute> }) &
+		ErrorPropsOf<TError>
 
 	export type Prerender = (typeof Solas.Config.PRERENDER_MODES)[number]
 }

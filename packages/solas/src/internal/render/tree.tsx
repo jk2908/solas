@@ -103,7 +103,7 @@ export function Tree({
 		inner = (
 			<>
 				<meta name="robots" content="noindex,nofollow" />
-				<Exception error={error} />
+				<Exception error={error} params={params} />
 			</>
 		)
 	} else if (Page) {

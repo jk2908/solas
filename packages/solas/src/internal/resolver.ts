@@ -31,18 +31,22 @@ export namespace Resolver {
 			}> | null
 			'401s': (View<{
 				children?: React.ReactNode
+				params?: HttpRouter.Params
 				error?: HttpException
 			}> | null)[]
 			'403s': (View<{
 				children?: React.ReactNode
+				params?: HttpRouter.Params
 				error?: HttpException
 			}> | null)[]
 			'404s': (View<{
 				children?: React.ReactNode
+				params?: HttpRouter.Params
 				error?: HttpException
 			}> | null)[]
 			'500s': (View<{
 				children?: React.ReactNode
+				params?: HttpRouter.Params
 				error?: HttpException
 			}> | null)[]
 			loaders: (View<{

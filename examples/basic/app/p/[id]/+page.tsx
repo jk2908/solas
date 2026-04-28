@@ -1,9 +1,10 @@
 import { Suspense } from 'react'
 
+import { Route, Solas } from '@jk2908/solas'
 import { abort } from '@jk2908/solas/navigation'
 import { dynamic } from '@jk2908/solas/server'
 
-export const metadata = async ({ params }: { params?: { id: string } }) => {
+export const metadata: Route.Metadata<Solas.Routes['/p/:id']> = async ({ params }) => {
 	const post = allPosts.find(p => p.__mdsrc.slug === params?.id)
 
 	return {
@@ -41,7 +42,9 @@ async function Timestamp({ slug }: { slug: string }) {
 	return <div>{Date.now()}</div>
 }
 
-export const params = () => allPosts.map(p => ({ id: p.__mdsrc.slug }))
+export const params: Route.StaticParams<Solas.Routes['/p/:id']> = () =>
+	allPosts.map(p => ({ id: p.__mdsrc.slug }))
+
 export const prerender = 'ppr'
 
 const allPosts = [
