@@ -217,8 +217,6 @@ function solas(c: PluginConfig): PluginOption[] {
 		name: Solas.Config.NAME,
 		enforce: 'pre' as const,
 		async config(viteConfig: UserConfig) {
-			await build()
-
 			const pkg = JSON.parse(
 				fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
 			)
@@ -278,6 +276,10 @@ function solas(c: PluginConfig): PluginOption[] {
 				.on('unlink', (p: string) => rebuild('unlink', p))
 				.on('addDir', (p: string) => rebuild('addDir', p))
 				.on('unlinkDir', (p: string) => rebuild('unlinkDir', p))
+		},
+		async buildStart() {
+			logger.info('[buildStart]', 'building route graph...')
+			await build()
 		},
 		async closeBundle() {
 			if (process.env.NODE_ENV === 'development') return
