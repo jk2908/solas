@@ -92,14 +92,16 @@ export async function browser() {
 		},
 	)
 
-	import.meta.hot?.on?.('rsc:update', async () => {
-		try {
-			const p = await createFromFetch<RscPayload>(
-				fetch(window.location.href, { headers: { Accept: 'text/x-component' } }),
-			)
-			payloadSetter.current(p)
-		} catch (err) {
-			console.error('[hmr] failed to refresh rsc payload', err)
-		}
-	})
+	if (import.meta.hot) {
+		import.meta.hot.on?.('rsc:update', async () => {
+			try {
+				const p = await createFromFetch<RscPayload>(
+					fetch(window.location.href, { headers: { Accept: 'text/x-component' } }),
+				)
+				payloadSetter.current(p)
+			} catch (err) {
+				console.error('[hmr] failed to refresh rsc payload', err)
+			}
+		})
+	}
 }
