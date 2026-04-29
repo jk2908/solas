@@ -2,7 +2,14 @@ import fsSync from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { PluginOption, UserConfig, ViteDevServer } from 'vite'
+import {
+	createServer,
+	loadConfigFromFile,
+	type PluginOption,
+	type ResolvedConfig,
+	type UserConfig,
+	type ViteDevServer,
+} from 'vite'
 
 import rsc from '@vitejs/plugin-rsc'
 
@@ -41,11 +48,11 @@ function solas(c: PluginConfig): PluginOption[] {
 	const logger = new Logger()
 	const exportReader = new ExportReader()
 
-	const buildContext = {
+	const buildContext: BuildContext = {
 		prerenderRoutes: new Set<string>(),
 		knownRoutes: new Set<string>(),
 		exportReader,
-	} satisfies BuildContext
+	}
 
 	// cache for file contents to avoid unnecessary readFile invocations
 	const fileCache = new Map<string, string>()
@@ -213,9 +220,59 @@ function solas(c: PluginConfig): PluginOption[] {
 		queue()
 	}, 75)
 
+	let resolvedViteConfig: ResolvedConfig | null = null
+	let utilityServer: ViteDevServer | null = null
+
+	async function getUtilityServer() {
+		if (utilityServer) return utilityServer
+		if (!resolvedViteConfig) throw new Error('Vite config not resolved yet')
+
+		const loaded = await loadConfigFromFile(
+			{
+				command: resolvedViteConfig.command,
+				mode: resolvedViteConfig.mode,
+			},
+			resolvedViteConfig.configFile,
+			resolvedViteConfig.root,
+		)
+
+		const config = loaded?.config ?? {}
+
+		// recursively flatten and remove any instances of this plugin
+		const plugins = (config.plugins ?? []).flatMap(function flatten(
+			plugin: PluginOption,
+		): PluginOption[] {
+			if (!plugin) return []
+			if (Array.isArray(plugin)) return plugin.flatMap(flatten)
+			if (
+				typeof plugin === 'object' &&
+				'name' in plugin &&
+				plugin.name === Solas.Config.NAME
+			) {
+				return []
+			}
+
+			return [plugin]
+		})
+
+		utilityServer = await createServer({
+			...config,
+			configFile: false,
+			root: resolvedViteConfig.root,
+			mode: resolvedViteConfig.mode,
+			server: {
+				...config.server,
+				middlewareMode: true,
+			},
+			plugins,
+			appType: 'custom',
+		})
+
+		return utilityServer
+	}
+
 	const plugin = {
 		name: Solas.Config.NAME,
-		enforce: 'pre' as const,
 		async config(viteConfig: UserConfig) {
 			const pkg = JSON.parse(
 				fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
@@ -264,6 +321,11 @@ function solas(c: PluginConfig): PluginOption[] {
 						'.solas': path.resolve(process.cwd(), Solas.Config.GENERATED_DIR),
 					}
 		},
+		configResolved(resolvedConfig: ResolvedConfig) {
+			resolvedViteConfig = resolvedConfig
+
+			buildContext.command = resolvedConfig.command
+		},
 		configureServer(server: ViteDevServer) {
 			logger.info(
 				'[configureServer]',
@@ -279,10 +341,22 @@ function solas(c: PluginConfig): PluginOption[] {
 		},
 		async buildStart() {
 			logger.info('[buildStart]', 'building route graph...')
+
+			// create and attach server instance for ExportReader.value to use when
+			// loading modules
+			if (buildContext.command === 'build') {
+				const server = await getUtilityServer()
+				buildContext.exportReader.loadModule = server.ssrLoadModule.bind(server)
+			}
+
 			await build()
 		},
 		async closeBundle() {
-			if (process.env.NODE_ENV === 'development') return
+			if (utilityServer) {
+				const server = utilityServer
+				utilityServer = null
+				await server.close()
+			}
 
 			// resolve sitemap routes
 			let sitemapRoutes: string[] = []

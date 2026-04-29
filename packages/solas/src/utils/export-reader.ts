@@ -1,15 +1,19 @@
 import path from 'node:path'
 
+import type { ViteDevServer } from 'vite'
+
 export class ExportReader {
 	readonly #transpilers = new Map<
-		ExportReader.Loader,
+		ExportReader.LoaderType,
 		InstanceType<typeof Bun.Transpiler>
 	>()
 
+	#loadModule: ViteDevServer['ssrLoadModule'] | null = null
+
 	/**
-	 * Pick the Bun loader that matches the source file extension
+	 * Pick the Bun loader type that matches the source file extension
 	 */
-	static #getLoader(filePath: string): ExportReader.Loader {
+	static #getLoaderType(filePath: string): ExportReader.LoaderType {
 		const ext = path.extname(filePath).toLowerCase()
 
 		if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return 'js'
@@ -18,20 +22,6 @@ export class ExportReader {
 		if (ext === '.tsx') return 'tsx'
 
 		throw new Error(`Unsupported module extension: ${ext || '(none)'} in ${filePath}`)
-	}
-
-	/**
-	 * Reuse one transpiler per supported loader so scans match the module syntax
-	 */
-	#getTranspiler(filePath: string) {
-		const loader = ExportReader.#getLoader(filePath)
-		const cached = this.#transpilers.get(loader)
-		if (cached) return cached
-
-		const transpiler = new Bun.Transpiler({ loader })
-		this.#transpilers.set(loader, transpiler)
-
-		return transpiler
 	}
 
 	/**
@@ -56,6 +46,27 @@ export class ExportReader {
 
 		const n = Number(trimmed)
 		if (Number.isFinite(n)) return n
+	}
+
+	/**
+	 * Set the Vite server's SSR module loader so we can execute modules
+	 */
+	set loadModule(l: ViteDevServer['ssrLoadModule']) {
+		this.#loadModule = l
+	}
+
+	/**
+	 * Reuse one transpiler per supported loader so scans match the module syntax
+	 */
+	#getTranspiler(filePath: string) {
+		const type = ExportReader.#getLoaderType(filePath)
+		const cached = this.#transpilers.get(type)
+		if (cached) return cached
+
+		const transpiler = new Bun.Transpiler({ loader: type })
+		this.#transpilers.set(type, transpiler)
+
+		return transpiler
 	}
 
 	/**
@@ -120,7 +131,10 @@ export class ExportReader {
 		// resolve from the project root so generated/build-time callers can pass the
 		// same workspace-relative paths used elsewhere in the route graph
 		const abs = path.resolve(process.cwd(), filePath)
-		const mod = (await import(/* @vite-ignore */ abs)) as Record<string, unknown>
+		const mod = this.#loadModule
+			? await this.#loadModule(abs)
+			: await import(/* @vite-ignore */ abs)
+
 		const value = mod[name]
 
 		if (value === undefined) return
@@ -129,6 +143,6 @@ export class ExportReader {
 }
 
 export namespace ExportReader {
-	export type Loader = 'js' | 'jsx' | 'ts' | 'tsx'
+	export type LoaderType = 'js' | 'jsx' | 'ts' | 'tsx'
 	export type Validator<T> = (value: unknown) => value is T
 }

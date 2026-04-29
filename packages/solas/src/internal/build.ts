@@ -452,7 +452,7 @@ export namespace Build {
 					const {
 						shell: shellPath,
 						layouts: layoutPaths,
-						'401s': unauthorizedPaths,
+						'401s': unauthorisedPaths,
 						'403s': forbiddenPaths,
 						page: pagePath,
 						'404s': notFoundPaths,
@@ -490,7 +490,7 @@ export namespace Build {
 
 					const shellId = `${EntryKind.SHELL}${Bun.hash(shellImport)}`
 					const layoutIds: (string | null)[] = []
-					const unauthorizedIds: (string | null)[] = []
+					const unauthorisedIds: (string | null)[] = []
 					const forbiddenIds: (string | null)[] = []
 					const notFoundIds: (string | null)[] = []
 					const serverErrorIds: (string | null)[] = []
@@ -503,6 +503,7 @@ export namespace Build {
 							shellPath,
 							await Prerender.Build.getStaticFlag(shellPath, this.buildContext),
 						)
+
 						imports.components.static.set(shellId, shellImport)
 						processed.add(shellPath)
 					}
@@ -523,6 +524,7 @@ export namespace Build {
 								layoutPath,
 								await Prerender.Build.getStaticFlag(layoutPath, this.buildContext),
 							)
+
 							imports.components.dynamic.set(layoutId, layoutImport)
 							processed.add(layoutPath)
 						}
@@ -531,20 +533,20 @@ export namespace Build {
 						layoutIds.push(layoutId)
 					}
 
-					for (const unauthorizedPath of unauthorizedPaths) {
-						if (!unauthorizedPath) {
-							unauthorizedIds.push(null)
+					for (const unauthorisedPath of unauthorisedPaths) {
+						if (!unauthorisedPath) {
+							unauthorisedIds.push(null)
 							continue
 						}
 
-						const unauthorizedImport = Finder.getImportPath(unauthorizedPath)
-						const unauthorizedId = `${EntryKind['401']}${Bun.hash(unauthorizedImport)}`
+						const unauthorisedImport = Finder.getImportPath(unauthorisedPath)
+						const unauthorisedId = `${EntryKind['401']}${Bun.hash(unauthorisedImport)}`
 
-						unauthorizedIds.push(unauthorizedId)
+						unauthorisedIds.push(unauthorisedId)
 
-						if (!processed.has(unauthorizedPath)) {
-							imports.components.dynamic.set(unauthorizedId, unauthorizedImport)
-							processed.add(unauthorizedPath)
+						if (!processed.has(unauthorisedPath)) {
+							imports.components.dynamic.set(unauthorisedId, unauthorisedImport)
+							processed.add(unauthorisedPath)
 						}
 					}
 
@@ -664,7 +666,8 @@ export namespace Build {
 					}
 
 					// resolve final prerender mode after shell → layout → page overrides
-					const shouldPrerender = currentPrerenderMode !== false
+					const shouldPrerender =
+						currentPrerenderMode !== false && this.buildContext.command === 'build'
 					const prerenderMode: Route.Prerender = shouldPrerender
 						? currentPrerenderMode
 						: false
@@ -707,8 +710,8 @@ export namespace Build {
 							layouts: [shellPath, ...layoutPaths].map(layout =>
 								layout ? Finder.getImportPath(layout) : null,
 							),
-							'401s': unauthorizedPaths.map(unauthorized =>
-								unauthorized ? Finder.getImportPath(unauthorized) : null,
+							'401s': unauthorisedPaths.map(unauthorised =>
+								unauthorised ? Finder.getImportPath(unauthorised) : null,
 							),
 							'403s': forbiddenPaths.map(forbidden =>
 								forbidden ? Finder.getImportPath(forbidden) : null,
@@ -746,7 +749,7 @@ export namespace Build {
 						shellId,
 						layoutIds,
 						pageId: pagePath ? entryId : undefined,
-						'401Ids': unauthorizedIds,
+						'401Ids': unauthorisedIds,
 						'403Ids': forbiddenIds,
 						'404Ids': notFoundIds,
 						'500Ids': serverErrorIds,

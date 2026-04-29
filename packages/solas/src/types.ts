@@ -44,9 +44,10 @@ export type RuntimeConfig = PluginConfig & {
 }
 
 export type BuildContext = {
-	knownRoutes: Set<string>
 	prerenderRoutes: Set<string>
+	knownRoutes: Set<string>
 	exportReader: ExportReader
+	command?: 'build' | 'serve'
 }
 
 export type RequestMeta = {
