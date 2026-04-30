@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.8 - 2026-04-30
+
+- Improved route module type safety for params, metadata, and static params, and ensured HTTP error boundaries receive route params too.
+- Moved initial route-graph generation to Vite's `buildStart()` hook for more reliable build setup.
+- Exported `HttpExceptionLike` from the public navigation api for typing serialised HTTP-style errors.
+- Improved tree-shaking by keeping HMR-only browser runtime code out of non-HMR builds.
+- Switched build-time export loading to Vite's module loader, so route exports resolve through Vite transforms and aliasing during builds.
+- Fixed `abort(...)` during rendering so surfaced HTTP exceptions again resolve through the nearest matching boundary instead of failing as generic production render errors. This fixes a regression introduced in `0.3.7` when the outer `Suspense` was removed, while keeping that `Suspense` removed.
+
 ## 0.3.7 - 2026-04-25
 
 - Fixed shell rendering so routes without a root `+loading` fallback no longer wrap the entire document in `Suspense`, which removes misplaced `<!--html-->`, `<!--head-->`, and `<!--body-->` markers from streamed HTML.
