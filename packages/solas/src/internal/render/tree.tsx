@@ -26,9 +26,6 @@ const SERVER_ERROR = new HttpException(500, 'Internal Server Error')
  * 2. `Suspense` with that segment's loading fallback
  * 3. `HttpExceptionBoundary` with that segment's status boundaries
  *
- * The shell level is applied last using the same outer wrapper order:
- * `HttpExceptionBoundary` -> `Suspense` -> `Shell`
- *
  * @example
  * ```tsx
  *   <HttpExceptionBoundary shell>
@@ -150,8 +147,6 @@ export function Tree({
 		}
 	}
 
-	// now wrap with shell structure: shell renders immediately,
-	// inner streams inside Suspense
 	const ShellLoading = loaders[0]
 	const ShellUnauthorised = unauthorised[0]
 	const ShellForbidden = forbidden[0]

@@ -14,6 +14,7 @@ import { Metadata } from '../metadata.js'
 import {
 	HttpException,
 	isHttpException,
+	toHttpException,
 	toHttpExceptionLike,
 } from '../navigation/http-exception.js'
 import { Prerender } from '../prerender.js'
@@ -35,6 +36,8 @@ export type RscPayload = {
 	}
 }
 
+const logger = new Logger()
+
 /**
  * Create the streamed RSC payload and response metadata for a single request.
  * Resolves the route match, collects metadata, and returns the stream,
@@ -50,7 +53,6 @@ async function createPayload(
 	temporaryReferences?: unknown,
 ) {
 	const resolver = new Resolver(manifest, importMap)
-	const logger = new Logger()
 	const prerender = req.headers.get(`x-${Solas.Config.SLUG}-prerender`) === '1'
 	const url = new URL(req.url)
 	const pathname =
@@ -114,16 +116,7 @@ async function createPayload(
 				() =>
 					renderToReadableStream(rscPayload, {
 						temporaryReferences,
-						onError(err: unknown) {
-							if (err == null) return
-
-							const digest = getKnownDigest(err)
-
-							if (digest) return digest
-							if (isKnownError(err)) return
-
-							logger.error('[rsc]', err)
-						},
+						onError,
 					}),
 			),
 			status: 404,
@@ -135,7 +128,12 @@ async function createPayload(
 	const ppr = match.prerender === 'ppr'
 	const collection = new Metadata.Collection(baseMetadata)
 	const metadata = collection
-		.add(...(match.metadata?.({ params: match.params, error: match.error }) ?? []))
+		.add(
+			...(match.metadata?.({
+				params: match.params,
+				error: match.error,
+			}) ?? []),
+		)
 		.run()
 	const error = match.error ? toHttpExceptionLike(match.error) : undefined
 
@@ -154,14 +152,9 @@ async function createPayload(
 		},
 	}
 
-	// status code comes from route match error if any
 	const status = isHttpException(match.error) ? match.error.status : 200
 
 	try {
-		// this is the main matched route render pass for page/layout
-		// tree output. Mode is null for normal ssr, 'full' for full
-		// prerender, and 'ppr' for ppr prerender. dynamic() only
-		// suspends when mode is 'ppr'
 		const stream = RequestContext.write(
 			{
 				req,
@@ -171,23 +164,13 @@ async function createPayload(
 			() =>
 				renderToReadableStream(rscPayload, {
 					temporaryReferences,
-					onError(err: unknown) {
-						if (err == null) return
-
-						const digest = getKnownDigest(err)
-
-						if (digest) return digest
-						if (isKnownError(err)) return
-
-						logger.error('[rsc]', err)
-					},
+					onError,
 				}),
 		)
 
 		return { stream, status, ppr }
 	} catch (err) {
-		// shell failed to render - return minimal fallback
-		logger.error('rsc shell', err)
+		logger.error('[rsc:render]', err)
 
 		const title =
 			err instanceof Error
@@ -336,60 +319,105 @@ export function createHandler(
 			})
 		}
 
-		const artifactManifestEntry = runtimePpr
-			? (artifactManifest?.[lookupPath] ?? null)
-			: null
+		try {
+			const artifactManifestEntry = runtimePpr
+				? (artifactManifest?.[lookupPath] ?? null)
+				: null
 
-		const tryPrelude = artifactManifestEntry?.mode === 'ppr'
+			const tryPrelude = artifactManifestEntry?.mode === 'ppr'
 
-		if (tryPrelude) {
-			const postponedState = await Prerender.Artifact.loadPostponedState(
-				Solas.Config.OUT_DIR,
-				lookupPath,
-			)
-			const prelude = await Prerender.Artifact.loadPrelude(
-				Solas.Config.OUT_DIR,
-				lookupPath,
-			)
+			if (tryPrelude) {
+				const postponedState = await Prerender.Artifact.loadPostponedState(
+					Solas.Config.OUT_DIR,
+					lookupPath,
+				)
+				const prelude = await Prerender.Artifact.loadPrelude(
+					Solas.Config.OUT_DIR,
+					lookupPath,
+				)
 
-			// resumable ppr responses splice fresh streamed content into the cached
-			// prelude when postponed state is available for this route
-			if (postponedState) {
-				// the cached prelude already carries the static payload, only needs to
-				// stream the html completions for postponed boundaries
-				const resumeStream = await mod.resume(stream, postponedState, {
-					nonce: undefined,
-					injectPayload: false,
-				})
+				// resumable ppr responses splice fresh streamed content into the cached
+				// prelude when postponed state is available for this route
+				if (postponedState) {
+					// the cached prelude already carries the static payload, only needs to
+					// stream the html completions for postponed boundaries
+					const resumeStream = await mod.resume(stream, postponedState, {
+						nonce: undefined,
+						injectPayload: false,
+					})
 
-				const body = prelude
-					? Prerender.Artifact.composePreludeAndResume(prelude, resumeStream)
-					: resumeStream
+					const body = prelude
+						? Prerender.Artifact.composePreludeAndResume(prelude, resumeStream)
+						: resumeStream
 
-				return new Response(body, {
-					headers: {
-						'Cache-Control': 'private, no-store',
-						'Content-Type': 'text/html',
-						Vary: 'accept',
-					},
-					status,
-				})
+					return new Response(body, {
+						headers: {
+							'Cache-Control': 'private, no-store',
+							'Content-Type': 'text/html',
+							Vary: 'accept',
+						},
+						status,
+					})
+				}
 			}
+
+			const htmlStream = await mod.ssr(stream, {
+				formState: opts.formState,
+				ppr: runtimePpr,
+			})
+
+			return new Response(htmlStream, {
+				headers: {
+					'Cache-Control': 'private, no-store',
+					'Content-Type': 'text/html',
+					Vary: 'accept',
+				},
+				status,
+			})
+		} catch (err) {
+			// resume/ssr can be the first place react surfaces an http exception from abort(...),
+			// after the initial rsc pass was streamed without request error state. Rerun once
+			// with that error attached so createPayload rebuilds the same route through its
+			// nearest matching HttpExceptionBoundary. If request meta already has an error
+			// or the error is not an HttpException, then this is a real failure
+			if (!req[Solas.Config.REQUEST_META_KEY].error && isHttpException(err)) {
+				// normalise the surfaced digest error before attaching it, since tree/boundary lookup
+				// relies on error.status - the guard above only tells us this came back with an
+				// HttpException digest
+				req[Solas.Config.REQUEST_META_KEY].error = toHttpException(err)
+
+				try {
+					const { stream: retriedRscStream, status: retriedStatus } = await createPayload(
+						req,
+						manifest,
+						importMap,
+						config.metadata,
+						opts.returnValue,
+						opts.formState,
+						opts.temporaryReferences,
+					)
+
+					const retriedStream = await retriedRscStream
+					const retriedHtmlStream = await mod.ssr(retriedStream, {
+						formState: opts.formState,
+						ppr: false,
+					})
+
+					return new Response(retriedHtmlStream, {
+						headers: {
+							'Cache-Control': 'private, no-store',
+							'Content-Type': 'text/html',
+							Vary: 'accept',
+						},
+						status: retriedStatus,
+					})
+				} finally {
+					req[Solas.Config.REQUEST_META_KEY].error = undefined
+				}
+			}
+
+			throw err
 		}
-
-		const htmlStream = await mod.ssr(stream, {
-			formState: opts.formState,
-			ppr: runtimePpr,
-		})
-
-		return new Response(htmlStream, {
-			headers: {
-				'Cache-Control': 'private, no-store',
-				'Content-Type': 'text/html',
-				Vary: 'accept',
-			},
-			status,
-		})
 	}
 
 	const httpRouter = createHttpRouter(config, manifest, importMap, createResponse)
@@ -449,4 +477,15 @@ export function createHandler(
 			return httpRouter.fetch(req)
 		},
 	}
+}
+
+function onError(err: unknown) {
+	if (err == null) return
+
+	const digest = getKnownDigest(err)
+
+	if (digest) return digest
+	if (isKnownError(err)) return
+
+	logger.error('[rsc]', err)
 }

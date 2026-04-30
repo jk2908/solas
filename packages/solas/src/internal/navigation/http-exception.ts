@@ -42,6 +42,13 @@ export class HttpException extends Error {
 export const HTTP_EXCEPTION_DIGEST_PREFIX = 'HTTP_EXCEPTION'
 
 /**
+ * Status type predicate
+ */
+function isStatusCode(value: unknown): value is HttpException.StatusCode {
+	return value === 401 || value === 403 || value === 404 || value === 500
+}
+
+/**
  * Check if an error is an HTTPException
  */
 export function isHttpException(err: unknown): err is HttpException {
@@ -52,6 +59,51 @@ export function isHttpException(err: unknown): err is HttpException {
 		typeof err.digest === 'string' &&
 		err.digest.startsWith(HTTP_EXCEPTION_DIGEST_PREFIX)
 	)
+}
+
+/**
+ * Convert any error into an HttpException
+ */
+export function toHttpException(err: unknown): HttpException {
+	if (err instanceof HttpException) return err
+
+	let digestStatus: HttpException.StatusCode | undefined
+	let digestMessage: string | undefined
+
+	if (
+		typeof err === 'object' &&
+		err !== null &&
+		'digest' in err &&
+		typeof err.digest === 'string'
+	) {
+		const [type, rawStatus, ...rawMessageParts] = err.digest.split(':')
+		const status = Number(rawStatus)
+
+		if (type === HTTP_EXCEPTION_DIGEST_PREFIX && isStatusCode(status)) {
+			digestStatus = status
+			digestMessage = rawMessageParts.join(':')
+		}
+	}
+
+	const status =
+		digestStatus ??
+		(typeof err === 'object' &&
+		err !== null &&
+		'status' in err &&
+		isStatusCode(err.status)
+			? err.status
+			: 500)
+
+	const message =
+		digestMessage ||
+		(typeof err === 'object' &&
+		err !== null &&
+		'message' in err &&
+		typeof err.message === 'string'
+			? err.message
+			: 'Internal Server Error')
+
+	return new HttpException(status, message, { cause: err })
 }
 
 /**
@@ -69,7 +121,7 @@ export function toHttpExceptionLike(error: HttpException | Error): HttpException
 		...('payload' in error && error.payload !== undefined
 			? { payload: error.payload }
 			: {}),
-		...('status' in error ? { status: error.status } : {}),
+		...('status' in error && isStatusCode(error.status) ? { status: error.status } : {}),
 	}
 }
 
