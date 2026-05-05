@@ -19,7 +19,7 @@ export type HttpExceptionLike = Pick<Error, 'name' | 'message' | 'stack'> &
 	Partial<Pick<HttpException, 'digest' | 'payload' | 'status'>>
 
 /**
- * An exception representing an HTTP error, with an optional payload
+ * An exception representing an HttpException error, with an optional payload
  * and cause
  */
 export class HttpException extends Error {
@@ -49,7 +49,7 @@ function isStatusCode(value: unknown): value is HttpException.StatusCode {
 }
 
 /**
- * Check if an error is an HTTPException
+ * Check if an error is an HttpException
  */
 export function isHttpException(err: unknown): err is HttpException {
 	return (
@@ -126,7 +126,7 @@ export function toHttpExceptionLike(error: HttpException | Error): HttpException
 }
 
 /**
- * Throw an HTTPException
+ * Throw an HttpException
  */
 export function abort(
 	status: HttpException.StatusCode,

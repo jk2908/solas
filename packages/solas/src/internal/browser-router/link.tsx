@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from 'react'
 
-import { BrowserRouter } from './router.js'
+import { BrowserRouter } from './shared.js'
 import { useRouter } from './use-router.js'
 
 type AnchorProps = React.ComponentPropsWithRef<'a'> & { href: string }

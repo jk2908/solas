@@ -2,11 +2,11 @@ type BunRequest = Request & { params?: Record<string, string | string[]> }
 
 import { ExportReader } from './utils/export-reader.js'
 
+import type { BrowserRouter } from './internal/browser-router/shared.js'
 import type { Build } from './internal/build.js'
 import type { HttpRouter } from './internal/http-router/router.js'
 import type { Metadata } from './internal/metadata.js'
 import type { HttpException } from './internal/navigation/http-exception.js'
-import { BrowserRouter } from './internal/browser-router/router.js'
 import { Solas } from './solas.js'
 
 export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]

@@ -20,7 +20,9 @@ export function writeRSCEntry() {
 
 		export default createHandler(config, manifest, importMap, artifactManifest)
 
-		import.meta.hot?.accept()
+		if (import.meta.hot) {
+			import.meta.hot.accept()
+		}
 	`
 }
 
