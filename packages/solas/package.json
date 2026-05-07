@@ -1,7 +1,7 @@
 {
 	"name": "@jk2908/solas",
-	"version": "0.3.8",
-	"description": "A React Server Components meta-framework powered by Vite",
+	"version": "0.3.9",
+	"description": "A Vite + React meta-framework exploring streaming, Server Components, and partial prerendering. Designed for simplicity and lightness",
 	"keywords": [
 		"framework",
 		"ppr",

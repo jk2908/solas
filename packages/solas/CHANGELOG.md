@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.9 - 2026-05-07
+
+- Split shared `BrowserRouter` navigation types and target-building helpers into a dedicated internal module, so generated environments and type-only imports no longer need to pull through the full browser router runtime.
+- Made the `solas()` plugin config argument optional.
+
 ## 0.3.8 - 2026-04-30
 
 - Improved route module type safety for params, metadata, and static params, and ensured HTTP error boundaries receive route params too.
