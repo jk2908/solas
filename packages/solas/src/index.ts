@@ -36,11 +36,11 @@ const DEFAULT_CONFIG = {
 	trailingSlash: 'never',
 } as const satisfies Partial<PluginConfig>
 
-function solas(c: PluginConfig): PluginOption[] {
+function solas(c?: PluginConfig): PluginOption[] {
 	const config = Solas.Config.validate({
 		...DEFAULT_CONFIG,
 		...c,
-		url: c.url ?? process.env.VITE_APP_URL?.toString(),
+		url: c?.url ?? process.env.VITE_APP_URL?.toString(),
 	})
 
 	if (config.logger?.level) Logger.defaultLevel = config.logger.level
