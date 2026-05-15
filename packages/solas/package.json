@@ -1,6 +1,6 @@
 {
 	"name": "@jk2908/solas",
-	"version": "0.3.9",
+	"version": "0.4.0",
 	"description": "A Vite + React meta-framework exploring streaming, Server Components, and partial prerendering. Designed for simplicity and lightness",
 	"keywords": [
 		"framework",
@@ -17,7 +17,7 @@
 	"license": "MIT",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/jk2908/solas.git"
+		"url": "git+https://github.com/jk2908/solas.git"
 	},
 	"files": [
 		"dist",
