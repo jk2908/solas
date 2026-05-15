@@ -1,4 +1,8 @@
+import { BasePath } from '../../utils/base-path.js'
+
 import { Solas } from '../../solas.js'
+
+const BASE_PATH = BasePath.normalise(import.meta.env.BASE_URL)
 
 export namespace BrowserRouter {
 	// route params are simple string values that get dropped into the path
@@ -223,7 +227,7 @@ export namespace BrowserRouter {
 			to = to.replace('*', remaining[0][1].split('/').map(encodeURIComponent).join('/'))
 		}
 
-		if (!query) return to
+		if (!query) return withBase(to)
 
 		const hashIndex = to.indexOf('#')
 		const hash = hashIndex >= 0 ? to.slice(hashIndex) : ''
@@ -239,6 +243,20 @@ export namespace BrowserRouter {
 		}
 
 		const value = search.toString()
-		return `${pathname}${value.length > 0 ? `?${value}` : ''}${hash}`
+		return withBase(`${pathname}${value.length > 0 ? `?${value}` : ''}${hash}`)
 	}
+}
+
+/**
+ * Apply the base path to a target string when needed
+ */
+export function withBase(target: string) {
+	if (BrowserRouter.isHashOnlyTarget(target)) return target
+	if (target.startsWith('//') || /^[A-Za-z][A-Za-z\d+.-]*:/.test(target)) return target
+
+	const suffixIndex = target.search(/[?#]/)
+	const pathname = suffixIndex === -1 ? target : target.slice(0, suffixIndex)
+	const suffix = suffixIndex === -1 ? '' : target.slice(suffixIndex)
+
+	return `${BasePath.apply(pathname || '/', BASE_PATH)}${suffix}`
 }

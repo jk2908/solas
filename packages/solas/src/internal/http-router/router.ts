@@ -1,12 +1,15 @@
-import path from 'node:path'
-
 import { match as createMatch, type MatchFunction } from 'path-to-regexp'
+
+import { BasePath } from '../../utils/base-path.js'
 
 import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
 import { Solas } from '../../solas.js'
 import { HttpException } from '../navigation/http-exception.js'
 import { maybeAction } from '../server/actions.js'
+import { CsrfConfig, enforce } from '../server/csrf.js'
 import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
+
+const BASE_PATH = BasePath.normalise(import.meta.env.BASE_URL)
 
 export namespace HttpRouter {
 	export type Params = Record<string, string | string[]>
@@ -46,6 +49,7 @@ export namespace HttpRouter {
 
 	export type Options = {
 		trailingSlash?: NonNullable<PluginConfig['trailingSlash']>
+		csrf?: CsrfConfig
 	}
 
 	export type Registry = {
@@ -203,7 +207,7 @@ export class HttpRouter {
 	/**
 	 * Match a path and method, returning params and route
 	 */
-	match(path: string, method: HttpMethod) {
+	#match(path: string, method: HttpMethod) {
 		for (const candidate of HttpRouter.#candidates(path)) {
 			const direct = this.#routes.static.get(`${method}:${candidate}`)
 
@@ -258,42 +262,46 @@ export class HttpRouter {
 	async fetch(req: Request) {
 		const url = new URL(req.url)
 		const trailingSlash = this.opts.trailingSlash ?? 'never'
+		const routedPath = BasePath.strip(url.pathname, BASE_PATH)
 		const path =
-			trailingSlash === 'ignore'
-				? url.pathname
-				: normalisePathname(url.pathname, trailingSlash)
+			routedPath == null
+				? null
+				: trailingSlash === 'ignore'
+					? routedPath
+					: normalisePathname(routedPath, trailingSlash)
 		let match: HttpRouter.Match | null = null
 		let action = false
 
 		try {
 			const method = req.method.toUpperCase() as HttpMethod
+			const canonicalPathname = path == null ? null : BasePath.apply(path, BASE_PATH)
 
-			if ((method === 'GET' || method === 'HEAD') && path !== url.pathname) {
-				url.pathname = path
+			if (
+				canonicalPathname != null &&
+				(method === 'GET' || method === 'HEAD') &&
+				canonicalPathname !== url.pathname
+			) {
+				url.pathname = canonicalPathname
 				return Response.redirect(url.toString(), 308)
 			}
 
-			if (path !== url.pathname) {
-				// rebuild the request with the canonical pathname so downstream code
-				// sees the same url the router matched against
-				url.pathname = path
+			if (canonicalPathname != null && canonicalPathname !== url.pathname) {
+				// rebuild the request so the rest of the app sees the same path the router used
+				url.pathname = canonicalPathname
 				req = new Request(url.toString(), req)
 			}
 
 			const { action: isAction, formData: parsedFormData } = await maybeAction(req)
 			action = isAction
 
-			// action requests stay on the same pathname only the method is
-			// normalised to GET this lets page/layout routes match for
-			// rerender action execution still reads POST body and
-			// may redirect()
-			match = this.match(path, action ? 'GET' : method)
+			// action requests stay on the same path, but we match them like GET so
+			// the normal page tree can rerender around the action result
+			match = path == null ? null : this.#match(path, action ? 'GET' : method)
 
 			if (!match) {
 				const error = new HttpException(404, 'Not found')
 
-				// unmatched requests still pass through the shared error hook with the
-				// same request metadata shape as matched requests
+				// unmatched requests still go through the same error hook shape as matched ones
 				return (
 					this.#onError?.(
 						error,
@@ -305,14 +313,15 @@ export class HttpRouter {
 			}
 
 			const matched = match
-			// attach routing state to the request once so middleware and handlers can
-			// read the same per-request metadata
+			// attach route state once so middleware and handlers read the same request data
 			const request: SolasRequest = Object.assign(req, {
 				[Solas.Config.REQUEST_META_KEY]: { match: matched, action, parsedFormData },
 			})
 
-			// global middleware stays outside route middleware by preserving
-			// registration order here before composition in #run
+			// check csrf before any middleware or handler runs
+			enforce(request, this.opts.csrf)
+
+			// keep global middleware outside route middleware and preserve registration order
 			const stack = [...this.#middleware.global, ...matched.route.middleware]
 
 			return this.#run(
@@ -322,7 +331,7 @@ export class HttpRouter {
 					matched.route.handler?.(request) ?? new Response('Not found', { status: 404 }),
 			)
 		} catch (err) {
-			// normalise unknown throwables so the error hook always receives an Error
+			// turn unknown throws into Error objects so the error hook sees one shape
 			const error = err instanceof Error ? err : new Error(String(err), { cause: err })
 			const request = Object.assign(req, {
 				[Solas.Config.REQUEST_META_KEY]: { match, error, action },
@@ -346,10 +355,10 @@ export class HttpRouter {
 		req: SolasRequest,
 		next: () => Promise<Response> | Response,
 	) {
-		// compose middleware stack
+		// build the middleware chain from the inside out
 		let run = () => Promise.resolve(next())
 
-		// unwind stack
+		// wrap each middleware around the current chain
 		for (let i = stack.length - 1; i >= 0; i -= 1) {
 			const handler = stack[i]
 			const prev = run
@@ -359,8 +368,7 @@ export class HttpRouter {
 
 				return Promise.resolve(
 					handler(req, () => {
-						// guard against double invocation so handlers/inner middleware
-						// only execute once per request
+						// next() can only be used once per middleware call
 						if (called) throw new Error('next() called more than once')
 						called = true
 
@@ -370,49 +378,14 @@ export class HttpRouter {
 			}
 		}
 
-		// run composed middleware stack
+		// start the middleware chain
 		return run()
-	}
-
-	/**
-	 * Serve static assets from the output directory
-	 * @note generated /assets/* handlers bypass +middleware conventions
-	 */
-	static static(config: PluginConfig) {
-		return async (req: Request) => {
-			const pathname = new URL(req.url).pathname
-			const outDir = path.resolve(Solas.Config.OUT_DIR)
-			const staticRoot = path.resolve(outDir, 'client')
-
-			let decodedPathname = pathname
-
-			try {
-				// validate any percent-encoding before resolving the asset path
-				decodedPathname = decodeURIComponent(pathname)
-			} catch {
-				return new Response('Bad Request', { status: 400 })
-			}
-
-			const relativePath = decodedPathname.replace(/^\/+/, '')
-			const filePath = path.resolve(staticRoot, relativePath)
-
-			// keep asset requests pinned under the client output root even if the
-			// incoming path contains traversal segments
-			if (filePath !== staticRoot && !filePath.startsWith(`${staticRoot}${path.sep}`)) {
-				return new Response('Forbidden', { status: 403 })
-			}
-
-			// emitted assets are fingerprinted so they can be cached aggressively
-			return HttpRouter.serve(filePath, req, config.precompress, {
-				'Cache-Control': 'public, immutable, max-age=31536000',
-			})
-		}
 	}
 
 	/**
 	 * Serve a file with optional compression content negotiation
 	 */
-	static async serve(
+	static async serveStatic(
 		filePath: string,
 		req: Request,
 		precompress: boolean = false,

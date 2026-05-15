@@ -1,3 +1,4 @@
+import type { Prerender } from './internal/prerender.js'
 import type { PluginConfig } from './types.js'
 
 export namespace Solas {
@@ -13,12 +14,14 @@ export namespace Solas {
 		export const ENTRY_RSC = 'entry.rsc.tsx'
 		export const ENTRY_SSR = 'entry.ssr.tsx'
 		export const ENTRY_BROWSER = 'entry.browser.tsx'
-		export const ASSETS_DIR = 'assets'
+		export const ASSETS_DIR = `_${SLUG}`
+		export const PUBLIC_DIR = 'public'
 		export const $ = Symbol(SLUG)
 		export const REQUEST_META_KEY = `__${SLUG.toUpperCase()}__`
 		export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
 		export const PRERENDER_MODES = ['full', 'ppr', false] as const
 		export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
+		export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
 		const CONFIG_KEYS = new Set([
 			'port',
@@ -27,6 +30,7 @@ export namespace Solas {
 			'precompress',
 			'prerender',
 			'sitemap',
+			'trustedOrigins',
 			'trailingSlash',
 			'url',
 		])
@@ -73,6 +77,39 @@ export namespace Solas {
 			if ('precompress' in input && input.precompress !== undefined) {
 				if (typeof input.precompress !== 'boolean') {
 					errors.push('config.precompress must be a boolean')
+				}
+			}
+
+			if ('trustedOrigins' in input && input.trustedOrigins !== undefined) {
+				if (!Array.isArray(input.trustedOrigins)) {
+					errors.push('config.trustedOrigins must be an array of origins')
+				} else {
+					for (const [index, value] of input.trustedOrigins.entries()) {
+						if (typeof value !== 'string') {
+							errors.push(`config.trustedOrigins[${index}] must be a string`)
+							continue
+						}
+
+						try {
+							const url = new URL(value)
+							const canonical = value.replace(/\/$/, '')
+
+							if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+								errors.push(
+									`config.trustedOrigins[${index}] must use http:// or https://`,
+								)
+								continue
+							}
+
+							if (canonical !== url.origin) {
+								errors.push(
+									`config.trustedOrigins[${index}] must be an origin without a path, query, or hash`,
+								)
+							}
+						} catch {
+							errors.push(`config.trustedOrigins[${index}] must be a valid URL origin`)
+						}
+					}
 				}
 			}
 
@@ -164,6 +201,112 @@ export namespace Solas {
 		}
 
 		return value
+	}
+
+	export namespace Runtime {
+		export type Manifest = {
+			artifacts: Prerender.Artifact.Manifest
+			publicFiles: ReadonlySet<string>
+		}
+
+		const manifestCache = new Map<string, Manifest | null>()
+
+		export function getManifestPath(outDir: string) {
+			return [outDir, Config.GENERATED_DIR, Config.RUNTIME_MANIFEST]
+				.map((part, index) => {
+					const normalised = part.replace(/\\/g, '/').replace(/\/+/g, '/')
+
+					if (index === 0) return normalised.replace(/\/+$/, '')
+					return normalised.replace(/^\/+/, '').replace(/\/+$/, '')
+				})
+				.join('/')
+		}
+
+		export async function loadManifest(outDir: string) {
+			if (manifestCache.has(outDir)) {
+				return manifestCache.get(outDir) ?? null
+			}
+
+			const file = Bun.file(getManifestPath(outDir))
+
+			if (!(await file.exists())) {
+				manifestCache.set(outDir, null)
+				return null
+			}
+
+			try {
+				const value = JSON.parse(await file.text())
+
+				if (!isRecord(value)) {
+					manifestCache.set(outDir, null)
+					return null
+				}
+
+				const artifacts = value.artifacts ?? value.routes
+				const publicFiles = value.publicFiles
+
+				if (!isRecord(artifacts)) {
+					manifestCache.set(outDir, null)
+					return null
+				}
+
+				if (publicFiles !== undefined && !Array.isArray(publicFiles)) {
+					manifestCache.set(outDir, null)
+					return null
+				}
+
+				for (const entry of Object.values(artifacts)) {
+					if (!isRecord(entry)) {
+						manifestCache.set(outDir, null)
+						return null
+					}
+
+					const { mode, files } = entry
+
+					if (mode !== 'full' && mode !== 'ppr') {
+						manifestCache.set(outDir, null)
+						return null
+					}
+
+					if (files !== undefined) {
+						if (!Array.isArray(files)) {
+							manifestCache.set(outDir, null)
+							return null
+						}
+
+						for (const file of files) {
+							if (
+								file !== 'html' &&
+								file !== 'prelude' &&
+								file !== 'postponed' &&
+								file !== 'metadata'
+							) {
+								manifestCache.set(outDir, null)
+								return null
+							}
+						}
+					}
+				}
+
+				for (const entry of publicFiles ?? []) {
+					if (typeof entry !== 'string' || !entry.startsWith('/')) {
+						manifestCache.set(outDir, null)
+						return null
+					}
+				}
+
+				const manifest: Manifest = {
+					artifacts: artifacts as Manifest['artifacts'],
+					publicFiles: new Set((publicFiles as string[] | undefined) ?? []),
+				}
+
+				manifestCache.set(outDir, manifest)
+				return manifest
+			} catch {
+				manifestCache.set(outDir, null)
+				return null
+			}
+		}
 	}
 
 	export namespace Events {

@@ -18,6 +18,8 @@ export const HTTP_EXCEPTION_NAME_MAP: Record<HttpException.StatusCode, string> =
 export type HttpExceptionLike = Pick<Error, 'name' | 'message' | 'stack'> &
 	Partial<Pick<HttpException, 'digest' | 'payload' | 'status'>>
 
+export const HTTP_EXCEPTION_DIGEST_PREFIX = 'HTTP_EXCEPTION'
+
 /**
  * An exception representing an HttpException error, with an optional payload
  * and cause
@@ -38,8 +40,6 @@ export class HttpException extends Error {
 		this.digest = `${HTTP_EXCEPTION_DIGEST_PREFIX}:${status}:${message}`
 	}
 }
-
-export const HTTP_EXCEPTION_DIGEST_PREFIX = 'HTTP_EXCEPTION'
 
 /**
  * Status type predicate
@@ -114,7 +114,6 @@ export function toHttpExceptionLike(error: HttpException | Error): HttpException
 	return {
 		name: error.name,
 		message: error.message,
-		stack: error.stack,
 		...('digest' in error && typeof error.digest === 'string'
 			? { digest: error.digest }
 			: {}),

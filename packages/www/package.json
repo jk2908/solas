@@ -3,9 +3,9 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
-		"dev": "solas dev",
-		"build": "solas build",
-		"preview": "solas preview"
+		"dev": "bunx --bun vite dev",
+		"build": "bunx --bun vite build",
+		"preview": "bunx --bun vite preview"
 	},
 	"dependencies": {
 		"@jk2908/solas": "workspace:*",

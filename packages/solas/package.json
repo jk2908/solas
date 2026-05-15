@@ -19,9 +19,6 @@
 		"type": "git",
 		"url": "https://github.com/jk2908/solas.git"
 	},
-	"bin": {
-		"solas": "./dist/cli.js"
-	},
 	"files": [
 		"dist",
 		"CHANGELOG.md",
@@ -74,7 +71,7 @@
 		}
 	},
 	"scripts": {
-		"build": "rm -rf dist && tsgo && chmod +x dist/cli.js",
+		"build": "rm -rf dist && tsgo",
 		"lint": "bunx oxlint .",
 		"lint:fix": "bunx oxlint --fix .",
 		"format": "bunx oxfmt --write .",

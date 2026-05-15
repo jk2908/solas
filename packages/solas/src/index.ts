@@ -28,11 +28,14 @@ import {
 import { writeManifest } from './internal/codegen/manifest.js'
 import { writeMaps } from './internal/codegen/maps.js'
 import { writeTypes } from './internal/codegen/types.js'
+import { postbuild } from './internal/postbuild.js'
+import { collect as collectPublicFiles } from './internal/public-files.js'
 import { Solas } from './solas.js'
 
 const DEFAULT_CONFIG = {
 	precompress: true,
 	prerender: false,
+	trustedOrigins: [],
 	trailingSlash: 'never',
 } as const satisfies Partial<PluginConfig>
 
@@ -288,7 +291,11 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 			viteConfig.build ??= {}
 			viteConfig.build.outDir = Solas.Config.OUT_DIR
+			// keep framework files under one reserved url prefix
+			viteConfig.build.assetsDir = Solas.Config.ASSETS_DIR
 			viteConfig.build.emptyOutDir = true
+			// let users move the source public folder if they want
+			viteConfig.publicDir ??= Solas.Config.PUBLIC_DIR
 
 			viteConfig.server ??= {}
 			viteConfig.server.port = config.port ?? viteConfig.server.port ?? 8787
@@ -379,6 +386,8 @@ function solas(c?: PluginConfig): PluginOption[] {
 			await Bun.write(
 				path.join(generatedDir, 'build.json'),
 				JSON.stringify({
+					base: resolvedViteConfig?.base ?? '/',
+					publicFiles: await collectPublicFiles(resolvedViteConfig?.publicDir),
 					prerenderRoutes: Array.from(buildContext.prerenderRoutes),
 					sitemapRoutes,
 					precompress: config.precompress,
@@ -386,8 +395,12 @@ function solas(c?: PluginConfig): PluginOption[] {
 					url: config.url,
 				}),
 			)
-
-			logger.info('[closeBundle]', 'vite build complete')
+		},
+		buildApp: {
+			order: 'post' as const,
+			async handler() {
+				await postbuild(resolvedViteConfig?.root ?? process.cwd())
+			},
 		},
 	}
 

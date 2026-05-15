@@ -2,8 +2,8 @@ import path from 'node:path'
 
 import { compile } from 'path-to-regexp'
 
+import { BasePath } from '../utils/base-path.js'
 import { Logger } from '../utils/logger.js'
-import { Time } from '../utils/time.js'
 
 import type { BuildContext } from '../types.js'
 import { Solas } from '../solas.js'
@@ -12,12 +12,9 @@ import { toPathPattern } from './http-router/utils.js'
 const logger = new Logger()
 
 export namespace Prerender {
-	const DEFAULT_TIMEOUT_MS = 15_000
 	const DEFAULT_CONCURRENCY = 4
 
 	export namespace Artifact {
-		const manifestCache = new Map<string, Manifest | null>()
-
 		export type Mode = 'full' | 'ppr'
 		export type File = 'html' | 'prelude' | 'postponed' | 'metadata'
 
@@ -60,14 +57,6 @@ export namespace Prerender {
 		}
 
 		/**
-		 * Get the file system path for the prerender artifact manifest, which
-		 * contains metadata about all prerendered routes and their artifacts
-		 */
-		export function getManifestPath(outDir: string) {
-			return path.join(getRootPath(outDir), 'manifest.json')
-		}
-
-		/**
 		 * Get the file system path for storing prerender artifacts for a given route
 		 */
 		export function getPath(outDir: string, pathname: string) {
@@ -98,87 +87,6 @@ export namespace Prerender {
 		 * File name used for saved full-prerender html inside each route artifact directory
 		 */
 		export const FULL_PRERENDER_FILENAME = 'prerendered.html'
-
-		/**
-		 * Load the prerender artifact manifest for faster runtime route mode checks
-		 */
-		export async function loadManifest(outDir: string) {
-			// if we already loaded this outDir, return cached result
-			// (either a valid manifest or null when it was missing/invalid)
-			if (manifestCache.has(outDir)) {
-				return manifestCache.get(outDir) ?? null
-			}
-
-			const file = Bun.file(getManifestPath(outDir))
-
-			// no manifest means no prerender metadata to use
-			if (!(await file.exists())) {
-				manifestCache.set(outDir, null)
-				return null
-			}
-
-			try {
-				// parse once, then validate the shape before trusting any fields
-				const value = JSON.parse(await file.text())
-
-				if (!value || typeof value !== 'object') {
-					manifestCache.set(outDir, null)
-					return null
-				}
-
-				const routes = (value as { routes?: unknown }).routes
-
-				if (!routes || typeof routes !== 'object') {
-					manifestCache.set(outDir, null)
-					return null
-				}
-
-				// verify each route entry so runtime can rely on mode/files safely
-				for (const entry of Object.values(routes)) {
-					if (!entry || typeof entry !== 'object') {
-						manifestCache.set(outDir, null)
-						return null
-					}
-
-					const { mode, files } = entry
-
-					// only allow known modes
-					if (mode !== 'full' && mode !== 'ppr') {
-						manifestCache.set(outDir, null)
-						return null
-					}
-
-					if (files !== undefined) {
-						if (!Array.isArray(files)) {
-							manifestCache.set(outDir, null)
-							return null
-						}
-
-						// only allow known artifact file labels
-						for (const f of files) {
-							if (
-								f !== 'html' &&
-								f !== 'prelude' &&
-								f !== 'postponed' &&
-								f !== 'metadata'
-							) {
-								manifestCache.set(outDir, null)
-								return null
-							}
-						}
-					}
-				}
-
-				const manifest = routes as Manifest
-				// cache validated manifest to avoid reparsing on every request
-				manifestCache.set(outDir, manifest)
-
-				return manifest
-			} catch {
-				manifestCache.set(outDir, null)
-				return null
-			}
-		}
 
 		/**
 		 * Load the postponed state for a given route from the file system, if it exists
@@ -401,20 +309,6 @@ export namespace Prerender {
 
 	export namespace Build {
 		/**
-		 * Get the prerender timeout value from the environment variable, or return the default
-		 * if it's not set or invalid
-		 */
-		export function getTimeout() {
-			const v = Number(process.env.SOLAS_PRERENDER_TIMEOUT_MS)
-
-			if (!Number.isFinite(v) || v <= 0) {
-				return DEFAULT_TIMEOUT_MS
-			}
-
-			return v
-		}
-
-		/**
 		 * Get the prerender concurrency value from the environment variable, or return the default
 		 * if it's not set or invalid
 		 */
@@ -456,11 +350,7 @@ export namespace Prerender {
 
 			if (!params) return []
 
-			const resolved = await Time.timeout(
-				Promise.try(() => params()),
-				getTimeout(),
-				`static params for ${filePath}`,
-			)
+			const resolved = await Promise.try(() => params())
 
 			if (!Array.isArray(resolved)) return []
 
@@ -514,22 +404,18 @@ export namespace Prerender {
 		export async function get(
 			app: { fetch: (req: Request) => Promise<Response> },
 			route: string,
-			opts: { timeout: number; origin?: string },
+			opts: { origin?: string; base?: string },
 		) {
-			const url = `${opts.origin ?? `http://${Solas.Config.SLUG}.local`}${route}`
+			const url = `${opts.origin ?? `http://${Solas.Config.SLUG}.local`}${BasePath.apply(route, opts.base)}`
 
-			const res = await Time.timeout(
-				app.fetch(
-					new Request(url, {
-						headers: {
-							Accept: 'text/html',
-							[`x-${Solas.Config.SLUG}-prerender`]: '1',
-							[`x-${Solas.Config.SLUG}-prerender-artifact`]: '1',
-						},
-					}),
-				),
-				opts.timeout,
-				`route ${route}`,
+			const res = await app.fetch(
+				new Request(url, {
+					headers: {
+						Accept: 'text/html',
+						[`x-${Solas.Config.SLUG}-prerender`]: '1',
+						[`x-${Solas.Config.SLUG}-prerender-artifact`]: '1',
+					},
+				}),
 			)
 
 			if (!(res instanceof Response)) {
@@ -545,14 +431,13 @@ export namespace Prerender {
 		}
 
 		/**
-		 * Run the prerendering process for a list of routes, with a specified concurrency limit and timeout for
-		 * each route, by calling the 'get' function for each route and yielding the results as they
-		 * become available
+		 * Run the prerendering process for a list of routes with a specified concurrency limit,
+		 * by calling the 'get' function for each route and yielding the results as they become available
 		 */
 		export async function* run(
 			app: { fetch: (req: Request) => Promise<Response> },
 			routes: string[],
-			opts: { timeout: number; concurrency?: number; origin?: string },
+			opts: { concurrency?: number; origin?: string; base?: string },
 		) {
 			const limit = Math.max(1, Math.min(opts.concurrency ?? 4, routes.length || 1))
 
@@ -574,7 +459,7 @@ export namespace Prerender {
 					pending.set(
 						i,
 						get(app, value, {
-							timeout: opts.timeout,
+							base: opts.base,
 							origin: opts.origin,
 						})
 							.then(result => ({ index: i, result }))

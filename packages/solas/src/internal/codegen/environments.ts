@@ -9,16 +9,15 @@ export function writeRSCEntry() {
 		${AUTOGEN_MSG}
 
 		import { createHandler } from '${Solas.Config.PKG_NAME}/env/rsc'
-		import { Prerender } from '${Solas.Config.PKG_NAME}/prerender'
 		import { Solas } from '${Solas.Config.PKG_NAME}'
 
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'
 		import { config } from './config.js'
 
-		const artifactManifest = await Prerender.Artifact.loadManifest(Solas.Config.OUT_DIR)
+		const runtimeManifest = await Solas.Runtime.loadManifest(Solas.Config.OUT_DIR)
 
-		export default createHandler(config, manifest, importMap, artifactManifest)
+		export default createHandler(config, manifest, importMap, runtimeManifest)
 
 		if (import.meta.hot) {
 			import.meta.hot.accept()

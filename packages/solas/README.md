@@ -288,6 +288,32 @@ export default defineConfig({
 })
 ```
 
+### `trustedOrigins`
+
+Use `trustedOrigins` to allow specific origins to make cross-origin browser submissions to your app.
+
+Default: `[]`
+
+Solas protects server actions and `+endpoint` handlers against CSRF.
+
+Server actions are always `POST` requests. `+endpoint` handlers are protected on `POST`, `PUT`, `PATCH`, and `DELETE` requests.
+
+By default, only same-origin browser requests are allowed. Add a trusted origin when a third-party service needs to submit through the user's browser, such as a payment gateway or identity provider.
+
+Each value must be a complete origin including protocol:
+
+```ts
+export default defineConfig({
+	plugins: [
+		solas({
+			trustedOrigins: ['https://payments.example.com', 'https://login.example.com'],
+		}),
+	],
+})
+```
+
+Only add origins you completely trust. These origins are treated as allowed browser sources for unsafe requests.
+
 ### `sitemap`
 
 Use `sitemap` to generate a `sitemap.xml` at build time.
@@ -372,15 +398,49 @@ Add scripts to your app:
 ```json
 {
 	"scripts": {
-		"dev": "solas dev",
-		"build": "solas build",
-		"preview": "solas preview"
+		"dev": "bunx --bun vite dev",
+		"build": "bunx --bun vite build",
+		"preview": "bunx --bun vite preview"
 	}
 }
 ```
 
 ## Commands
 
-- `solas dev` starts the development server.
-- `solas build` creates a production build, prerenders configured routes, and writes compressed assets when enabled.
-- `solas preview` serves the built app for local verification.
+- `bunx --bun vite dev` starts the development server.
+- `bunx --bun vite build` creates a production build. Solas finalizes that build by prerendering configured routes, writing the runtime manifest, generating `sitemap.xml` when enabled, and precompressing output when enabled.
+- `bunx --bun vite preview` serves the built app for local verification.
+
+## Security
+
+### CSRF
+
+Solas protects server actions and `+endpoint` handlers against CSRF.
+
+Server actions are always `POST` requests. `+endpoint` handlers are protected on browser-initiated `POST`, `PUT`, `PATCH`, and `DELETE` requests.
+
+By default, browser requests must be same-origin.
+
+When available, Solas checks browser provenance using:
+
+- `Sec-Fetch-Site`
+- `Origin`
+- `Referer`
+
+Solas also considers the effective request origin when your app is behind a proxy by using `X-Forwarded-Host`, `X-Forwarded-Proto`, and `config.url` when present.
+
+If you need to allow a trusted third-party browser POST source, configure it explicitly:
+
+```ts
+export default defineConfig({
+	plugins: [
+		solas({
+			trustedOrigins: ['https://payments.example.com'],
+		}),
+	],
+})
+```
+
+Requests from non-browser callers that do not send browser provenance headers are allowed by default, so typical server-to-server integrations and webhooks continue to work.
+
+Cookie-backed app mutations should keep the default same-origin protection and only use `trustedOrigins` for narrowly scoped integrations that genuinely need cross-origin browser submissions.

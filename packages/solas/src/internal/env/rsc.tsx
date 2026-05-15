@@ -1,7 +1,10 @@
+import path from 'node:path'
+
 import type { ReactFormState } from 'react-dom/client'
 
 import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
+import { BasePath } from '../../utils/base-path.js'
 import { Logger } from '../../utils/logger.js'
 
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
@@ -37,6 +40,24 @@ export type RscPayload = {
 }
 
 const logger = new Logger()
+const BASE_PATH = BasePath.normalise(import.meta.env.BASE_URL)
+
+function resolveFilePath(root: string, relativePath: string) {
+	try {
+		const decodedPath = decodeURIComponent(relativePath)
+		if (!decodedPath) return new Response('Forbidden', { status: 403 })
+
+		const filePath = path.resolve(root, decodedPath)
+
+		if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) {
+			return new Response('Forbidden', { status: 403 })
+		}
+
+		return filePath
+	} catch {
+		return new Response('Bad Request', { status: 400 })
+	}
+}
 
 /**
  * Create the streamed RSC payload and response metadata for a single request.
@@ -55,10 +76,9 @@ async function createPayload(
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = req.headers.get(`x-${Solas.Config.SLUG}-prerender`) === '1'
 	const url = new URL(req.url)
+	const routedPath = BasePath.strip(url.pathname, BASE_PATH) ?? url.pathname
 	const pathname =
-		url.pathname.endsWith('/') && url.pathname !== '/'
-			? url.pathname.slice(0, -1)
-			: url.pathname
+		routedPath.endsWith('/') && routedPath !== '/' ? routedPath.slice(0, -1) : routedPath
 	const match = resolver.enhance(
 		resolver.reconcile(
 			pathname,
@@ -243,8 +263,14 @@ export function createHandler(
 	config: RuntimeConfig,
 	manifest: Manifest,
 	importMap: ImportMap,
-	artifactManifest: Prerender.Artifact.Manifest | null = null,
+	runtimeManifest: Solas.Runtime.Manifest | null = null,
 ) {
+	const CLIENT_OUTPUT_DIR = path.resolve(Solas.Config.OUT_DIR, 'client')
+	// vite emits solas-controlled assets under dist/client/_solas
+	const SOLAS_ASSETS_DIR = path.resolve(CLIENT_OUTPUT_DIR, Solas.Config.ASSETS_DIR)
+	// requests for /_solas and /_solas/* are reserved
+	const SOLAS_ASSETS_URL_ROOT = `/${Solas.Config.ASSETS_DIR}`
+
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
 
 	/**
@@ -263,7 +289,12 @@ export function createHandler(
 			returnValue: undefined,
 		}
 
-		if (req[Solas.Config.REQUEST_META_KEY].action) opts = await processActionRequest(req)
+		if (req[Solas.Config.REQUEST_META_KEY].action) {
+			opts = await processActionRequest(req, {
+				trustedOrigins: config.trustedOrigins,
+				url: config.url,
+			})
+		}
 
 		const {
 			stream: rscStream,
@@ -320,11 +351,11 @@ export function createHandler(
 		}
 
 		try {
-			const artifactManifestEntry = runtimePpr
-				? (artifactManifest?.[lookupPath] ?? null)
+			const artifactEntry = runtimePpr
+				? (runtimeManifest?.artifacts[lookupPath] ?? null)
 				: null
 
-			const tryPrelude = artifactManifestEntry?.mode === 'ppr'
+			const tryPrelude = artifactEntry?.mode === 'ppr'
 
 			if (tryPrelude) {
 				const postponedState = await Prerender.Artifact.loadPostponedState(
@@ -375,8 +406,8 @@ export function createHandler(
 				status,
 			})
 		} catch (err) {
-			// resume/ssr can be the first place react surfaces an http exception from abort(...),
-			// after the initial rsc pass was streamed without request error state. Rerun once
+			// resume/ssr can be the first place React surfaces an HttpException from abort(...),
+			// after the initial RSC pass was streamed without request error state. Rerun once
 			// with that error attached so createPayload rebuilds the same route through its
 			// nearest matching HttpExceptionBoundary. If request meta already has an error
 			// or the error is not an HttpException, then this is a real failure
@@ -426,26 +457,66 @@ export function createHandler(
 	return {
 		async fetch(req: Request) {
 			const url = new URL(req.url)
-			const accept = req.headers.get('accept') ?? ''
 			const method = req.method.toUpperCase()
+
+			// fast path
+			if (method !== 'GET' && method !== 'HEAD') return httpRouter.fetch(req)
+
+			const accept = req.headers.get('accept') ?? ''
+			const routedPath = BasePath.strip(url.pathname, BASE_PATH)
 			const canonicalPath =
-				config.trailingSlash === 'ignore'
-					? url.pathname
-					: normalisePathname(url.pathname, config.trailingSlash)
+				routedPath == null
+					? null
+					: config.trailingSlash === 'ignore'
+						? routedPath
+						: normalisePathname(routedPath, config.trailingSlash)
+			const canonicalPathname =
+				canonicalPath == null ? null : BasePath.apply(canonicalPath, BASE_PATH)
 
 			if (
+				canonicalPathname != null &&
 				(method === 'GET' || method === 'HEAD') &&
 				config.trailingSlash !== 'ignore' &&
-				canonicalPath !== url.pathname
+				canonicalPathname !== url.pathname
 			) {
-				url.pathname = canonicalPath
+				url.pathname = canonicalPathname
 				return Response.redirect(url.toString(), 308)
+			}
+
+			// block the bare /_solas namespace; only concrete solas asset files
+			// under /_solas/* are valid
+			if (routedPath === SOLAS_ASSETS_URL_ROOT) {
+				return new Response('Forbidden', { status: 403 })
+			}
+
+			if (routedPath?.startsWith(`${SOLAS_ASSETS_URL_ROOT}/`)) {
+				const resolvedPath = resolveFilePath(
+					SOLAS_ASSETS_DIR,
+					routedPath.slice(`${SOLAS_ASSETS_URL_ROOT}/`.length),
+				)
+
+				// pass through bad-request or forbidden responses from path resolution
+				if (resolvedPath instanceof Response) return resolvedPath
+
+				return HttpRouter.serveStatic(resolvedPath, req, config.precompress, {
+					'Cache-Control': 'public, immutable, max-age=31536000',
+				})
+			}
+
+			if (routedPath && runtimeManifest?.publicFiles.has(routedPath)) {
+				const resolvedPath = resolveFilePath(CLIENT_OUTPUT_DIR, routedPath.slice(1))
+
+				// pass through bad-request or forbidden responses from path resolution
+				if (resolvedPath instanceof Response) return resolvedPath
+
+				return HttpRouter.serveStatic(resolvedPath, req, config.precompress)
 			}
 
 			// fully prerendered html can be served straight from disk for normal
 			// document requests, but build-time artifact requests must bypass
 			// this shortcut so they still render fresh output
 			if (
+				canonicalPath != null &&
 				!import.meta.env.DEV &&
 				accept.includes('text/html') &&
 				req.headers.get(`x-${Solas.Config.SLUG}-prerender-artifact`) !== '1'
@@ -455,7 +526,7 @@ export function createHandler(
 
 				// only full prerender routes have a saved html file we can serve directly
 				const prerenderPath =
-					artifactManifest?.[lookupPath]?.mode === 'full'
+					runtimeManifest?.artifacts[lookupPath]?.mode === 'full'
 						? Prerender.Artifact.getFilePath(
 								Solas.Config.OUT_DIR,
 								lookupPath,
@@ -464,12 +535,21 @@ export function createHandler(
 						: null
 
 				if (prerenderPath) {
-					const res = await HttpRouter.serve(prerenderPath, req, config.precompress, {
-						// avoid shared or proxy caching unless users opt into public caching later
-						'Cache-Control': 'private, no-store',
-						'Content-Type': 'text/html; charset=utf-8',
-					})
+					const res = await HttpRouter.serveStatic(
+						prerenderPath,
+						req,
+						config.precompress,
+						{
+							// keep prerendered html out of shared caches unless users opt into explicit public caching
+							// default to private, no-store for now
+							// @todo: public caching?
+							'Cache-Control': 'private, no-store',
+							'Content-Type': 'text/html; charset=utf-8',
+						},
+					)
 
+					// only a missing prerendered file should fall back to normal request handling
+					// any other static-file response should be returned as-is
 					if (res.status !== 404) return res
 				}
 			}

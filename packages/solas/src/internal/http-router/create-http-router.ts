@@ -71,17 +71,18 @@ function mergeMiddlewares(
  * Create the HTTP router from the generated manifest and import map
  */
 export function createHttpRouter(
-	config: Pick<PluginConfig, 'precompress' | 'trailingSlash'>,
+	config: Pick<PluginConfig, 'trailingSlash' | 'trustedOrigins' | 'url'>,
 	manifest: Manifest,
 	importMap: ImportMap,
 	rsc: (req: SolasRequest) => Response | Promise<Response>,
 ) {
 	const router = new HttpRouter({
 		trailingSlash: config.trailingSlash,
+		csrf: {
+			trustedOrigins: config.trustedOrigins,
+			url: config.url,
+		},
 	})
-
-	// static assets stay outside route middleware conventions and are registered once
-	router.add('/assets/*', 'GET', HttpRouter.static(config))
 
 	for (const [, group] of createHandlerGroups(manifest)) {
 		if (!Array.isArray(group)) {

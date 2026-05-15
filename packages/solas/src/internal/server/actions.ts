@@ -10,7 +10,7 @@ import {
 
 import { Solas } from '../../solas.js'
 import { SolasRequest } from '../../types.js'
-import { HttpException } from '../navigation/http-exception.js'
+import { CsrfConfig, enforce } from './csrf.js'
 
 /**
  * Check if a request is an action request and reuse parsed FormData
@@ -50,15 +50,13 @@ export async function maybeAction(req: Request) {
  * @returns an object containing either the return value of the action or the form state, depending on the type
  * of action request
  */
-export async function processActionRequest(req: SolasRequest) {
+export async function processActionRequest(req: SolasRequest, csrf: CsrfConfig = {}) {
 	let returnValue: { ok: boolean; data: unknown } | undefined
 	let formState: ReactFormState | undefined
 	let temporaryReferences: unknown
 
-	// reject cross-site action posts before any body decoding or action loading
-	if (!isTrustedActionRequest(req)) {
-		throw new HttpException(403, 'Cross-site action requests are forbidden')
-	}
+	// enforce CSRF for all action requests
+	enforce(req, csrf)
 
 	const id = req.headers.get('x-rsc-action-id')
 
@@ -98,34 +96,4 @@ export async function processActionRequest(req: SolasRequest) {
 	}
 
 	return { returnValue, formState, temporaryReferences }
-}
-
-/**
- * Reduce Origin and Referer headers to a comparable origin string
- */
-function toOrigin(value: string | null) {
-	if (!value) return null
-
-	try {
-		return new URL(value).origin
-	} catch {
-		return null
-	}
-}
-
-/**
- * Check whether an action request came from the same origin as the target app
- */
-export function isTrustedActionRequest(req: Request) {
-	const requestOrigin = toOrigin(req.url)
-	if (!requestOrigin) return false
-
-	const origin = toOrigin(req.headers.get('origin'))
-	if (origin) return origin === requestOrigin
-
-	// some user agents omit Origin on same-origin form posts, so fall back to Referer
-	const referer = toOrigin(req.headers.get('referer'))
-	if (referer) return referer === requestOrigin
-
-	return false
 }

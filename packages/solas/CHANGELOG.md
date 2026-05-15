@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0 - 2026-05-11
+
+- Added CSRF protection for server actions and `+endpoint` handlers, plus a new `trustedOrigins` config option for tightly scoped cross-origin browser submissions. The checks are proxy-aware and use browser request headers when available.
+- Added Vite `base` support across server routing, prerendering, and browser navigation, so apps mounted under a subpath resolve routes and generated asset URLs correctly.
+- Changed static file handling so copied `public` files are served from the application root, while framework-generated files now live under the reserved `/_solas/*` path.
+- Breaking: removed the `solas` CLI compatibility layer and switched the documented app scripts to Bun-backed Vite commands (`bunx --bun vite dev`, `build`, and `preview`).
+- Moved Solas post-build work into the Vite plugin lifecycle, so prerendering, runtime manifest emission, sitemap generation, and precompression now run after the full app build instead of through an outer CLI wrapper.
+- Added `Solas.Runtime.Manifest` and `Solas.Runtime.loadManifest(...)` for runtime artifact and public-file lookups, while keeping artifact-specific manifest types and helpers under `Prerender.Artifact`. The runtime manifest now lives at `dist/.solas/runtime-manifest.json` instead of under `.solas/ppr`.
+- Stopped serialising stack traces in `HttpExceptionLike`, so server-rendered error payloads no longer include stacks.
+
 ## 0.3.9 - 2026-05-07
 
 - Split shared `BrowserRouter` navigation types and target-building helpers into a dedicated internal module, so generated environments and type-only imports no longer need to pull through the full browser router runtime.

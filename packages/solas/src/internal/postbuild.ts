@@ -5,40 +5,14 @@ import { Compress } from '../utils/compress.js'
 import { Logger } from '../utils/logger.js'
 
 import type { BuildManifest } from '../types.js'
-import { Prerender } from '../internal/prerender.js'
 import { Solas } from '../solas.js'
+import { Prerender } from './prerender.js'
 
 const logger = new Logger()
 
-/**
- * The build command does more than just run vite build - it also handles prerendering and
- * precompressing assets. This is because prerendering needs to run against the built
- * server entry to ensure the same code paths as preview, and precompressing needs
- * to include the prerendered html and json files
- */
-export async function build() {
-	// build and prerender should both run in production mode
-	process.env.NODE_ENV = 'production'
-
-	const cwd = process.cwd()
+export async function postbuild(cwd: string = process.cwd()) {
 	const manifestPath = path.join(cwd, Solas.Config.GENERATED_DIR, 'build.json')
 
-	// run vite build
-	logger.info('[build]', 'running vite build...')
-
-	const vite = Bun.spawnSync(['bunx', '--bun', 'vite', 'build', '--mode', 'production'], {
-		cwd,
-		stdout: 'inherit',
-		stderr: 'inherit',
-		env: { ...process.env, NODE_ENV: 'production' },
-	})
-
-	if (vite.exitCode !== 0) {
-		logger.error('[build] vite build failed')
-		process.exit(1)
-	}
-
-	// read build manifest
 	let manifest: BuildManifest
 
 	try {
@@ -46,7 +20,7 @@ export async function build() {
 		manifest = JSON.parse(raw)
 	} catch (err) {
 		logger.error('[build] failed to read build manifest', err)
-		process.exit(1)
+		throw err
 	}
 
 	const outDir = path.resolve(cwd, Solas.Config.OUT_DIR)
@@ -57,23 +31,17 @@ export async function build() {
 	// do not keep stale metadata from a previous build
 	await fs.rm(artifactRoot, { recursive: true, force: true })
 
-	// prerender routes
+	const artifactManifest: Prerender.Artifact.Manifest = {}
+
 	if (manifest.prerenderRoutes.length > 0) {
-		const timeout = Prerender.Build.getTimeout()
 		const concurrency = Prerender.Build.getConcurrency()
-
-		// track the extra prerender files we write for preview
-		const artifactManifest: Prerender.Artifact.Manifest = {}
-
-		// keep in-flight artifact writes bounded so result handling does not block on one route at a time
 		const pendingWrites = new Set<Promise<void>>()
 
 		logger.info(
 			'[prerender]',
-			`prerendering ${manifest.prerenderRoutes.length} routes (timeout: ${timeout}ms, concurrency: ${concurrency})...`,
+			`prerendering ${manifest.prerenderRoutes.length} routes (concurrency: ${concurrency})...`,
 		)
 
-		// load the built server entry and render each prerendered route through it
 		const rscEntry = path.join(rscDir, 'index.js')
 		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
@@ -89,9 +57,8 @@ export async function build() {
 			}
 		}
 
-		// run prerender through the built app so build output uses the same path as preview
 		for await (const result of Prerender.Build.run(app, manifest.prerenderRoutes, {
-			timeout,
+			base: manifest.base,
 			concurrency,
 			origin: manifest.url,
 		})) {
@@ -115,7 +82,6 @@ export async function build() {
 			await enqueueWrite(async () => {
 				try {
 					if (artifact.mode === 'ppr') {
-						// for ppr save the shell now and keep the postponed state for later
 						await fs.mkdir(artifactDir, { recursive: true })
 
 						const writes: Promise<number>[] = [
@@ -169,9 +135,7 @@ export async function build() {
 						return
 					}
 
-					// full prerender still keeps metadata so preview knows to serve saved html
 					await fs.mkdir(artifactDir, { recursive: true })
-					const fullPrerenderFilename = Prerender.Artifact.FULL_PRERENDER_FILENAME
 
 					await Promise.all([
 						Bun.write(
@@ -184,7 +148,11 @@ export async function build() {
 							}),
 						),
 						Bun.write(
-							Prerender.Artifact.getFilePath(outDir, route, fullPrerenderFilename),
+							Prerender.Artifact.getFilePath(
+								outDir,
+								route,
+								Prerender.Artifact.FULL_PRERENDER_FILENAME,
+							),
 							artifact.html,
 						),
 					])
@@ -204,19 +172,20 @@ export async function build() {
 		}
 
 		await Promise.all(pendingWrites)
-
-		// write one manifest for the saved prerender files after all routes finish
-		await fs.mkdir(artifactRoot, { recursive: true })
-
-		await Bun.write(
-			Prerender.Artifact.getManifestPath(outDir),
-			JSON.stringify({
-				routes: artifactManifest,
-			}),
-		)
 	}
 
-	// sitemap
+	await fs.mkdir(artifactRoot, { recursive: true })
+
+	const runtimeManifest = {
+		artifacts: artifactManifest,
+		publicFiles: manifest.publicFiles,
+	}
+
+	await Bun.write(
+		Solas.Runtime.getManifestPath(outDir),
+		JSON.stringify(runtimeManifest),
+	)
+
 	if (manifest.sitemapRoutes.length > 0 && manifest.url) {
 		const origin = manifest.url.replace(/\/$/, '')
 		const urls = manifest.sitemapRoutes
@@ -234,11 +203,9 @@ export async function build() {
 		logger.info('[sitemap]', `generated ${manifest.sitemapRoutes.length} urls`)
 	}
 
-	// precompress
 	if (manifest.precompress) {
 		logger.info('[precompress]', 'compressing assets...')
 
-		// compress after prerender so generated html and json are included too
 		for await (const { input, compressed } of Compress.run(outDir, {
 			filter: f => /\.(js|css|html|svg|json|txt)$/.test(f),
 		})) {
@@ -247,8 +214,6 @@ export async function build() {
 		}
 	}
 
-	// cleanup
-	// this file is only needed while the build command is running
 	await fs.unlink(manifestPath).catch(() => {})
 
 	logger.info('[build]', 'done')

@@ -11,12 +11,15 @@ import { Solas } from './solas.js'
 
 export type LogLevel = (typeof Solas.Config.LOG_LEVELS)[number]
 
+type Origin = `http://${string}` | `https://${string}`
+
 type PluginConfigBase = {
 	port?: number
 	precompress?: boolean
 	prerender?: Route.Prerender
 	metadata?: Metadata.Item
 	trailingSlash?: (typeof Solas.Config.TRAILING_SLASH_MODES)[number]
+	trustedOrigins?: readonly Origin[]
 	readonly logger?: {
 		level?: LogLevel
 	}
@@ -25,7 +28,7 @@ type PluginConfigBase = {
 export type PluginConfig = PluginConfigBase &
 	(
 		| {
-				url: `http://${string}` | `https://${string}`
+				url: Origin
 				sitemap:
 					| true
 					| {
@@ -33,7 +36,7 @@ export type PluginConfig = PluginConfigBase &
 					  }
 		  }
 		| {
-				url?: `http://${string}` | `https://${string}`
+				url?: Origin
 				sitemap?: false
 		  }
 	)
@@ -41,6 +44,7 @@ export type PluginConfig = PluginConfigBase &
 export type RuntimeConfig = PluginConfig & {
 	precompress: NonNullable<PluginConfig['precompress']>
 	trailingSlash: NonNullable<PluginConfig['trailingSlash']>
+	trustedOrigins: NonNullable<PluginConfig['trustedOrigins']>
 }
 
 export type BuildContext = {
@@ -130,6 +134,8 @@ export type Primitive = string | number | boolean | bigint | symbol | null | und
 export type LooseNumber<T extends number> = T | (number & {})
 
 export type BuildManifest = {
+	base: string
+	publicFiles: string[]
 	prerenderRoutes: string[]
 	sitemapRoutes: string[]
 	precompress: boolean
