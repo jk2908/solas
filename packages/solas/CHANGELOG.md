@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.1
+
+### Fixes
+
+- The Cloudflare adapter no longer copies precompressed `.br`/`.gz` assets into the Worker's asset output. The assets binding served the Worker the compressed body, which Cloudflare then compressed again at the edge, so a hard load of a prerendered route rendered as garbled binary (a double-encoded or header-mismatched response). The Worker now serves the uncompressed asset and the edge handles encoding.
+
 ## 0.8.0
 
 ### Features

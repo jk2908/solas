@@ -82,11 +82,19 @@ async function copyOutput(cwd: string) {
 
 	const assetDirs = await findAssetDirs(path.join(cwd, '.cloudflare', 'output'))
 
+	// Cloudflare compresses at the edge, so the Worker must serve uncompressed
+	// bytes. If a `.br`/`.gz` sibling is present the assets binding hands the
+	// Worker the precompressed body, which the edge then compresses *again*,
+	// producing a double-encoded body (or one that does not match its
+	// `content-encoding`). Skip the siblings so the Worker serves the original.
+	const skipPrecompressed = (source: string) => !/\.(br|gz)$/.test(source)
+
 	for (const assetDir of assetDirs) {
 		if (await pathExists(artifactSource)) {
 			await fs.cp(artifactSource, path.join(assetDir, NAMESPACE_PREFIX.artifact), {
 				recursive: true,
 				force: true,
+				filter: skipPrecompressed,
 			})
 		}
 
@@ -94,6 +102,7 @@ async function copyOutput(cwd: string) {
 			await fs.cp(staticSource, path.join(assetDir, NAMESPACE_PREFIX.static), {
 				recursive: true,
 				force: true,
+				filter: skipPrecompressed,
 			})
 		}
 	}
