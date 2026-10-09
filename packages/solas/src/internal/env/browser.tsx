@@ -17,7 +17,7 @@ import { ErrorBoundary } from '../ui/error-boundary.js'
 import { rscStream } from './flight.js'
 
 /**
- * Browser RSC hydration entry point
+ * Browser RSC hydration entry point.
  */
 export async function browser() {
 	// read the initial payload from the inline __FLIGHT_DATA pushes that were

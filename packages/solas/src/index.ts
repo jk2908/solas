@@ -3,10 +3,11 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import {
-	createServer,
-	loadConfigFromFile,
+	createRunnableDevEnvironment,
+	resolveConfig,
 	type PluginOption,
 	type ResolvedConfig,
+	type RunnableDevEnvironment,
 	type UserConfig,
 	type ViteDevServer,
 } from 'vite'
@@ -37,7 +38,6 @@ import { writeMaps } from './internal/codegen/maps.js'
 import { writeTypes } from './internal/codegen/types.js'
 import { postbuild } from './internal/postbuild.js'
 import { collect as collectPublicFiles } from './internal/public-files.js'
-import { Runtime } from './internal/runtimes/runtime.js'
 
 const DEFAULT_CONFIG = {
 	precompress: false,
@@ -77,11 +77,17 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 			if (cached === content) {
 				// if content is unchanged and file exists, skip write
-				if (await Runtime.exists(filePath)) return null
+				if (
+					await fs
+						.access(filePath)
+						.then(() => true)
+						.catch(() => false)
+				)
+					return null
 
 				// else, file is missing but cached content is the same as
 				// last time we saw it, write it
-				await Runtime.write(filePath, content)
+				await fs.writeFile(filePath, content)
 				fileCache.set(filePath, content)
 
 				return path.relative(process.cwd(), filePath)
@@ -94,7 +100,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			if (curr === content) return null
 
 			try {
-				await Runtime.write(filePath, content)
+				await fs.writeFile(filePath, content)
 				fileCache.set(filePath, content)
 
 				return path.relative(process.cwd(), filePath)
@@ -106,7 +112,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			// file doesn't exist, write it
 			if (err instanceof Error && 'code' in err && err.code === 'ENOENT') {
 				try {
-					await Runtime.write(filePath, content)
+					await fs.writeFile(filePath, content)
 					fileCache.set(filePath, content)
 
 					return path.relative(process.cwd(), filePath)
@@ -257,50 +263,36 @@ function solas(c?: PluginConfig): PluginOption[] {
 	}, 75)
 
 	let resolvedViteConfig: ResolvedConfig | null = null
-	let utilityServer: ViteDevServer | null = null
+	let scanEnvironment: RunnableDevEnvironment | null = null
 
-	async function getUtilityServer() {
-		if (utilityServer) return utilityServer
+	// route modules are executed at build time to read `prerender` flags and call
+	// `params()`
+	async function getScanEnvironment() {
+		if (scanEnvironment) return scanEnvironment
 		if (!resolvedViteConfig) throw new Error('Vite config not resolved yet')
 
-		const loaded = await loadConfigFromFile(
+		const scanConfig = await resolveConfig(
 			{
-				command: resolvedViteConfig.command,
+				configFile: resolvedViteConfig.configFile ?? undefined,
+				root: resolvedViteConfig.root,
 				mode: resolvedViteConfig.mode,
 			},
-			resolvedViteConfig.configFile,
-			resolvedViteConfig.root,
+			'serve',
 		)
 
-		const config = loaded?.config ?? {}
-
-		// recursively flatten and remove any instances of this plugin
-		const plugins = (config.plugins ?? []).flatMap(function flatten(
-			plugin: PluginOption,
-		): PluginOption[] {
-			if (!plugin) return []
-			if (Array.isArray(plugin)) return plugin.flatMap(flatten)
-			if (typeof plugin === 'object' && 'name' in plugin && plugin.name === Config.NAME) {
-				return []
-			}
-
-			return [plugin]
+		const environment = createRunnableDevEnvironment('ssr', scanConfig, {
+			hot: false,
+			// Vite 8 enables full bundle mode (Rolldown) by default, which is only
+			// supported for the client environment. The scan environment is a
+			// plain per-module dev environment used to execute route files,
+			// so opt out
+			options: { isBundled: false },
 		})
 
-		utilityServer = await createServer({
-			...config,
-			configFile: false,
-			root: resolvedViteConfig.root,
-			mode: resolvedViteConfig.mode,
-			server: {
-				...config.server,
-				middlewareMode: true,
-			},
-			plugins,
-			appType: 'custom',
-		})
+		await environment.init()
+		scanEnvironment = environment
 
-		return utilityServer
+		return environment
 	}
 
 	const plugin = {
@@ -386,20 +378,22 @@ function solas(c?: PluginConfig): PluginOption[] {
 		async buildStart() {
 			logger.info('[buildStart]', 'building route graph...')
 
-			// create and attach server instance for ExportReader.value to use when
-			// loading modules
+			// attach a module loader for ExportReader.value to execute route modules
 			if (buildContext.command === 'build') {
-				const server = await getUtilityServer()
-				buildContext.exportReader.loadModule = server.ssrLoadModule.bind(server)
+				const environment = await getScanEnvironment()
+
+				buildContext.exportReader.loadModule = (filePath: string) =>
+					environment.runner.import(filePath)
 			}
 
 			await build()
 		},
 		async closeBundle() {
-			if (utilityServer) {
-				const server = utilityServer
-				utilityServer = null
-				await server.close()
+			if (scanEnvironment) {
+				const environment = scanEnvironment
+
+				scanEnvironment = null
+				await environment.close()
 			}
 
 			// resolve sitemap routes
@@ -420,7 +414,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			// write build manifest
 			const generatedDir = path.join(process.cwd(), Config.GENERATED_DIR)
 
-			await Runtime.write(
+			await fs.writeFile(
 				path.join(generatedDir, 'build.json'),
 				JSON.stringify({
 					base: resolvedViteConfig?.base ?? '/',
@@ -450,6 +444,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 				client: `./${Config.GENERATED_DIR}/${Config.ENTRY_BROWSER}`,
 			},
 		}),
+		...(config.adapter?.plugins ?? []),
 	]
 }
 

@@ -1,5 +1,5 @@
 /**
- * Normalise a base path so every check uses the same shape
+ * Normalise a base path so every check uses the same shape.
  */
 export function normaliseBasePath(value: string | null | undefined) {
 	// no base means the app lives at the site root
@@ -38,7 +38,7 @@ export function normaliseBasePath(value: string | null | undefined) {
 }
 
 /**
- * Strip the base path from a request path
+ * Strip the base path from a request path.
  */
 export function stripBasePath(pathname: string, base: string | null | undefined) {
 	const normalisedBase = normaliseBasePath(base)
@@ -56,7 +56,7 @@ export function stripBasePath(pathname: string, base: string | null | undefined)
 }
 
 /**
- * Add the base path to a path when needed
+ * Add the base path to a path when needed.
  */
 export function applyBasePath(pathname: string, base: string | null | undefined) {
 	const normalisedBase = normaliseBasePath(base)

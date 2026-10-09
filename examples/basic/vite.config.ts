@@ -1,13 +1,7 @@
-import { dirname, resolve } from 'node:path'
-import { fileURLToPath } from 'node:url'
-
 import { defineConfig } from 'vite'
 
 import solas from '@jk2908/solas'
 import react from '@vitejs/plugin-react'
-import tsconfigPaths from 'vite-tsconfig-paths'
-
-const resolver = (p: string) => resolve(dirname(fileURLToPath(import.meta.url)), p)
 
 export default defineConfig(() => {
 	return {
@@ -30,12 +24,9 @@ export default defineConfig(() => {
 				},
 			}),
 			react(),
-			tsconfigPaths(),
 		],
 		resolve: {
-			alias: {
-				'#': resolver('./'),
-			},
+			tsconfigPaths: true,
 		},
 	}
 })

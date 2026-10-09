@@ -7,7 +7,7 @@ const TRUSTED_FETCH_SITES = new Set(['same-origin', 'none'])
 export type CsrfConfig = Pick<PluginConfig, 'trustedOrigins' | 'url'>
 
 /**
- * Reduce an origin-like value to just its origin for comparison
+ * Reduce an origin-like value to just its origin for comparison.
  */
 function toOrigin(value: string | null) {
 	if (!value) return null
@@ -21,7 +21,7 @@ function toOrigin(value: string | null) {
 }
 
 /**
- * Enforce the CSRF policy for one request
+ * Enforce the CSRF policy for one request.
  */
 export function enforce(req: Request, config: CsrfConfig = {}) {
 	// only unsafe methods can mutate state, so safe methods bypass the guard
@@ -85,7 +85,7 @@ export function enforce(req: Request, config: CsrfConfig = {}) {
 }
 
 /**
- * Get the first value from a forwarded-style header chain
+ * Get the first value from a forwarded-style header chain.
  */
 export function takeFirst(value: string | null | undefined) {
 	if (!value) return null
@@ -96,7 +96,7 @@ export function takeFirst(value: string | null | undefined) {
 }
 
 /**
- * Build an origin from host-style headers when there is no full origin value
+ * Build an origin from host-style headers when there is no full origin value.
  */
 export function toHostOrigin(
 	host: string | null | undefined,

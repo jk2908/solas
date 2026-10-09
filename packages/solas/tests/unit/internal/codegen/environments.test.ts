@@ -4,18 +4,18 @@ import {
 	writeRSCEntry,
 	writeSSREntry,
 	writeBrowserEntry,
+	writeCloudflareEntry,
 } from '../../../../src/internal/codegen/environments.js'
 
 describe('writeRSCEntry', () => {
 	it('generates RSC handler code', () => {
 		const result = writeRSCEntry({ trailingSlash: 'never' })
 		expect(result).toContain(
-			'export default createHandler(config, manifest, importMap, runtimeManifest)',
+			'export default await createRuntimeHandler(config, manifest, importMap)',
 		)
 		expect(result).toContain(
-			"import { createHandler, loadManifest } from '@jk2908/solas/env/rsc'",
+			"import { createRuntimeHandler } from '@jk2908/solas/env/rsc'",
 		)
-		expect(result).toContain("await loadManifest('dist')")
 	})
 
 	it('includes hmr accept', () => {
@@ -50,5 +50,21 @@ describe('writeBrowserEntry', () => {
 
 	it('snapshot', () => {
 		expect(writeBrowserEntry()).toMatchSnapshot()
+	})
+})
+
+describe('writeCloudflareEntry', () => {
+	it('delegates worker behaviour to the typed createWorker helper', () => {
+		const result = writeCloudflareEntry()
+
+		expect(result).toContain("import { createWorker } from '@jk2908/solas/cloudflare'")
+		expect(result).toContain(
+			'export default createWorker({ config, manifest, importMap })',
+		)
+		expect(result).not.toContain('Runtime')
+	})
+
+	it('snapshot', () => {
+		expect(writeCloudflareEntry()).toMatchSnapshot()
 	})
 })

@@ -4,9 +4,9 @@ import { RequestContext } from '../env/request-context.js'
 import { dynamic } from './dynamic.js'
 
 /**
- * Get the request cookies as a Cookies instance
- * @returns a Promise resolving to a read-only Cookies instance containing the
- * request cookies
+ * Get the request cookies as a Cookies instance.
+ * @returns A Promise resolving to a read-only Cookies instance containing the
+ * request cookies.
  */
 export async function cookies(): Promise<Readonly<ReturnType<typeof Cookies.parse>>> {
 	await dynamic()

@@ -30,6 +30,16 @@ describe('writeConfig', () => {
 		expect(result).toContain('satisfies RuntimeConfig')
 	})
 
+	it('does not serialise the adapter', () => {
+		const result = writeConfig({
+			trailingSlash: 'never',
+			adapter: { name: 'cloudflare', plugins: [{ name: 'some-plugin' }] },
+		})
+
+		expect(result).not.toContain('adapter')
+		expect(result).not.toContain('some-plugin')
+	})
+
 	it('snapshot: minimal config', () => {
 		expect(writeConfig({ trailingSlash: 'never' })).toMatchSnapshot()
 	})

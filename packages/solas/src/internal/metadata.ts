@@ -60,7 +60,7 @@ export namespace Metadata {
 	export type RunMode = 'always' | 'error'
 
 	/**
-	 * Check whether a value is a supported metadata primitive
+	 * Check whether a value is a supported metadata primitive.
 	 */
 	function isTagValue(value: unknown): value is Exclude<TagValue, 'undefined'> {
 		return (
@@ -69,7 +69,7 @@ export namespace Metadata {
 	}
 
 	/**
-	 * Convert supported metadata primitives to string for title handling
+	 * Convert supported metadata primitives to string for title handling.
 	 */
 	function toTitleString(value: unknown) {
 		return isTagValue(value) ? String(value) : undefined
@@ -89,14 +89,14 @@ export namespace Metadata {
 
 	export class Collection {
 		/**
-		 * The base metadata object
-		 * @description - normally extends config.metadata
+		 * The base metadata object.
+		 * @description - Normally extends config.metadata.
 		 */
 		#base: Item = {}
 
 		/**
-		 * The collection of metadata tasks with their priorities
-		 * @description - each task is a promise that resolves to a metadata object
+		 * The collection of metadata tasks with their priorities.
+		 * @description - Each task is a promise that resolves to a metadata object.
 		 */
 		#collection: Task[] = []
 
@@ -105,7 +105,7 @@ export namespace Metadata {
 		}
 
 		/**
-		 * Merges multiple metadata objects into one
+		 * Merges multiple metadata objects into one.
 		 */
 		static #merge(...items: Item[]) {
 			if (!items.length) return {} satisfies Item
@@ -157,7 +157,7 @@ export namespace Metadata {
 		}
 
 		/**
-		 * Gets a unique key for the meta tag
+		 * Gets a unique key for the meta tag.
 		 */
 		static #getMetaTagKey(tag: MetaTag) {
 			return 'name' in tag && tag.name
@@ -172,14 +172,14 @@ export namespace Metadata {
 		}
 
 		/**
-		 * Gets a unique key for the link tag
+		 * Gets a unique key for the link tag.
 		 */
 		static #getLinkTagKey(tag: LinkTag) {
 			return tag.rel + (tag.href ?? '')
 		}
 
 		/**
-		 * Adds tasks to the collection
+		 * Adds tasks to the collection.
 		 */
 		add(...tasks: Task[]) {
 			for (const { task, priority } of tasks) {
@@ -190,7 +190,7 @@ export namespace Metadata {
 		}
 
 		/**
-		 * Clones an object using structuredClone w/ JSON fallback
+		 * Clones an object using structuredClone w/ JSON fallback.
 		 */
 		static #clone<T>(obj: T) {
 			if (typeof structuredClone === 'function') {
@@ -201,7 +201,7 @@ export namespace Metadata {
 		}
 
 		/**
-		 * Merges metadata from all sources, sorted by priority
+		 * Merges metadata from all sources, sorted by priority.
 		 */
 		async run() {
 			const items = [...this.#collection].sort((a, b) => a.priority - b.priority)
@@ -224,7 +224,7 @@ export namespace Metadata {
 		}
 
 		/**
-		 * Get a clone of the base metadata
+		 * Get a clone of the base metadata.
 		 */
 		get base() {
 			return Collection.#clone(this.#base)
@@ -233,7 +233,7 @@ export namespace Metadata {
 
 	/**
 	 * Normalise a metadata export into a promise of a metadata object
-	 * Supports both plain object exports and metadata(input) functions
+	 * Supports both plain object exports and metadata(input) functions.
 	 */
 	export function resolve(
 		metadata: unknown,
@@ -259,7 +259,7 @@ export namespace Metadata {
 	}
 
 	/**
-	 * Turn cached metadata exports into concrete work for the current request/render
+	 * Turn cached metadata exports into concrete work for the current request/render.
 	 */
 	export function tasks(
 		sources: Source[],

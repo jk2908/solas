@@ -22,7 +22,7 @@ export const HTTP_EXCEPTION_DIGEST_PREFIX = 'HTTP_EXCEPTION'
 
 /**
  * An exception representing an HttpException error, with an optional payload
- * and cause
+ * and cause.
  */
 export class HttpException extends Error {
 	payload?: HttpException.Payload
@@ -42,14 +42,14 @@ export class HttpException extends Error {
 }
 
 /**
- * Status type predicate
+ * Status type predicate.
  */
 function isStatusCode(value: unknown): value is HttpException.StatusCode {
 	return value === 401 || value === 403 || value === 404 || value === 500
 }
 
 /**
- * Check if an error is an HttpException
+ * Check if an error is an HttpException.
  */
 export function isHttpException(err: unknown): err is HttpException {
 	return (
@@ -62,7 +62,7 @@ export function isHttpException(err: unknown): err is HttpException {
 }
 
 /**
- * Convert any error into an HttpException
+ * Convert any error into an HttpException.
  */
 export function toHttpException(err: unknown): HttpException {
 	if (err instanceof HttpException) return err
@@ -108,7 +108,7 @@ export function toHttpException(err: unknown): HttpException {
 
 /**
  * Convert an HttpException or any Error into a plain object that can be
- * safely serialised
+ * safely serialised.
  */
 export function toHttpExceptionLike(error: HttpException | Error): HttpExceptionLike {
 	return {
@@ -125,7 +125,7 @@ export function toHttpExceptionLike(error: HttpException | Error): HttpException
 }
 
 /**
- * Throw an HttpException
+ * Throw an HttpException.
  */
 export function abort(
 	status: HttpException.StatusCode,

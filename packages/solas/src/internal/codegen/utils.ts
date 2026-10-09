@@ -6,7 +6,7 @@ const INDENT = '\t'
 const IDENTIFIER = /^[$A-Z_a-z][$\w]*$/
 
 /**
- * Check whether a string contains control characters that should never appear in source
+ * Check whether a string contains control characters that should never appear in source.
  */
 function hasControlChar(value: string) {
 	for (let index = 0; index < value.length; index += 1) {
@@ -21,7 +21,7 @@ function hasControlChar(value: string) {
 }
 
 /**
- * Validate an identifier before writing it into generated source unquoted
+ * Validate an identifier before writing it into generated source unquoted.
  */
 export function toIdentifier(value: string, label: string) {
 	if (!IDENTIFIER.test(value)) {
@@ -32,7 +32,7 @@ export function toIdentifier(value: string, label: string) {
 }
 
 /**
- * Validate and quote a relative specifier before embedding it in generated imports
+ * Validate and quote a relative specifier before embedding it in generated imports.
  */
 export function toRelativeModuleSpecifier(value: string, label: string) {
 	if (value.length === 0) {
@@ -55,7 +55,7 @@ export function toRelativeModuleSpecifier(value: string, label: string) {
 }
 
 /**
- * Validate a nullable identifier list whilst preserving explicit null holes
+ * Validate a nullable identifier list whilst preserving explicit null holes.
  */
 export function toIdentifierList(values: readonly (string | null)[], label: string) {
 	return values
@@ -66,7 +66,7 @@ export function toIdentifierList(values: readonly (string | null)[], label: stri
 }
 
 /**
- * Escape text into a safe string literal for generated source
+ * Escape text into a safe string literal for generated source.
  */
 export function toStringLiteral(value: string, quoteStyle: "'" | '"' = "'") {
 	return `${quoteStyle}${value
@@ -79,7 +79,7 @@ export function toStringLiteral(value: string, quoteStyle: "'" | '"' = "'") {
 
 /**
  * Dedent an interpolated template literal while preserving indentation for
- * multiline substitutions
+ * multiline substitutions.
  */
 export function source(
 	strings: TemplateStringsArray,
@@ -114,7 +114,7 @@ export function source(
 
 /**
  * Convert a string into a valid unquoted property key if possible, otherwise quote it
- * as a string literal for generated source
+ * as a string literal for generated source.
  */
 function toPropertyKey(value: string) {
 	return IDENTIFIER.test(value) ? value : toStringLiteral(value)
@@ -123,7 +123,7 @@ function toPropertyKey(value: string) {
 /**
  * Check whether a value is a simple literal that can be safely inlined in generated
  * source without risking syntax errors or readability issues, or whether it should
- * be printed on multiple lines for clarity
+ * be printed on multiple lines for clarity.
  */
 function isInlineValue(value: unknown) {
 	return (
@@ -135,7 +135,7 @@ function isInlineValue(value: unknown) {
 }
 
 /**
- * Emit readable ts source for generated config and manifest data
+ * Emit readable ts source for generated config and manifest data.
  */
 export function toSourceLiteral(value: unknown, level = 0): string {
 	if (value === null) return 'null'
@@ -194,7 +194,7 @@ export function toSourceLiteral(value: unknown, level = 0): string {
 
 /**
  * Indent each line of a block of source code by the specified level for embedding in
- * generated output
+ * generated output.
  */
 export function indent(value: string, level = 1) {
 	const prefix = INDENT.repeat(level)

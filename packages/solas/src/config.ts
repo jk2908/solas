@@ -19,6 +19,7 @@ export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
 export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
 const CONFIG_KEYS = new Set([
+	'adapter',
 	'logger',
 	'metadata',
 	'precompress',
@@ -31,9 +32,9 @@ const CONFIG_KEYS = new Set([
 const LOGGER_KEYS = new Set(['level'])
 
 /**
- * Validate the plugin configuration object, throwing an error if invalid
- * @param input - the unvalidated configuration object
- * @return the typed and validated configuration object
+ * Validate the plugin configuration object, throwing an error if invalid.
+ * @param input - The unvalidated configuration object.
+ * @returns The typed and validated configuration object.
  */
 export function validate(input: unknown) {
 	if (input === undefined) return {} satisfies PluginConfig
@@ -63,6 +64,18 @@ export function validate(input: unknown) {
 			} catch {
 				errors.push('url must be a valid URL')
 			}
+		}
+	}
+
+	if ('adapter' in input && input.adapter !== undefined) {
+		const adapter = input.adapter
+
+		if (
+			!isRecord(adapter) ||
+			typeof adapter.name !== 'string' ||
+			!Array.isArray(adapter.plugins)
+		) {
+			errors.push('adapter must be an object with a string `name` and a `plugins` array')
 		}
 	}
 

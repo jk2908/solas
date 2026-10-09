@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { ViteDevServer } from 'vite'
-
 import {
 	parseSync,
 	type Program,
 	type StaticExport,
 	type StaticExportEntry,
 } from 'oxc-parser'
+
+type ModuleLoader = (filePath: string) => Promise<Record<string, unknown>>
 
 type LiteralValue = string | number | boolean | null
 
@@ -30,10 +30,10 @@ type UnaryExpressionNode = {
 }
 
 export class ExportReader {
-	#loadModule: ViteDevServer['ssrLoadModule'] | null = null
+	#loadModule: ModuleLoader | null = null
 
 	/**
-	 * Pick the parser language that matches the source file extension
+	 * Pick the parser language that matches the source file extension.
 	 */
 	static #getLoaderType(filePath: string): ExportReader.LoaderType {
 		const ext = path.extname(filePath).toLowerCase()
@@ -47,14 +47,14 @@ export class ExportReader {
 	}
 
 	/**
-	 * Set the Vite server's SSR module loader so we can execute modules
+	 * Set the module loader used to execute route modules.
 	 */
-	set loadModule(l: ViteDevServer['ssrLoadModule']) {
+	set loadModule(l: ModuleLoader) {
 		this.#loadModule = l
 	}
 
 	/**
-	 * Parse a source file as an ESM route module
+	 * Parse a source file as an ESM route module.
 	 */
 	async #parse(filePath: string) {
 		const source = await this.raw(filePath)
@@ -72,14 +72,14 @@ export class ExportReader {
 	}
 
 	/**
-	 * Read the raw text content of a file
+	 * Read the raw text content of a file.
 	 */
 	async raw(filePath: string) {
 		return fs.readFile(filePath, 'utf-8')
 	}
 
 	/**
-	 * Get the names of all exports from a file
+	 * Get the names of all exports from a file.
 	 */
 	async exports(filePath: string) {
 		const { module } = await this.#parse(filePath)
@@ -100,7 +100,7 @@ export class ExportReader {
 	}
 
 	/**
-	 * Check if a file exports a specific name
+	 * Check if a file exports a specific name.
 	 */
 	async has(filePath: string, name: string) {
 		const names = await this.exports(filePath)
@@ -108,9 +108,9 @@ export class ExportReader {
 	}
 
 	/**
-	 * Read a simple literal export from a file without executing it
-	 * @description supports string, number, boolean, and null literals.
-	 * The export must be in the form of `export const|let|var name = <literal>`
+	 * Read a simple literal export from a file without executing it.
+	 * @description Supports string, number, boolean, and null literals.
+	 * The export must be in the form of `export const|let|var name = <literal>`.
 	 */
 	async literal<T>(filePath: string, name: string, validate?: ExportReader.Validator<T>) {
 		if (!(await this.has(filePath, name))) return
@@ -123,7 +123,7 @@ export class ExportReader {
 	}
 
 	/**
-	 * Read an export from a file by executing the module
+	 * Read an export from a file by executing the module.
 	 */
 	async value<T>(filePath: string, name: string, validate?: ExportReader.Validator<T>) {
 		if (!(await this.has(filePath, name))) return

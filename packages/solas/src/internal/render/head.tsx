@@ -9,7 +9,7 @@ const logger = new Logger()
 const cache = new WeakMap<object, Promise<Collection.Item>>()
 
 /**
- * Convert supported metadata primitives to string for meta tag content
+ * Convert supported metadata primitives to string for meta tag content.
  */
 function toContent(value: unknown) {
 	return typeof value === 'string' ||
@@ -21,7 +21,7 @@ function toContent(value: unknown) {
 
 /**
  * Convert a metadata item or promise of an item to a promise that always resolves
- * successfully, caching the result for future use
+ * successfully, caching the result for future use.
  */
 function toSafeUsable(metadata: Collection.Item | Promise<Collection.Item>) {
 	const cached = cache.get(metadata)
@@ -37,7 +37,7 @@ function toSafeUsable(metadata: Collection.Item | Promise<Collection.Item>) {
 }
 
 /**
- * Renders title, meta, and link tags based on the provided metadata payload
+ * Renders title, meta, and link tags based on the provided metadata payload.
  */
 export function Head({
 	metadata: m,

@@ -16,7 +16,7 @@ function render(path: string, params?: string[]) {
 }
 
 /**
- * Generates runtime types
+ * Generates runtime types.
  */
 export function writeTypes(manifest: Manifest) {
 	const routes = new Map<string, string[]>()

@@ -43,7 +43,7 @@ export type HistoryEntry = {
 
 /**
  * These targets are used as-is. They are not matched against the route table,
- * so this covers normal external URLs and hash-only links
+ * so this covers normal external URLs and hash-only links.
  */
 export type ExternalTarget = `${string}:${string}` | `//${string}` | `#${string}`
 
@@ -63,7 +63,7 @@ export function isExternalTarget(target: string, origin: string) {
 
 /**
  * Turn a route pattern into the real path shape a caller can use. In practice,
- * every ':param' or '*' part becomes a plain string slot
+ * every ':param' or '*' part becomes a plain string slot.
  *
  * @example
  * ```ts
@@ -94,7 +94,7 @@ export type ResolvedPath<TPath extends string> =
 				: TPath
 
 /**
- * Once we have a real path, also allow the usual query-string and hash forms
+ * Once we have a real path, also allow the usual query-string and hash forms.
  *
  * @example
  * ```ts
@@ -110,7 +110,7 @@ export type TargetSuffix<TPath extends string> =
 
 /**
  * This is the final string form a caller can navigate to. It can be an external
- * URL, or a concrete URL that matches one of the  known routes
+ * URL, or a concrete URL that matches one of the  known routes.
  *
  * @example
  * ```ts
@@ -124,7 +124,7 @@ export type TargetSuffix<TPath extends string> =
 export type Target = ExternalTarget | TargetSuffix<ResolvedPath<Path>>
 
 /**
- * Extra options for callers who already have a finished target string
+ * Extra options for callers who already have a finished target string.
  *
  * @example
  * ```ts
@@ -140,7 +140,7 @@ type TargetConfig = {
 /**
  * Extra options for callers who pass a route pattern and params separately.
  * If the route definition says that route needs params, this type makes
- * those params required. If the route has no params, it rejects them
+ * those params required. If the route has no params, it rejects them.
  *
  * @example
  * ```ts
@@ -165,10 +165,10 @@ type PatternConfig<TPath extends Path> = {
 	: { params?: never })
 
 /**
- * Typed <Link /> props, using `href` instead of the internal `to` name
+ * Typed <Link /> props, using `href` instead of the internal `to` name.
  *
  * `query` is always allowed
- * `params` are only allowed when `href` is a known route pattern
+ * `params` are only allowed when `href` is a known route pattern.
  *
  * @example
  * ```ts
@@ -187,7 +187,7 @@ export type LinkProps =
 				}[Path])
 
 /**
- * Typed input for router.go(), using the same route rules as <Link />
+ * Typed input for router.go(), using the same route rules as <Link />.
  *
  * @example
  * ```ts
@@ -225,7 +225,7 @@ export type Refresh = () => Promise<string>
 
 /**
  * Convert a route pattern and params into a real path string. This is used internally
- * to implement <Link /> and router.go
+ * to implement <Link /> and router.go.
  */
 export function toTarget(path: string, params?: Record<string, string>, query?: Query) {
 	const used = new Set<string>()
@@ -272,7 +272,7 @@ export function toTarget(path: string, params?: Record<string, string>, query?: 
 }
 
 /**
- * Apply the base path to a target string when needed
+ * Apply the base path to a target string when needed.
  */
 export function withBase(target: string) {
 	if (isHashOnlyTarget(target)) return target

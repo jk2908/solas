@@ -1,5 +1,3 @@
-import path from 'node:path'
-
 import type { ReactFormState } from 'react-dom/client'
 
 import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
@@ -8,6 +6,7 @@ import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/bas
 import { Logger } from '../../utils/logger.js'
 
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
+import type { AssetRef, Assets } from '../runtimes/assets.js'
 import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
@@ -25,13 +24,26 @@ import { isRedirect, toRedirect } from '../navigation/redirect.js'
 import * as Prerender from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
+import { nodeAssets } from '../runtimes/assets.js'
 import { processActionRequest } from '../server/actions.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
-export { Runtime } from '../runtimes/runtime.js'
 export { loadManifest } from '../../manifest.js'
+export type { Assets } from '../runtimes/assets.js'
+
+export type HandlerOptions = {
+	/**
+	 * Static asset store used to serve prerendered HTML, PPR artifacts, and
+	 * client/public files. Defaults to the Node filesystem.
+	 */
+	assets?: Assets
+	/**
+	 * The build-time runtime manifest describing which routes were prerendered.
+	 */
+	runtimeManifest?: RuntimeManifest.Manifest | null
+}
 
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -48,18 +60,21 @@ export type RscPayload = {
 const logger = new Logger()
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 
-function resolveFilePath(root: string, relativePath: string) {
+/**
+ * Resolve a client asset request path to a logical asset reference, rejecting
+ * empty, absolute, or traversal paths.
+ */
+function toClientAsset(relativePath: string): AssetRef | Response {
 	try {
-		const decodedPath = decodeURIComponent(relativePath)
-		if (!decodedPath) return new Response('Forbidden', { status: 403 })
+		const decoded = decodeURIComponent(relativePath)
+			.replace(/\\/g, '/')
+			.replace(/^\/+/, '')
 
-		const filePath = path.resolve(root, decodedPath)
-
-		if (filePath !== root && !filePath.startsWith(`${root}${path.sep}`)) {
+		if (!decoded || decoded.split('/').includes('..')) {
 			return new Response('Forbidden', { status: 403 })
 		}
 
-		return filePath
+		return { namespace: 'client', path: decoded }
 	} catch {
 		return new Response('Bad Request', { status: 400 })
 	}
@@ -68,7 +83,7 @@ function resolveFilePath(root: string, relativePath: string) {
 /**
  * Create the streamed RSC payload and response metadata for a single request.
  * Resolves the route match, collects metadata, and returns the stream,
- * status code, and prerender mode needed by the response layer
+ * status code, and prerender mode needed by the response layer.
  */
 async function createPayload(
 	req: SolasRequest,
@@ -264,17 +279,16 @@ async function createPayload(
 /**
  * Create the object exported by the generated RSC entry. Uses the generated config,
  * route manifest, and import map to build the router once, then returns an object
- * with a fetch method that handles requests
+ * with a fetch method that handles requests.
  */
 export function createHandler(
 	config: RuntimeConfig,
 	manifest: Manifest,
 	importMap: ImportMap,
-	runtimeManifest: RuntimeManifest.Manifest | null = null,
+	options: HandlerOptions = {},
 ) {
-	const CLIENT_OUTPUT_DIR = path.resolve(Config.OUT_DIR, 'client')
-	// vite emits solas-controlled assets under dist/client/_solas
-	const SOLAS_ASSETS_DIR = path.resolve(CLIENT_OUTPUT_DIR, Config.ASSETS_DIR)
+	const assets = options.assets ?? nodeAssets
+	const runtimeManifest = options.runtimeManifest ?? null
 	// requests for /_solas and /_solas/* are reserved
 	const SOLAS_ASSETS_URL_ROOT = `/${Config.ASSETS_DIR}`
 
@@ -283,7 +297,7 @@ export function createHandler(
 	/**
 	 * Create the HTTP response for a single incoming request. Runs actions when needed,
 	 * converts the payload into component, HTML, or prerender artifact responses, and
-	 * applies the final status and headers
+	 * applies the final status and headers.
 	 */
 	async function createResponse(req: SolasRequest) {
 		let opts: {
@@ -429,11 +443,8 @@ export function createHandler(
 			const tryPrelude = artifactEntry?.mode === 'ppr'
 
 			if (tryPrelude) {
-				const postponedState = await Prerender.loadPostponedState(
-					Config.OUT_DIR,
-					lookupPath,
-				)
-				const prelude = await Prerender.loadPrelude(Config.OUT_DIR, lookupPath)
+				const postponedState = await Prerender.loadPostponedState(lookupPath, assets)
+				const prelude = await Prerender.loadPrelude(lookupPath, assets)
 
 				// resumable ppr responses splice fresh streamed content into the cached
 				// prelude when postponed state is available for this route
@@ -536,26 +547,25 @@ export function createHandler(
 			}
 
 			if (routedPath?.startsWith(`${SOLAS_ASSETS_URL_ROOT}/`)) {
-				const resolvedPath = resolveFilePath(
-					SOLAS_ASSETS_DIR,
-					routedPath.slice(`${SOLAS_ASSETS_URL_ROOT}/`.length),
+				const asset = toClientAsset(
+					`${Config.ASSETS_DIR}/${routedPath.slice(`${SOLAS_ASSETS_URL_ROOT}/`.length)}`,
 				)
 
 				// pass through bad-request or forbidden responses from path resolution
-				if (resolvedPath instanceof Response) return resolvedPath
+				if (asset instanceof Response) return asset
 
-				return HttpRouter.serveStatic(resolvedPath, req, config.precompress, {
+				return HttpRouter.serveStatic(assets, asset, req, config.precompress, {
 					'Cache-Control': 'public, immutable, max-age=31536000',
 				})
 			}
 
 			if (routedPath && runtimeManifest?.publicFiles.has(routedPath)) {
-				const resolvedPath = resolveFilePath(CLIENT_OUTPUT_DIR, routedPath.slice(1))
+				const asset = toClientAsset(routedPath.slice(1))
 
 				// pass through bad-request or forbidden responses from path resolution
-				if (resolvedPath instanceof Response) return resolvedPath
+				if (asset instanceof Response) return asset
 
-				return HttpRouter.serveStatic(resolvedPath, req, config.precompress)
+				return HttpRouter.serveStatic(assets, asset, req, config.precompress)
 			}
 
 			// fully prerendered html can be served straight from disk for normal
@@ -571,25 +581,24 @@ export function createHandler(
 				const lookupPath = normalisePathname(canonicalPath, prerenderPathMode)
 
 				// only full prerender routes have a saved html file we can serve directly
-				const prerenderPath =
+				const staticAsset: AssetRef | null =
 					runtimeManifest?.artifacts[lookupPath]?.mode === 'full'
-						? Prerender.getArtifactFilePath(
-								Config.OUT_DIR,
-								lookupPath,
-								Prerender.FULL_PRERENDER_FILENAME,
-							)
+						? {
+								namespace: 'static',
+								path: Prerender.staticRoutePath(lookupPath, prerenderPathMode),
+							}
 						: null
 
-				if (prerenderPath) {
+				if (staticAsset) {
 					const res = await HttpRouter.serveStatic(
-						prerenderPath,
+						assets,
+						staticAsset,
 						req,
 						config.precompress,
 						{
-							// keep prerendered html out of shared caches unless users opt into explicit public caching
-							// default to private, no-store for now
-							// @todo: public caching?
-							'Cache-Control': 'private, no-store',
+							// fully prerendered routes are immutable per build, so allow them
+							// to be cached and revalidated instead of forcing no-store
+							'Cache-Control': 'public, max-age=0, must-revalidate',
 							'Content-Type': 'text/html; charset=utf-8',
 						},
 					)
@@ -603,6 +612,25 @@ export function createHandler(
 			return httpRouter.fetch(req)
 		},
 	}
+}
+
+/**
+ * Build a Solas request handler over an {@link Assets} store.
+ *
+ * Loads the runtime manifest and constructs the RSC handler, defaulting to the
+ * Node standard library for assets. Platform adapters pass their own store (for
+ * example the Cloudflare `ASSETS` binding), so the same generated entry runs
+ * unchanged across runtimes.
+ */
+export async function createRuntimeHandler(
+	config: RuntimeConfig,
+	manifest: Manifest,
+	importMap: ImportMap,
+	assets: Assets = nodeAssets,
+) {
+	const runtimeManifest = await RuntimeManifest.loadManifest(assets)
+
+	return createHandler(config, manifest, importMap, { assets, runtimeManifest })
 }
 
 function onError(err: unknown) {

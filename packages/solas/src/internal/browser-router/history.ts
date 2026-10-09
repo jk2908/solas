@@ -3,7 +3,7 @@ import * as BrowserRouter from './shared.js'
 /**
  * A small in-memory mirror of browser history used by BrowserRouter.
  * It keeps local entries/index in sync with push/replace/go and
- * popstate updates
+ * popstate updates.
  */
 export class BrowserRouterHistory {
 	#entries: BrowserRouter.HistoryEntry[]
@@ -21,35 +21,35 @@ export class BrowserRouterHistory {
 	}
 
 	/**
-	 * Returns a copy of tracked entries
+	 * Returns a copy of tracked entries.
 	 */
 	get entries() {
 		return [...this.#entries]
 	}
 
 	/**
-	 * Returns the tracked history index
+	 * Returns the tracked history index.
 	 */
 	get index() {
 		return this.#index
 	}
 
 	/**
-	 * Returns the tracked history length
+	 * Returns the tracked history length.
 	 */
 	get length() {
 		return this.#entries.length
 	}
 
 	/**
-	 * Returns the current tracked entry
+	 * Returns the current tracked entry.
 	 */
 	get current() {
 		return this.#entries[this.#index] ?? null
 	}
 
 	/**
-	 * Pushes a new history entry and advances the index
+	 * Pushes a new history entry and advances the index.
 	 */
 	pushState(path: string) {
 		if (this.#index < this.#entries.length - 1) {
@@ -72,7 +72,7 @@ export class BrowserRouterHistory {
 	}
 
 	/**
-	 * Replaces the current history entry without changing length
+	 * Replaces the current history entry without changing length.
 	 */
 	replaceState(path: string) {
 		window.history.replaceState(null, '', path)
@@ -94,7 +94,7 @@ export class BrowserRouterHistory {
 	}
 
 	/**
-	 * Applies relative history movement and updates local index
+	 * Applies relative history movement and updates local index.
 	 */
 	go(delta: number) {
 		if (!Number.isInteger(delta) || delta === 0) {
@@ -110,7 +110,7 @@ export class BrowserRouterHistory {
 	}
 
 	/**
-	 * Syncs local index and entry from a popstate event
+	 * Syncs local index and entry from a popstate event.
 	 */
 	onPopState() {
 		const current: BrowserRouter.HistoryEntry = {

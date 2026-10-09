@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0
+
+### Features
+
+- Added a platform `adapter` option to `solas()`. `solas({ adapter: cloudflare() })` registers the adapter's plugins alongside Solas's own instead of spreading them into the Vite plugins array.
+- Added a Cloudflare adapter for the Cloudflare Vite plugin beta and the `cf` CLI (`cloudflare.config.ts`). `@jk2908/solas/cloudflare/vite` exports `cloudflare()`, and `@jk2908/solas/cloudflare` exports `createWorker()` and `createCloudflareAssets()`.
+- Fully prerendered routes are now written to `dist/static` at their route paths. The Cloudflare adapter copies them under `/_solas-artifacts` so the Worker serves them.
+- Added `@jk2908/solas/node`, a `serve()` helper that runs the built handler on a Node or Bun HTTP server.
+- Request-time reads use an injected `Assets` store with logical `{ namespace, path }` references (`client`, `static`, `artifact`) instead of filesystem paths.
+
+### Breaking
+
+- Requires Vite 8 (Rolldown). The `vite` peer is now `^8.0.0`. Use Vite's `resolve.tsconfigPaths` instead of `vite-tsconfig-paths`, which breaks Rolldown's handling of the `file://` imports `@vitejs/plugin-rsc` emits.
+- Removed the `Runtime` facade (`Runtime.set`/`Runtime.reset`) and the `Runtime` export from `@jk2908/solas/env/rsc`.
+- `createHandler` now takes an options object as its fourth argument: `createHandler(config, manifest, importMap, { assets, runtimeManifest })`.
+
+### Fixes
+
+- Route modules are now executed in a standalone Vite environment resolved for `serve`, instead of a second Vite server that reloaded the config and cloned the plugin graph.
+- The Cloudflare adapter pre-bundles the Worker environments so workerd never re-optimises dependencies mid-request, which previously split React across two instances in `vite dev`.
+- The Cloudflare adapter sets `htmlHandling: none` and stores prerenders under `/_solas-artifacts`, so the asset layer no longer serves a prerendered document at its route path. Previously an RSC navigation (`Accept: text/x-component`) to a fully-prerendered route received HTML and failed to parse ("Connection closed").
+
 ## 0.7.0
 
 ### Breaking

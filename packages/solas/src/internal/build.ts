@@ -3,6 +3,7 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { hash } from '../utils/hash.js'
 import { Logger } from '../utils/logger.js'
 
 import type {
@@ -16,17 +17,16 @@ import type {
 import * as Config from '../config.js'
 import { normalisePathname } from './http-router/utils.js'
 import * as Prerender from './prerender.js'
-import { Runtime } from './runtimes/runtime.js'
 
 /**
  * Types, constants, and the Finder class for route discovery and manifest generation.
  * The Finder walks the app directory, builds inheritance chains, and transforms
- * the scan result into codegen artifacts consumed by generated entry files
+ * the scan result into codegen artifacts consumed by generated entry files.
  */
 /**
  * Raw output of the filesystem scan before any processing. Segments
  * are renderable routes (pages and layout wrappers), endpoints are
- * API routes with HTTP verb handlers
+ * API routes with HTTP verb handlers.
  */
 export type ScanResult = {
 	segments: {
@@ -57,7 +57,7 @@ export type ScanResult = {
 /**
  * Accumulated file paths inherited from parent directories during the recursive
  * scan. Each array slot corresponds to a nesting level; null means that
- * level did not declare the given file type
+ * level did not declare the given file type.
  */
 type InheritedChains = {
 	layouts: (string | null)[]
@@ -71,7 +71,7 @@ type InheritedChains = {
 
 /**
  * Mutable state for the current directory being scanned.
- * Populated as route files are discovered in sort order
+ * Populated as route files are discovered in sort order.
  */
 type DirState = {
 	layout?: string
@@ -85,7 +85,7 @@ type DirState = {
 
 /**
  * Collected import paths keyed by entry id. Static imports are eagerly
- * loaded, dynamic imports are lazy-loaded via React.lazy
+ * loaded, dynamic imports are lazy-loaded via React.lazy.
  */
 export type Imports = {
 	endpoints: { static: Map<string, string> }
@@ -96,7 +96,7 @@ export type Imports = {
 /**
  * Maps each entry id to the ids of its shell, layouts, page, error boundaries,
  * loaders, and middleware. Used by codegen to produce the import map
- * that the resolver reads at runtime
+ * that the resolver reads at runtime.
  */
 export type Modules = Record<
 	string,
@@ -178,7 +178,7 @@ const EMPTY_CHAINS: InheritedChains = {
 
 /**
  * Append the current directory's files to each inherited chain, inserting
- * null when the directory does not declare that file type
+ * null when the directory does not declare that file type.
  */
 function extendChains(prev: InheritedChains, state: DirState): InheritedChains {
 	return {
@@ -195,7 +195,7 @@ function extendChains(prev: InheritedChains, state: DirState): InheritedChains {
 /**
  * Create a segment entry from the accumulated chains. Returns null when no
  * shell (root layout) exists, which means this path cannot render.
- * The shell is always layouts[0]; remaining are nested
+ * The shell is always layouts[0]; remaining are nested.
  */
 function buildSegment(dir: string, page: string | undefined, chains: InheritedChains) {
 	const shell = chains.layouts[0]
@@ -217,7 +217,7 @@ function buildSegment(dir: string, page: string | undefined, chains: InheritedCh
 
 /**
  * Encapsulates the logic for scanning the app directory and processing the
- * result into the manifest, import map, and module map
+ * result into the manifest, import map, and module map.
  */
 export class Finder {
 	constructor(
@@ -226,14 +226,14 @@ export class Finder {
 	) {}
 
 	/**
-	 * Extracts dynamic parameter names from a file path
+	 * Extracts dynamic parameter names from a file path.
 	 */
 	static getParams(file: string) {
 		return Array.from(file.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
 	}
 
 	/**
-	 * Get the depth of a route based on slashes
+	 * Get the depth of a route based on slashes.
 	 */
 	static getDepth(route: string) {
 		if (route === '/') return 0
@@ -260,7 +260,7 @@ export class Finder {
 
 	/**
 	 * Get the import path for a file relative to the generated directory,
-	 * with the extension stripped and backslashes normalised
+	 * with the extension stripped and backslashes normalised.
 	 */
 	static getImportPath(file: string) {
 		const cwd = process.cwd()
@@ -274,7 +274,7 @@ export class Finder {
 
 	/**
 	 * Entry point: scan the app directory then process the result
-	 * into the manifest, import map, and module map
+	 * into the manifest, import map, and module map.
 	 */
 	async run() {
 		try {
@@ -408,7 +408,7 @@ export class Finder {
 	/**
 	 * Transform the raw scan result into the route manifest, import map,
 	 * and module map for codegen, along with route sets for
-	 * prerendering and sitemap generation
+	 * prerendering and sitemap generation.
 	 */
 	async process(res: ScanResult) {
 		const processed = new Set<string>()
@@ -479,7 +479,7 @@ export class Finder {
 				let currentPrerenderMode: Route.Prerender = this.config?.prerender ?? false
 
 				/**
-				 * Apply explicit prerender mode overrides in inheritance order
+				 * Apply explicit prerender mode overrides in inheritance order.
 				 */
 				function applyPrerenderMode(flag: Route.Prerender | undefined) {
 					if (flag === undefined) return
@@ -488,7 +488,7 @@ export class Finder {
 
 				const shellImport = Finder.getImportPath(shellPath)
 
-				const shellId = `${EntryKind.SHELL}${Runtime.hash(shellImport)}`
+				const shellId = `${EntryKind.SHELL}${hash(shellImport)}`
 				const layoutIds: (string | null)[] = []
 				const unauthorisedIds: (string | null)[] = []
 				const forbiddenIds: (string | null)[] = []
@@ -517,7 +517,7 @@ export class Finder {
 					}
 
 					const layoutImport = Finder.getImportPath(layoutPath)
-					const layoutId = `${EntryKind.LAYOUT}${Runtime.hash(layoutImport)}`
+					const layoutId = `${EntryKind.LAYOUT}${hash(layoutImport)}`
 
 					if (!processed.has(layoutPath)) {
 						prerenderCache.set(
@@ -540,7 +540,7 @@ export class Finder {
 					}
 
 					const unauthorisedImport = Finder.getImportPath(unauthorisedPath)
-					const unauthorisedId = `${EntryKind['401']}${Runtime.hash(unauthorisedImport)}`
+					const unauthorisedId = `${EntryKind['401']}${hash(unauthorisedImport)}`
 
 					unauthorisedIds.push(unauthorisedId)
 
@@ -557,7 +557,7 @@ export class Finder {
 					}
 
 					const forbiddenImport = Finder.getImportPath(forbiddenPath)
-					const forbiddenId = `${EntryKind['403']}${Runtime.hash(forbiddenImport)}`
+					const forbiddenId = `${EntryKind['403']}${hash(forbiddenImport)}`
 
 					forbiddenIds.push(forbiddenId)
 
@@ -576,7 +576,7 @@ export class Finder {
 					}
 
 					const notFoundImport = Finder.getImportPath(notFoundPath)
-					const notFoundId = `${EntryKind['404']}${Runtime.hash(notFoundImport)}`
+					const notFoundId = `${EntryKind['404']}${hash(notFoundImport)}`
 
 					notFoundIds.push(notFoundId)
 
@@ -594,7 +594,7 @@ export class Finder {
 					}
 
 					const serverErrorImport = Finder.getImportPath(serverErrorPath)
-					const serverErrorId = `${EntryKind['500']}${Runtime.hash(serverErrorImport)}`
+					const serverErrorId = `${EntryKind['500']}${hash(serverErrorImport)}`
 
 					serverErrorIds.push(serverErrorId)
 
@@ -613,7 +613,7 @@ export class Finder {
 					}
 
 					const loaderImport = Finder.getImportPath(loaderPath)
-					const loaderId = `${EntryKind.LOADING}${Runtime.hash(loaderImport)}`
+					const loaderId = `${EntryKind.LOADING}${hash(loaderImport)}`
 
 					loadingIds.push(loaderId)
 
@@ -631,7 +631,7 @@ export class Finder {
 					}
 
 					const middlewareImport = Finder.getImportPath(middlewarePath)
-					const middlewareId = `${EntryKind.MIDDLEWARE}${Runtime.hash(middlewareImport)}`
+					const middlewareId = `${EntryKind.MIDDLEWARE}${hash(middlewareImport)}`
 
 					middlewareIds.push(middlewareId)
 
@@ -651,8 +651,8 @@ export class Finder {
 
 				// generate entry id based on page if exists, otherwise dir
 				const entryId = pagePath
-					? `${EntryKind.PAGE}${Runtime.hash(Finder.getImportPath(pagePath))}`
-					: `${EntryKind.PAGE}${Runtime.hash(route)}`
+					? `${EntryKind.PAGE}${hash(Finder.getImportPath(pagePath))}`
+					: `${EntryKind.PAGE}${hash(route)}`
 
 				if (pagePath) {
 					const pagePrerender = await Prerender.getStaticFlag(pagePath, this.buildContext)
@@ -786,14 +786,14 @@ export class Finder {
 					}
 
 					const m = method.toLowerCase() as Lowercase<HttpMethod>
-					const endpointId = `${EntryKind.ENDPOINT}${Runtime.hash(Finder.getImportPath(endpointFilePath))}_${m}`
+					const endpointId = `${EntryKind.ENDPOINT}${hash(Finder.getImportPath(endpointFilePath))}_${m}`
 
 					const middlewareIds = await Promise.all(
 						endpointMiddlewarePaths.map(async middlewarePath => {
 							if (!middlewarePath) return null
 
 							const middlewareImport = Finder.getImportPath(middlewarePath)
-							const middlewareId = `${EntryKind.MIDDLEWARE}${Runtime.hash(middlewareImport)}`
+							const middlewareId = `${EntryKind.MIDDLEWARE}${hash(middlewareImport)}`
 
 							if (!processed.has(middlewarePath)) {
 								// endpoint middleware discovery gives us file paths, not proof
@@ -841,7 +841,7 @@ export class Finder {
 						...(modules[route] ?? {}),
 						middlewareIds: endpointMiddlewarePaths.map(middlewarePath =>
 							middlewarePath
-								? `${EntryKind.MIDDLEWARE}${Runtime.hash(Finder.getImportPath(middlewarePath))}`
+								? `${EntryKind.MIDDLEWARE}${hash(Finder.getImportPath(middlewarePath))}`
 								: null,
 						),
 					}

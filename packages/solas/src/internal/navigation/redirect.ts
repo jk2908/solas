@@ -10,7 +10,7 @@ function isRedirectStatusCode(value: unknown): value is RedirectStatusCode {
 }
 
 /**
- * Redirect exception class to signal a redirect
+ * Redirect exception class to signal a redirect.
  */
 export class Redirect extends Error {
 	digest?: string
@@ -31,7 +31,7 @@ export class Redirect extends Error {
 export const REDIRECT_DIGEST_PREFIX = 'REDIRECT'
 
 /**
- * Validate a url for use in the redirect() function
+ * Validate a url for use in the redirect() function.
  */
 function validate(url: string) {
 	if (url.startsWith('//')) {
@@ -68,7 +68,7 @@ function validate(url: string) {
 }
 
 /**
- * Check if an error is a Redirect error
+ * Check if an error is a Redirect error.
  */
 export function isRedirect(err: unknown): err is Redirect {
 	return (
@@ -141,9 +141,9 @@ export function toRedirectLike(error: Redirect | Error): RedirectLike {
 }
 
 /**
- * Throws a Redirect exc`eption to signal a redirect
- * @param url - the application-relative URL or absolute http/https URL to redirect to
- * @param status - the HTTP status code for the redirect, defaults to 307
+ * Throws a Redirect exception to signal a redirect.
+ * @param url - The application-relative URL or absolute http/https URL to redirect to.
+ * @param status - The HTTP status code for the redirect, defaults to 307.
  */
 export function redirect(url: string, status: RedirectStatusCode = 307): never {
 	throw new Redirect(url, status)

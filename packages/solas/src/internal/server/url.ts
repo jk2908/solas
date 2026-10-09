@@ -6,8 +6,8 @@ import { dynamic } from './dynamic.js'
 const logger = new Logger()
 
 /**
- * Get the request url as a URL instance
- * @returns a Promise resolving to a URL instance containing the request url
+ * Get the request url as a URL instance.
+ * @returns A Promise resolving to a URL instance containing the request url.
  */
 export async function url() {
 	await dynamic()

@@ -3,9 +3,9 @@ import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 
 import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
+import type { AssetRef, Assets } from '../runtimes/assets.js'
 import * as Config from '../../config.js'
 import { HttpException } from '../navigation/http-exception.js'
-import { Runtime } from '../runtimes/runtime.js'
 import { maybeAction } from '../server/actions.js'
 import { CsrfConfig, enforce } from '../server/csrf.js'
 import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
@@ -67,7 +67,7 @@ export namespace HttpRouter {
 }
 
 /**
- * Handle routing and matching for server requests
+ * Handle routing and matching for server requests.
  */
 export class HttpRouter {
 	static #matchers = new WeakMap<HttpRouter.Route, MatchFunction<HttpRouter.Params>>()
@@ -95,7 +95,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Register middleware for all routes
+	 * Register middleware for all routes.
 	 */
 	use(...middleware: HttpRouter.Middleware[]) {
 		this.#middleware.global.push(...middleware)
@@ -104,7 +104,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Register an error handler for routing failures
+	 * Register an error handler for routing failures.
 	 */
 	error(handler: HttpRouter.ErrorHandler) {
 		this.#onError = handler
@@ -112,7 +112,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Register a route handler
+	 * Register a route handler.
 	 */
 	add(
 		path: string,
@@ -206,7 +206,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Match a path and method, returning params and route
+	 * Match a path and method, returning params and route.
 	 */
 	#match(path: string, method: HttpMethod) {
 		for (const candidate of HttpRouter.#candidates(path)) {
@@ -258,7 +258,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Handle an incoming request
+	 * Handle an incoming request.
 	 */
 	async fetch(req: Request) {
 		const url = new URL(req.url)
@@ -349,7 +349,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Run middleware stack
+	 * Run middleware stack.
 	 */
 	#run(
 		stack: HttpRouter.Middleware[],
@@ -384,39 +384,40 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Serve a file with optional compression content negotiation
+	 * Serve a file with optional compression content negotiation.
 	 */
 	static async serveStatic(
-		filePath: string,
+		assets: Assets,
+		asset: AssetRef,
 		req: Request,
 		precompress: boolean = false,
 		headers: Record<string, string> = {},
 	) {
 		const accept = req.headers.get('accept-encoding') ?? ''
 
-		let resolvedPath = filePath
+		let resolved = asset
 		let encoding: string | null = null
 
 		if (precompress) {
 			// prefer a precompressed variant when the client accepts it and one was emitted
 			if (accept.includes('br')) {
-				const brotliPath = `${filePath}.br`
+				const brotli: AssetRef = { ...asset, path: `${asset.path}.br` }
 
-				if (await Runtime.exists(brotliPath)) {
-					resolvedPath = brotliPath
+				if (await assets.exists(brotli)) {
+					resolved = brotli
 					encoding = 'br'
 				}
 			}
 		}
 
-		if (!(await Runtime.exists(resolvedPath))) {
+		if (!(await assets.exists(resolved))) {
 			return new Response('Not found', { status: 404 })
 		}
 
 		// get mime type from original path, not compressed variant
-		const mimeType = Runtime.mimeType(filePath)
+		const mimeType = assets.mimeType(asset.path)
 
-		const res = new Response(await Runtime.readBuffer(resolvedPath), {
+		const res = new Response(await assets.readBuffer(resolved), {
 			headers: {
 				'Content-Type': headers['Content-Type'] ?? mimeType,
 			},
@@ -433,7 +434,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Normalise a path based on router options
+	 * Normalise a path based on router options.
 	 */
 	static #candidates(path: string) {
 		if (path === '/') return ['/']
@@ -441,7 +442,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Split a path into segments
+	 * Split a path into segments.
 	 */
 	static #split(path: string) {
 		if (path === '/') return []
@@ -465,7 +466,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Get or create a path matcher for a route using path-to-regexp
+	 * Get or create a path matcher for a route using path-to-regexp.
 	 */
 	static #getMatcher(route: HttpRouter.Route) {
 		const cached = HttpRouter.#matchers.get(route)
@@ -487,7 +488,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Rank token kinds so more specific segments win before broader ones
+	 * Rank token kinds so more specific segments win before broader ones.
 	 */
 	static #getTokenRank(token: HttpRouter.Token | undefined) {
 		if (!token) return -1
@@ -497,7 +498,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Compare two routes and prefer the one with the more specific segment pattern
+	 * Compare two routes and prefer the one with the more specific segment pattern.
 	 */
 	static #compare(a: HttpRouter.Route, b: HttpRouter.Route) {
 		const length = Math.max(a.tokens.length, b.tokens.length)
@@ -520,7 +521,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Find the best matching route from a candidate list using explicit specificity rules
+	 * Find the best matching route from a candidate list using explicit specificity rules.
 	 */
 	static #pick(routes: HttpRouter.Route[], segments: string[], method: HttpMethod) {
 		let best: HttpRouter.Route | null = null
@@ -550,7 +551,7 @@ export class HttpRouter {
 	}
 
 	/**
-	 * Fit a route against path segments
+	 * Fit a route against path segments.
 	 */
 	static #fit(route: HttpRouter.Route, segments: string[]) {
 		if (route.wildcard) {

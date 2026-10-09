@@ -24,11 +24,11 @@ function guard(path: string, prefetcher: (path: string) => void) {
 }
 
 /**
- * A link component that navigates to a given target
- * @param href - the route target to navigate to
- * @param prefetch - when to prefetch the linked page, defaults to 'none'
- * @param rest - other props to pass to the underlying anchor element
- * @returns a link element that navigates to the given target
+ * A link component that navigates to a given target.
+ * @param href - The route target to navigate to.
+ * @param prefetch - When to prefetch the linked page, defaults to 'none'.
+ * @param rest - Other props to pass to the underlying anchor element.
+ * @returns A link element that navigates to the given target.
  */
 export function Link(props: Props): React.JSX.Element
 export function Link({

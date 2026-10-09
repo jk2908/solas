@@ -1,0 +1,27 @@
+{
+	"name": "solas-example-cloudflare",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "cf dev",
+		"build": "cf build",
+		"preview": "vite preview",
+		"deploy": "cf deploy"
+	},
+	"dependencies": {
+		"@jk2908/solas": "workspace:*",
+		"react": "^19.2.4",
+		"react-dom": "^19.2.4",
+		"react-server-dom-webpack": "^19.2.4"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "2.0.0-beta.sha-52b0dc0e9",
+		"@types/bun": "^1.2.22",
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^6.1.2",
+		"cf": "1.0.0-beta.12",
+		"typescript": "^5.9.3",
+		"vite": "^8.3.3"
+	}
+}

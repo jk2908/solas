@@ -6,10 +6,11 @@ import { applyBasePath } from '../utils/base-path.js'
 import { Logger } from '../utils/logger.js'
 
 import type { BuildContext } from '../types.js'
+import type { AssetRef, Assets } from './runtimes/assets.js'
 import * as Config from '../config.js'
 import * as Solas from '../solas.js'
 import { toPathPattern } from './http-router/utils.js'
-import { Runtime as AdapterRuntime } from './runtimes/runtime.js'
+import { nodeAssets } from './runtimes/assets.js'
 
 const logger = new Logger()
 
@@ -37,7 +38,7 @@ export type Artifact = {
 export type ArtifactManifest = Record<string, Artifact>
 
 /**
- * Check whether a file name is safe to join under an artifact directory
+ * Check whether a file name is safe to join under an artifact directory.
  */
 function isArtifactFileName(value: unknown): value is string {
 	return (
@@ -50,14 +51,14 @@ function isArtifactFileName(value: unknown): value is string {
 
 /**
  * Get the root directory path where prerender artifacts are stored,
- * based on the output directory specified in the configuration
+ * based on the output directory specified in the configuration.
  */
 export function getArtifactRootPath(outDir: string) {
 	return path.join(outDir, Config.GENERATED_DIR, 'ppr')
 }
 
 /**
- * Get the file system path for storing prerender artifacts for a given route
+ * Get the file system path for storing prerender artifacts for a given route.
  */
 export function getArtifactPath(outDir: string, pathname: string) {
 	const root = path.resolve(getArtifactRootPath(outDir))
@@ -73,29 +74,51 @@ export function getArtifactPath(outDir: string, pathname: string) {
 }
 
 /**
- * Get the file system path for a single prerender artifact file under a route directory
+ * Build the logical artifact reference (`ppr/<route>/<file>`) for a single
+ * prerender artifact file, for use with the request-time `Assets` store.
  */
-export function getArtifactFilePath(outDir: string, pathname: string, fileName: string) {
+export function getArtifactAssetPath(pathname: string, fileName: string) {
 	if (!isArtifactFileName(fileName)) {
 		throw new Error('[prerender] invalid artifact file name')
 	}
 
-	return path.join(getArtifactPath(outDir, pathname), fileName)
+	const dir = pathname === '/' ? 'index' : pathname.replace(/^\//, '')
+
+	// this also runs at request time, so keep the pathname inside the artifact folder
+	if (dir.includes('..') || path.isAbsolute(dir)) {
+		throw new Error('[prerender] invalid artifact path')
+	}
+
+	return `ppr/${dir}/${fileName}`
 }
 
 /**
- * File name used for saved full-prerender html inside each route artifact directory
+ * Get the route-shaped output path for a fully prerendered route, relative to
+ * the static output root. Follows the configured trailing-slash policy.
  */
-export const FULL_PRERENDER_FILENAME = 'prerendered.html'
+export function staticRoutePath(pathname: string, mode: 'always' | 'never') {
+	const clean = pathname === '/' ? '' : pathname.replace(/^\//, '').replace(/\/+$/, '')
+
+	if (clean.includes('..')) {
+		throw new Error('[prerender] invalid static path')
+	}
+
+	if (clean === '') return 'index.html'
+
+	return mode === 'always' ? `${clean}/index.html` : `${clean}.html`
+}
 
 /**
- * Load the postponed state for a given route from the file system, if it exists
+ * Load the postponed state for a given route from the file system, if it exists.
  */
-export async function loadPostponedState(outDir: string, pathname: string) {
-	let filePath: string
+export async function loadPostponedState(pathname: string, assets: Assets = nodeAssets) {
+	let asset: AssetRef
 
 	try {
-		filePath = path.join(getArtifactPath(outDir, pathname), 'postponed.json')
+		asset = {
+			namespace: 'artifact',
+			path: getArtifactAssetPath(pathname, 'postponed.json'),
+		}
 	} catch (err) {
 		logger.warn(
 			`[prerender:artifacts] rejected postponed state path for ${pathname}`,
@@ -104,23 +127,26 @@ export async function loadPostponedState(outDir: string, pathname: string) {
 		return null
 	}
 
-	if (!(await AdapterRuntime.exists(filePath))) return null
+	if (!(await assets.exists(asset))) return null
 
 	try {
-		return JSON.parse(await AdapterRuntime.readText(filePath))
+		return JSON.parse(await assets.readText(asset))
 	} catch {
 		return null
 	}
 }
 
 /**
- * Load the prelude HTML for a given route from the file system, if it exists
+ * Load the prelude HTML for a given route from the file system, if it exists.
  */
-export async function loadPrelude(outDir: string, pathname: string) {
-	let filePath: string
+export async function loadPrelude(pathname: string, assets: Assets = nodeAssets) {
+	let asset: AssetRef
 
 	try {
-		filePath = path.join(getArtifactPath(outDir, pathname), 'prelude.html')
+		asset = {
+			namespace: 'artifact',
+			path: getArtifactAssetPath(pathname, 'prelude.html'),
+		}
 	} catch (err) {
 		logger.warn(
 			`[prerender:artifacts] rejected prelude path for ${pathname}`,
@@ -129,23 +155,26 @@ export async function loadPrelude(outDir: string, pathname: string) {
 		return null
 	}
 
-	if (!(await AdapterRuntime.exists(filePath))) return null
+	if (!(await assets.exists(asset))) return null
 
 	try {
-		return await AdapterRuntime.readText(filePath)
+		return await assets.readText(asset)
 	} catch {
 		return null
 	}
 }
 
 /**
- * Load the prerender artifact metadata for a given route from the file system, if it exists and is valid
+ * Load the prerender artifact metadata for a given route from the file system, if it exists and is valid.
  */
-export async function loadMetadata(outDir: string, pathname: string) {
-	let filePath: string
+export async function loadMetadata(pathname: string, assets: Assets = nodeAssets) {
+	let asset: AssetRef
 
 	try {
-		filePath = path.join(getArtifactPath(outDir, pathname), 'metadata.json')
+		asset = {
+			namespace: 'artifact',
+			path: getArtifactAssetPath(pathname, 'metadata.json'),
+		}
 	} catch (err) {
 		logger.warn(
 			`[prerender:artifacts] rejected metadata path for ${pathname}`,
@@ -154,10 +183,10 @@ export async function loadMetadata(outDir: string, pathname: string) {
 		return null
 	}
 
-	if (!(await AdapterRuntime.exists(filePath))) return null
+	if (!(await assets.exists(asset))) return null
 
 	try {
-		const value = JSON.parse(await AdapterRuntime.readText(filePath))
+		const value = JSON.parse(await assets.readText(asset))
 		if (!value || typeof value !== 'object') return null
 
 		const schema = (value as { schema?: unknown }).schema
@@ -182,7 +211,7 @@ export async function loadMetadata(outDir: string, pathname: string) {
 
 /**
  * Check if a prerender artifact is compatible with the current application version and route,
- * based on its metadata
+ * based on its metadata.
  */
 export function isCompatible(artifactMetadata: Metadata, pathname: string, mode: Mode) {
 	const schema = Solas.getVersion()
@@ -200,7 +229,7 @@ const decoder = new TextDecoder()
 
 /**
  * Compose the prelude HTML and the resume stream into a single HTML stream, by injecting the resume stream
- * into the prelude at the appropriate location (before </body> or </html>)
+ * into the prelude at the appropriate location (before </body> or </html>).
  */
 export function composePreludeAndResume(
 	prelude: string,
@@ -273,7 +302,7 @@ export type Result =
 	| { route: string; error: unknown }
 
 /**
- * Custom error class to indicate that prerendering has been postponed to request-time
+ * Custom error class to indicate that prerendering has been postponed to request-time.
  */
 export class Postponed extends Error {
 	constructor(message: string = 'postponed') {
@@ -284,7 +313,7 @@ export class Postponed extends Error {
 
 /**
  * Type guard to check if an error is a Postponed error, including wrapped errors like
- * AbortError or TimeoutError
+ * AbortError or TimeoutError.
  */
 export function isPostponed(error: unknown) {
 	if (error instanceof Postponed) return true
@@ -301,7 +330,7 @@ export function isPostponed(error: unknown) {
 
 /**
  * Get the prerender concurrency value from the environment variable, or return the default
- * if it's not set or invalid
+ * if it's not set or invalid.
  */
 export function getConcurrency() {
 	const v = Number(process.env.SOLAS_PRERENDER_CONCURRENCY)
@@ -315,7 +344,7 @@ export function getConcurrency() {
 
 /**
  * Extract the prerendering mode ('full', 'ppr', or false) from the source code of a route module, by
- * looking for an exported `prerender` binding and validating its value
+ * looking for an exported `prerender` binding and validating its value.
  */
 export async function getStaticFlag(filePath: string, buildContext: BuildContext) {
 	return buildContext.exportReader.literal<'full' | 'ppr' | false>(
@@ -328,7 +357,7 @@ export async function getStaticFlag(filePath: string, buildContext: BuildContext
 
 /**
  * Get the list of static parameters for a dynamic route, by looking for an exported `params` function
- * in the route module and calling it to get the list of parameter objects
+ * in the route module and calling it to get the list of parameter objects.
  */
 export async function getStaticParams(filePath: string, buildContext: BuildContext) {
 	const params = await buildContext.exportReader.value<() => Promise<unknown> | unknown>(
@@ -348,7 +377,7 @@ export async function getStaticParams(filePath: string, buildContext: BuildConte
 
 /**
  * Generate the list of prerenderable routes for a dynamic route, by combining the static parameters obtained from
- * the route module with the route pattern, and filtering out any routes that still contain dynamic segments
+ * the route module with the route pattern, and filtering out any routes that still contain dynamic segments.
  */
 export function getDynamicRouteList(
 	route: string,
@@ -388,7 +417,7 @@ export function getDynamicRouteList(
 /**
  * Function to prerender a single route by making a request to the route with special headers, and returning the
  * result which includes either the prerender artifact or an error/status code if the prerendering failed or was
- * postponed to request-time
+ * postponed to request-time.
  */
 export async function get(
 	app: { fetch: (req: Request) => Promise<Response> },
@@ -421,7 +450,7 @@ export async function get(
 
 /**
  * Run the prerendering process for a list of routes with a specified concurrency limit,
- * by calling the 'get' function for each route and yielding the results as they become available
+ * by calling the 'get' function for each route and yielding the results as they become available.
  */
 export async function* run(
 	app: { fetch: (req: Request) => Promise<Response> },

@@ -7,7 +7,7 @@ export type PathPattern = {
 
 /**
  * Escape a literal path segment so it can be used safely in a
- * path-to-regexp pattern
+ * path-to-regexp pattern.
  */
 function escapePathSegment(value: string) {
 	return value.replace(/[\\.+*?^${}()[\]|!:]/g, '\\$&')
@@ -15,7 +15,7 @@ function escapePathSegment(value: string) {
 
 /**
  * Convert an internal route string into a path-to-regexp pattern and collect
- * the wildcard param names used in that pattern
+ * the wildcard param names used in that pattern.
  */
 export function toPathPattern(route: string, paramNames: string[] = []) {
 	if (route === '/') {
@@ -56,7 +56,7 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
 }
 
 /**
- * Apply the configured trailing-slash policy to a pathname
+ * Apply the configured trailing-slash policy to a pathname.
  */
 export function normalisePathname(
 	pathname: string,
@@ -73,7 +73,7 @@ export function normalisePathname(
 
 /**
  * Return the other pathname shape for a non-root route. For use within
- * trailingSlash logic to easily switch between shapes
+ * trailingSlash logic to easily switch between shapes.
  *
  * @example
  * ```ts

@@ -5,7 +5,8 @@
 	"scripts": {
 		"dev": "bunx --bun vite dev",
 		"build": "bunx --bun vite build",
-		"preview": "bunx --bun vite preview"
+		"preview": "bunx --bun vite preview",
+		"start": "bun run server.ts"
 	},
 	"dependencies": {
 		"@jk2908/solas": "workspace:*",
@@ -17,9 +18,8 @@
 		"@types/bun": "^1.2.22",
 		"@types/react": "^19.2.14",
 		"@types/react-dom": "^19.2.3",
-		"@vitejs/plugin-react": "^5.1.4",
+		"@vitejs/plugin-react": "^6.1.2",
 		"typescript": "^5.9.3",
-		"vite": "^7.3.1",
-		"vite-tsconfig-paths": "^5.1.4"
+		"vite": "^8.3.3"
 	}
 }

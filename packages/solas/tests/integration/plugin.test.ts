@@ -151,10 +151,9 @@ describe('solas() plugin integration', () => {
 
 		const entry = readFileSync(path.join(dir, '.solas', 'entry.rsc.tsx'), 'utf-8')
 		expect(entry).toContain("from '@jk2908/solas/env/rsc'")
-		expect(entry).toContain('loadManifest')
-		expect(entry).toContain("const runtimeManifest = await loadManifest('dist')")
+		expect(entry).toContain('createRuntimeHandler')
 		expect(entry).toContain(
-			'export default createHandler(config, manifest, importMap, runtimeManifest)',
+			'export default await createRuntimeHandler(config, manifest, importMap)',
 		)
 		expect(entry).not.toContain('Solas.Config')
 		expect(entry).not.toContain('  ')

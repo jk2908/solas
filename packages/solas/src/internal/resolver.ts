@@ -63,30 +63,30 @@ const logger = new Logger()
 const IS_DEV = import.meta.env.DEV
 
 /**
- * Resolve HttpRouter matches against the application manifest and import map
+ * Resolve HttpRouter matches against the application manifest and import map.
  */
 export class Resolver {
 	/**
-	 * Cache of enhanced matches
+	 * Cache of enhanced matches.
 	 */
 	static #enhancedMatchCache = new Map<string, Resolver.CachedEnhancedMatch>()
 
 	/**
-	 * Cache of loaded modules from dynamic imports
+	 * Cache of loaded modules from dynamic imports.
 	 */
 	static #moduleCache = new WeakMap<
 		DynamicImport,
 		{
 			/**
-			 * The promise resolving to the module
+			 * The promise resolving to the module.
 			 */
 			promise: Promise<Record<string, unknown>>
 			/**
-			 * The loaded module
+			 * The loaded module.
 			 */
 			module?: Record<string, unknown>
 			/**
-			 * The (maybe lazy) React component loaded from the module
+			 * The (maybe lazy) React component loaded from the module.
 			 */
 			Component?: View<React.ComponentProps<any>>
 		}
@@ -105,7 +105,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Narrow down a route entry to a page entry if it exists
+	 * Narrow down a route entry to a page entry if it exists.
 	 */
 	static narrow(entry?: ManifestEntry | ManifestEntry[]) {
 		if (Array.isArray(entry)) {
@@ -116,7 +116,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Get the status code for a matched route that may or may not have errored
+	 * Get the status code for a matched route that may or may not have errored.
 	 */
 	static getMatchStatusCode(
 		match: Resolver.ReconciledMatch | Resolver.EnhancedMatch | null,
@@ -131,7 +131,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Find a manifest entry by path, trying both with and without a trailing slash
+	 * Find a manifest entry by path, trying both with and without a trailing slash.
 	 */
 	static #getEntryByPath(manifest: Manifest, path: string) {
 		const direct = manifest[path]
@@ -145,7 +145,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Merge the cached enhanced match with the params and error from this request's match
+	 * Merge the cached enhanced match with the params and error from this request's match.
 	 */
 	static #withRequestState(
 		cached: Resolver.CachedEnhancedMatch,
@@ -161,7 +161,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Load and cache a module from a dynamic import
+	 * Load and cache a module from a dynamic import.
 	 */
 	static #load(loader: DynamicImport) {
 		if (IS_DEV) {
@@ -195,7 +195,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Lazily load and cache a component from a dynamic import
+	 * Lazily load and cache a component from a dynamic import.
 	 */
 	static #view<T extends React.ComponentType<any>>(loader: DynamicImport) {
 		const entry = Resolver.#load(loader)
@@ -226,7 +226,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Reconcile a HttpRouter match against a manifest entry
+	 * Reconcile a HttpRouter match against a manifest entry.
 	 */
 	reconcile(path: string, match: HttpRouter.Match | null, error?: Error) {
 		if (match) {
@@ -264,7 +264,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Enhance a matched route with its associated components
+	 * Enhance a matched route with its associated components.
 	 */
 	enhance(match: Resolver.ReconciledMatch | null) {
 		if (!match) return null
@@ -496,7 +496,7 @@ export class Resolver {
 	}
 
 	/**
-	 * Find the closest ancestor entry for a given path and property
+	 * Find the closest ancestor entry for a given path and property.
 	 */
 	closest(path: string, property: string, value?: Omit<Primitive, 'undefined'>) {
 		const parts = path.split('/').filter(Boolean)

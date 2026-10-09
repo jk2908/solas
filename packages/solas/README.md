@@ -6,10 +6,14 @@ Solas is experimental and under active development, so expect rough edges.
 
 ## Install
 
+Solas requires **Vite 8** (which uses Rolldown as the bundler).
+
 ```sh
-npm install @jk2908/solas react react-dom react-server-dom-webpack vite
-npm install -D @vitejs/plugin-react typescript vite-tsconfig-paths
+npm install @jk2908/solas react react-dom react-server-dom-webpack vite@^8
+npm install -D @vitejs/plugin-react@^6 typescript
 ```
+
+Use Vite's built-in TypeScript path resolution (`resolve.tsconfigPaths: true`) rather than `vite-tsconfig-paths`, which is not compatible with Rolldown's handling of the `file://` runtime imports the RSC plugin emits.
 
 ## Use
 
@@ -23,6 +27,20 @@ import react from '@vitejs/plugin-react'
 
 export default defineConfig({
 	plugins: [solas(), react()],
+})
+```
+
+Platform deployment is configured with the `adapter` option, which registers the platform's plugins alongside Solas's own instead of adding them to the plugins array:
+
+```ts
+import { defineConfig } from 'vite'
+
+import solas from '@jk2908/solas'
+import { cloudflare } from '@jk2908/solas/cloudflare/vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [solas({ adapter: cloudflare() }), react()],
 })
 ```
 
@@ -507,9 +525,145 @@ export default defineConfig({
 })
 ```
 
+## Cloudflare
+
+Solas ships a Cloudflare adapter that runs the RSC server as a Worker and serves prerender artifacts and client assets through the Cloudflare assets binding.
+
+It targets the **Cloudflare Vite plugin beta** and the **`cf` CLI** workflow, where the Worker is configured by `cloudflare.config.ts`. Install the beta plugin (and `cf` for deploys):
+
+```sh
+npm install -D @cloudflare/vite-plugin@beta cf
+```
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+
+import solas from '@jk2908/solas'
+import { cloudflare } from '@jk2908/solas/cloudflare/vite'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [solas({ prerender: 'full', adapter: cloudflare() }), react()],
+})
+```
+
+The adapter is passed to `solas()` rather than added to the plugins array directly, so platform wiring stays in one place (the same shape as SvelteKit's `sveltekit({ adapter: adapter() })`).
+
+Give the Worker a name and a compatibility date that enables `nodejs_compat`:
+
+```ts
+// cloudflare.config.ts
+import { defineConfig, defineWorker } from 'cf/config'
+
+export default defineConfig({
+	worker: defineWorker({
+		name: 'my-solas-app',
+		compatibilityDate: '2026-10-02',
+		compatibilityFlags: ['nodejs_compat'],
+	}),
+})
+```
+
+> `cloudflare.config.ts` is an open beta and must be loaded with Node 22.18+ (Bun is not supported), so the Cloudflare build and deploy commands run under Node. See the [`cf` documentation](https://developers.cloudflare.com/cf/) for the format and the `cf dev` / `cf build` / `cf deploy` commands.
+
+### Bindings
+
+Bindings are declared in `cloudflare.config.ts` and read with the standard Cloudflare global. The adapter does not manage them:
+
+```ts
+// cloudflare.config.ts
+export default defineConfig({
+	worker: defineWorker({
+		name: 'my-solas-app',
+		compatibilityDate: '2026-10-02',
+		compatibilityFlags: ['nodejs_compat'],
+		env: {
+			MY_KV: bindings.kv({ id: '...' }),
+		},
+	}),
+})
+```
+
+```tsx
+// server component
+import { env } from 'cloudflare:workers'
+
+const value = await env.MY_KV.get('key')
+```
+
+The Cloudflare Vite plugin emulates bindings in `cf dev` and `vite preview`, so there is nothing extra to configure locally.
+
+For types, the plugin writes `.cloudflare/types/index.d.ts` (bindings inferred from `cloudflare.config.ts`). Include it in `tsconfig.json` so `cloudflare:workers`'s `env` is typed:
+
+```jsonc
+{
+	"include": ["app", ".solas/*", ".cloudflare/types"],
+}
+```
+
+The adapter:
+
+- configures `@cloudflare/vite-plugin` to build the `rsc` environment as the Worker, and injects the generated entrypoint, the `ASSETS` binding, and `htmlHandling: none` / `notFoundHandling: none` into the Worker config
+- generates the Worker entry (a virtual module) that delegates to the typed `createWorker` helper
+- points Solas's prerender step at the Cloudflare Worker bundle
+- copies `dist/static` (full prerenders) and `dist/.solas` (runtime manifest + ppr artifacts) into the asset output under `/_solas-artifacts`
+
+`htmlHandling: none` stops the asset layer serving a prerendered document at its route path. That matters because the asset layer ignores `Accept`, so an RSC navigation (`Accept: text/x-component`) to a fully-prerendered route would otherwise receive HTML and fail to parse. Routing documents through the Worker lets Solas serve the prerender for `text/html` and render RSC otherwise, while non-HTML assets (JS, CSS, fonts, images) are still served straight from the asset layer.
+
+Because workers have no filesystem, the Worker reads its own output through the `ASSETS` binding. Reads use logical namespaces rather than filesystem paths: `client` maps onto asset-root URLs, and `static` (prerenders) and `artifact` (manifest, ppr) map onto the artifact prefix. During the build-time prerender pass the Worker is invoked without bindings, so the Node asset store is used and reads/writes artifacts on disk.
+
+`cloudflare()` forwards its `cloudflare` option to `@cloudflare/vite-plugin`. To build a Worker manually, `createWorker` composes the entry behaviour, and `createCloudflareAssets` builds the store directly:
+
+```ts
+import { createCloudflareAssets } from '@jk2908/solas/cloudflare'
+
+const assets = createCloudflareAssets(env)
+```
+
+## Node
+
+`vite dev` and `vite preview` already run the built handler in Node (via `@vitejs/plugin-rsc`'s default server handler), so nothing extra is needed locally. For a production Node server, use `@jk2908/solas/node`:
+
+```ts
+// server.ts
+import { serve } from '@jk2908/solas/node'
+
+await serve()
+```
+
+```json
+{
+	"scripts": {
+		"build": "vite build",
+		"start": "node server.ts"
+	}
+}
+```
+
+`serve()` loads the built RSC entry (`dist/rsc/index.js` by default) and forwards requests to its fetch handler, which already serves prerendered routes, client assets, and RSC/SSR responses. Options: `port` (defaults to `PORT` or `3000`), `host`, `outDir`, and `entry`. Run from the project root so the handler can resolve `dist`.
+
+Bun and Deno do not need the helper. Their native servers pass the handler a `Request` directly and expect a `Response`, so the Node-specific HTTP-to-Fetch bridging (streams, `duplex`, backpressure) is not needed:
+
+```ts
+// Bun
+import handler from './dist/rsc/index.js'
+
+Bun.serve({ fetch: request => handler.fetch(request) })
+```
+
+```ts
+// Deno
+import handler from './dist/rsc/index.js'
+
+Deno.serve(request => handler.fetch(request))
+```
+
+The handler reads `dist` through `node:fs`, which Bun and Deno (2.x, via Node compat) provide. Run from the project root. Bun can also run `@jk2908/solas/node` as-is, since it implements `node:http`.
+
 ## Runtime
 
-This is not a deployment or packaging adapter. Platform adapters are not available yet.
+At request time Solas reads its output through an `Assets` interface (`exists`/`readText`/`readBuffer`/`mimeType`) injected into `createHandler`, defaulting to the Node standard library (which Bun runs natively). References are logical (`{ namespace, path }`), where the namespaces are `client` (Vite client output), `static` (full prerenders), and `artifact` (runtime manifest and ppr files). Platforms without a filesystem provide their own store; `@jk2908/solas/cloudflare` builds one around the `ASSETS` binding via `createWorker`. Build-time reads and writes use `node:fs` directly and are not abstracted.
 
 ## Scripts
 

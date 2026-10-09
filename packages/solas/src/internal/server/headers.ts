@@ -2,8 +2,8 @@ import { RequestContext } from '../env/request-context.js'
 import { dynamic } from './dynamic.js'
 
 /**
- * Get the request headers as a read-only map
- * @returns a Promise resolving to a read-only map of request headers
+ * Get the request headers as a read-only map.
+ * @returns A Promise resolving to a read-only map of request headers.
  */
 export async function headers(): Promise<ReadonlyMap<string, string>> {
 	await dynamic()

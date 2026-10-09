@@ -10,21 +10,14 @@ vi.mock('node:fs/promises', () => ({
 	},
 }))
 
-vi.mock('../../../src/internal/runtimes/runtime.js', () => ({
-	Runtime: {
-		hash: vi.fn((input: string) => {
-			let hash = 0
-			for (let i = 0; i < input.length; i++) {
-				hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0
-			}
-			return Math.abs(hash).toString(36)
-		}),
-		exists: vi.fn(),
-		readText: vi.fn(),
-		readBuffer: vi.fn(),
-		write: vi.fn(),
-		mimeType: vi.fn(),
-	},
+vi.mock('../../../src/utils/hash.js', () => ({
+	hash: vi.fn((input: string) => {
+		let hash = 0
+		for (let i = 0; i < input.length; i++) {
+			hash = ((hash << 5) - hash + input.charCodeAt(i)) | 0
+		}
+		return Math.abs(hash).toString(36)
+	}),
 }))
 
 import fs from 'node:fs/promises'

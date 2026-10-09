@@ -1,13 +1,12 @@
+import type { Assets } from './internal/runtimes/assets.js'
 import * as Config from './config.js'
 import * as Prerender from './internal/prerender.js'
-import { Runtime } from './internal/runtimes/runtime.js'
+import { nodeAssets } from './internal/runtimes/assets.js'
 
 export type Manifest = {
 	artifacts: Prerender.ArtifactManifest
 	publicFiles: ReadonlySet<string>
 }
-
-const manifestCache = new Map<string, Manifest | null>()
 
 export function getManifestPath(outDir: string) {
 	return [outDir, Config.GENERATED_DIR, Config.RUNTIME_MANIFEST]
@@ -20,57 +19,33 @@ export function getManifestPath(outDir: string) {
 		.join('/')
 }
 
-export async function loadManifest(outDir: string) {
-	if (manifestCache.has(outDir)) {
-		return manifestCache.get(outDir) ?? null
-	}
+export async function loadManifest(
+	assets: Assets = nodeAssets,
+): Promise<Manifest | null> {
+	const asset = { namespace: 'artifact', path: Config.RUNTIME_MANIFEST } as const
 
-	const manifestPath = getManifestPath(outDir)
-
-	if (!(await Runtime.exists(manifestPath))) {
-		manifestCache.set(outDir, null)
-		return null
-	}
+	if (!(await assets.exists(asset))) return null
 
 	try {
-		const value = JSON.parse(await Runtime.readText(manifestPath))
+		const value = JSON.parse(await assets.readText(asset))
 
-		if (!isRecord(value)) {
-			manifestCache.set(outDir, null)
-			return null
-		}
+		if (!isRecord(value)) return null
 
 		const artifacts = value.artifacts ?? value.routes
 		const publicFiles = value.publicFiles
 
-		if (!isRecord(artifacts)) {
-			manifestCache.set(outDir, null)
-			return null
-		}
-
-		if (publicFiles !== undefined && !Array.isArray(publicFiles)) {
-			manifestCache.set(outDir, null)
-			return null
-		}
+		if (!isRecord(artifacts)) return null
+		if (publicFiles !== undefined && !Array.isArray(publicFiles)) return null
 
 		for (const entry of Object.values(artifacts)) {
-			if (!isRecord(entry)) {
-				manifestCache.set(outDir, null)
-				return null
-			}
+			if (!isRecord(entry)) return null
 
 			const { mode, files } = entry
 
-			if (mode !== 'full' && mode !== 'ppr') {
-				manifestCache.set(outDir, null)
-				return null
-			}
+			if (mode !== 'full' && mode !== 'ppr') return null
 
 			if (files !== undefined) {
-				if (!Array.isArray(files)) {
-					manifestCache.set(outDir, null)
-					return null
-				}
+				if (!Array.isArray(files)) return null
 
 				for (const file of files) {
 					if (
@@ -79,7 +54,6 @@ export async function loadManifest(outDir: string) {
 						file !== 'postponed' &&
 						file !== 'metadata'
 					) {
-						manifestCache.set(outDir, null)
 						return null
 					}
 				}
@@ -87,21 +61,14 @@ export async function loadManifest(outDir: string) {
 		}
 
 		for (const entry of publicFiles ?? []) {
-			if (typeof entry !== 'string' || !entry.startsWith('/')) {
-				manifestCache.set(outDir, null)
-				return null
-			}
+			if (typeof entry !== 'string' || !entry.startsWith('/')) return null
 		}
 
-		const runtimeManifest: Manifest = {
+		return {
 			artifacts: artifacts as Manifest['artifacts'],
 			publicFiles: new Set((publicFiles as string[] | undefined) ?? []),
 		}
-
-		manifestCache.set(outDir, runtimeManifest)
-		return runtimeManifest
 	} catch {
-		manifestCache.set(outDir, null)
 		return null
 	}
 }

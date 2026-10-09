@@ -1,5 +1,7 @@
 type BunRequest = Request & { params?: Record<string, string | string[]> }
 
+import type { PluginOption } from 'vite'
+
 import { ExportReader } from './utils/export-reader.js'
 
 import type * as BrowserRouter from './internal/browser-router/shared.js'
@@ -13,12 +15,23 @@ export type LogLevel = (typeof Config.LOG_LEVELS)[number]
 
 export type Origin = `http://${string}` | `https://${string}`
 
+/**
+ * A platform deployment adapter. Solas registers `plugins` alongside its own,
+ * so adapters are configured here instead of being spread into the Vite plugins
+ * array.
+ */
+export type Adapter = {
+	name: string
+	plugins: PluginOption[]
+}
+
 type PluginConfigBase = {
 	precompress?: boolean
 	prerender?: Route.Prerender
 	metadata?: Metadata.Item
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 	trustedOrigins?: readonly Origin[]
+	adapter?: Adapter
 	readonly logger?: {
 		level?: LogLevel
 	}

@@ -14,6 +14,7 @@ import {
 	normalisePathname,
 	toPathPattern,
 } from '../../../../src/internal/http-router/utils.js'
+import { nodeAssets } from '../../../../src/internal/runtimes/assets.js'
 
 const ok = () => new Response('ok')
 const handler = () => vi.fn().mockReturnValue(new Response('ok'))
@@ -337,7 +338,11 @@ describe('HttpRouter', () => {
 
 	describe('serveStatic', () => {
 		it('returns 404 for missing files', async () => {
-			const res = await HttpRouter.serveStatic('/nonexistent/file.txt', http('/'))
+			const res = await HttpRouter.serveStatic(
+				nodeAssets,
+				{ namespace: 'client', path: 'nonexistent/file.txt' },
+				http('/'),
+			)
 			expect(res.status).toBe(404)
 		})
 	})

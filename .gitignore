@@ -3,6 +3,8 @@ node_modules
 dist
 .env*
 .solas
+.cloudflare
+.wrangler
 benchmarks
 roadmap.md
 stress

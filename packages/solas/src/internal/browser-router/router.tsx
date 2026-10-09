@@ -56,12 +56,12 @@ export function BrowserRouterProvider({
 	const history = useRef(new BrowserRouterHistory(url))
 
 	/**
-	 * Navigates to a given path
+	 * Navigates to a given path.
 	 *
-	 * @param to - the target path to navigate to, which can be a route pattern with params or an external URL
-	 * @param opts - options for navigation, including whether to replace the current history entry and pass query
-	 * and route params
-	 * @returns the final path navigated to after any redirects, or the original path if navigation failed
+	 * @param to - The target path to navigate to, which can be a route pattern with params or an external URL.
+	 * @param opts - Options for navigation, including whether to replace the current history entry and pass query
+	 * and route params.
+	 * @returns The final path navigated to after any redirects, or the original path if navigation failed.
 	 */
 	const go: BrowserRouter.Go = useCallback(
 		async (to: string | number, opts: BrowserRouter.GoOptions = {}) => {
@@ -173,10 +173,10 @@ export function BrowserRouterProvider({
 
 	/**
 	 * Prefetches the RSC response for a given path and caches it for later navigation.
-	 * Does nothing if a cached response already exists for the path
+	 * Does nothing if a cached response already exists for the path.
 	 *
-	 * @param path - the target path to prefetch
-	 * @returns void
+	 * @param path - The target path to prefetch.
+	 * @returns Void.
 	 */
 	const prefetch = useCallback((path: string) => {
 		const key = ResponseCache.toCacheKey(path, window.location.origin)
@@ -189,7 +189,7 @@ export function BrowserRouterProvider({
 	/**
 	 * Refreshes the current page by re-fetching the RSC response for the current path and updating the
 	 * payload. It also clears any cached response for the current path to ensure that the latest
-	 * version is fetched
+	 * version is fetched.
 	 */
 	const refresh = useCallback(() => {
 		const currentPath = window.location.pathname + window.location.search

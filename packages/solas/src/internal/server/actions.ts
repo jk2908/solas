@@ -14,7 +14,7 @@ import { CsrfConfig, enforce } from './csrf.js'
 
 /**
  * Check if a request is an action request and reuse parsed FormData
- * when multipart action detection already had to inspect the body
+ * when multipart action detection already had to inspect the body.
  */
 export async function maybeAction(req: Request) {
 	if (req.method !== 'POST') return { action: false, formData: null }
@@ -46,9 +46,9 @@ export async function maybeAction(req: Request) {
 }
 
 /**
- * Process an incoming action request, either from ReactClient.setServerCallback or a <form action={...}> submission
- * @returns an object containing either the return value of the action or the form state, depending on the type
- * of action request
+ * Process an incoming action request, either from ReactClient.setServerCallback or a <form action={...}> submission.
+ * @returns An object containing either the return value of the action or the form state, depending on the type
+ * of action request.
  */
 export async function processActionRequest(req: SolasRequest, csrf: CsrfConfig = {}) {
 	let returnValue: { ok: boolean; data: unknown } | undefined

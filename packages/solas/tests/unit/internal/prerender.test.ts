@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
 	composePreludeAndResume,
 	get,
-	getArtifactFilePath,
+	getArtifactAssetPath,
 	getArtifactPath,
 	getArtifactRootPath,
 	getConcurrency,
@@ -14,17 +14,19 @@ import {
 	loadPostponedState,
 	loadPrelude,
 	Postponed,
+	staticRoutePath,
 	type Metadata,
 } from '../../../src/internal/prerender.js'
 
-vi.mock('../../../src/internal/runtimes/runtime.js', () => ({
-	Runtime: {
+vi.mock('../../../src/internal/runtimes/assets.js', () => ({
+	nodeAssets: {
 		exists: vi.fn(),
 		readText: vi.fn(),
+		readBuffer: vi.fn(),
 	},
 }))
 
-const { Runtime } = await import('../../../src/internal/runtimes/runtime.js')
+const { nodeAssets } = await import('../../../src/internal/runtimes/assets.js')
 
 describe('Prerender', () => {
 	describe('Artifact', () => {
@@ -54,17 +56,35 @@ describe('Prerender', () => {
 			})
 		})
 
-		describe('getFilePath', () => {
+		describe('getAssetPath', () => {
 			it('rejects invalid file names', () => {
-				expect(() => getArtifactFilePath('/app/dist', '/', '../escape')).toThrow(
+				expect(() => getArtifactAssetPath('/', '../escape')).toThrow(
 					'invalid artifact file name',
 				)
 			})
 
-			it('joins route path and file name', () => {
-				const result = getArtifactFilePath('/app/dist', '/about', 'test.html')
-				expect(result).toContain('about')
-				expect(result).toContain('test.html')
+			it('builds a logical artifact path', () => {
+				expect(getArtifactAssetPath('/about', 'prelude.html')).toBe(
+					'ppr/about/prelude.html',
+				)
+			})
+
+			it('uses index for the root route', () => {
+				expect(getArtifactAssetPath('/', 'prelude.html')).toBe('ppr/index/prelude.html')
+			})
+		})
+
+		describe('staticRoutePath', () => {
+			it('maps non-root routes to .html with trailingSlash never', () => {
+				expect(staticRoutePath('/about', 'never')).toBe('about.html')
+			})
+
+			it('maps non-root routes to /index.html with trailingSlash always', () => {
+				expect(staticRoutePath('/about', 'always')).toBe('about/index.html')
+			})
+
+			it('maps the root route to index.html', () => {
+				expect(staticRoutePath('/', 'never')).toBe('index.html')
 			})
 		})
 
@@ -136,27 +156,29 @@ describe('Prerender', () => {
 			})
 
 			it('returns null when file does not exist', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(false)
-				const result = await loadPostponedState('/dist', '/about')
+				vi.mocked(nodeAssets.exists).mockResolvedValue(false)
+				const result = await loadPostponedState('/about')
 				expect(result).toBeNull()
 			})
 
 			it('returns parsed JSON when file exists', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(true)
-				vi.mocked(Runtime.readText).mockResolvedValue(JSON.stringify({ suspended: true }))
-				const result = await loadPostponedState('/dist', '/about')
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockResolvedValue(
+					JSON.stringify({ suspended: true }),
+				)
+				const result = await loadPostponedState('/about')
 				expect(result).toEqual({ suspended: true })
 			})
 
 			it('returns null when JSON parse fails', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(true)
-				vi.mocked(Runtime.readText).mockResolvedValue('invalid json')
-				const result = await loadPostponedState('/dist', '/about')
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockResolvedValue('invalid json')
+				const result = await loadPostponedState('/about')
 				expect(result).toBeNull()
 			})
 
 			it('returns null when file path is invalid', async () => {
-				const result = await loadPostponedState('/dist', '/../escape')
+				const result = await loadPostponedState('/../escape')
 				expect(result).toBeNull()
 			})
 		})
@@ -167,27 +189,27 @@ describe('Prerender', () => {
 			})
 
 			it('returns null when file does not exist', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(false)
-				const result = await loadPrelude('/dist', '/about')
+				vi.mocked(nodeAssets.exists).mockResolvedValue(false)
+				const result = await loadPrelude('/about')
 				expect(result).toBeNull()
 			})
 
 			it('returns text content when file exists', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(true)
-				vi.mocked(Runtime.readText).mockResolvedValue('<html>prelude</html>')
-				const result = await loadPrelude('/dist', '/about')
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockResolvedValue('<html>prelude</html>')
+				const result = await loadPrelude('/about')
 				expect(result).toBe('<html>prelude</html>')
 			})
 
 			it('returns null when readText fails', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(true)
-				vi.mocked(Runtime.readText).mockRejectedValue(new Error('read error'))
-				const result = await loadPrelude('/dist', '/about')
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockRejectedValue(new Error('read error'))
+				const result = await loadPrelude('/about')
 				expect(result).toBeNull()
 			})
 
 			it('returns null when file path is invalid', async () => {
-				const result = await loadPrelude('/dist', '/../escape')
+				const result = await loadPrelude('/../escape')
 				expect(result).toBeNull()
 			})
 		})
@@ -198,14 +220,14 @@ describe('Prerender', () => {
 			})
 
 			it('returns null when file does not exist', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(false)
-				const result = await loadMetadata('/dist', '/about')
+				vi.mocked(nodeAssets.exists).mockResolvedValue(false)
+				const result = await loadMetadata('/about')
 				expect(result).toBeNull()
 			})
 
 			it('returns parsed metadata when valid', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(true)
-				vi.mocked(Runtime.readText).mockResolvedValue(
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockResolvedValue(
 					JSON.stringify({
 						schema: '1.0.0',
 						route: '/about',
@@ -213,7 +235,7 @@ describe('Prerender', () => {
 						mode: 'full',
 					}),
 				)
-				const result = await loadMetadata('/dist', '/about')
+				const result = await loadMetadata('/about')
 				expect(result).toEqual({
 					schema: '1.0.0',
 					route: '/about',
@@ -223,17 +245,17 @@ describe('Prerender', () => {
 			})
 
 			it('returns null when metadata values are wrong types', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(true)
-				vi.mocked(Runtime.readText).mockResolvedValue(
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockResolvedValue(
 					JSON.stringify({ schema: 123, route: '/about', createdAt: 1000, mode: 'full' }),
 				)
-				const result = await loadMetadata('/dist', '/about')
+				const result = await loadMetadata('/about')
 				expect(result).toBeNull()
 			})
 
 			it('returns null when mode is invalid', async () => {
-				vi.mocked(Runtime.exists).mockResolvedValue(true)
-				vi.mocked(Runtime.readText).mockResolvedValue(
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockResolvedValue(
 					JSON.stringify({
 						schema: '1.0.0',
 						route: '/about',
@@ -241,12 +263,12 @@ describe('Prerender', () => {
 						mode: 'partial',
 					}),
 				)
-				const result = await loadMetadata('/dist', '/about')
+				const result = await loadMetadata('/about')
 				expect(result).toBeNull()
 			})
 
 			it('returns null when file path is invalid', async () => {
-				const result = await loadMetadata('/dist', '/../escape')
+				const result = await loadMetadata('/../escape')
 				expect(result).toBeNull()
 			})
 		})

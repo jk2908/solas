@@ -13,6 +13,7 @@
 		"format:check": "oxfmt --check .",
 		"test": "npm --prefix packages/solas run test",
 		"release:check": "npm run lint && npm run format:check && npm --prefix packages/solas run prepublishOnly",
+		"release:canary": "node scripts/canary-publish.mjs",
 		"release:version:patch": "npm version patch --workspace @jk2908/solas",
 		"release:version:minor": "npm version minor --workspace @jk2908/solas",
 		"release:version:major": "npm version major --workspace @jk2908/solas"

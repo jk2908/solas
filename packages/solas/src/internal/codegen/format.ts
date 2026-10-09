@@ -16,7 +16,7 @@ const FORMAT_OPTIONS = {
 /**
  * Format generated source before it is written to disk. Falls back to the
  * unformatted content when parsing fails so codegen never blocks on a
- * formatter error
+ * formatter error.
  */
 export async function format(fileName: string, content: string) {
 	const result = await oxfmtFormat(fileName, content, FORMAT_OPTIONS)

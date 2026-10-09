@@ -16,7 +16,7 @@ const HTML_TRAIL = '</body></html>'
 /**
  * Capture only the payload rows that are already buffered in a stream.
  * Used by ppr prerender so the cached prelude carries the static
- * payload, while postponed work is left for request-time resume
+ * payload, while postponed work is left for request-time resume.
  */
 export async function captureBuffered(stream: ReadableStream<Uint8Array>) {
 	const reader = stream.getReader()
@@ -49,7 +49,7 @@ export async function captureBuffered(stream: ReadableStream<Uint8Array>) {
 /**
  * Read the inline payload rows written into the html document. Stays open
  * for the lifetime of the document so ppr resume can keep appending rows
- * without tripping React's connection-closed path
+ * without tripping React's connection-closed path.
  */
 export const rscStream = new ReadableStream<Uint8Array>({
 	start(controller) {
@@ -99,7 +99,7 @@ export const rscStream = new ReadableStream<Uint8Array>({
  * Inject the payload into the outgoing HTML as small inline script pushes. This keeps
  * hydration on the first document load instead of doing a follow-up fetch. HTML still
  * streams through, but the closing body/html tags are held back until the payload
- * is written
+ * is written.
  */
 export function injectPayload(payload: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	const decoder = new TextDecoder()
@@ -179,7 +179,7 @@ export function injectPayload(payload: ReadableStream<Uint8Array>, opts: Opts = 
 /**
  * Turn each payload row into a tiny inline script that pushes into __FLIGHT_DATA.
  * Text rows stay as strings when possible, and binary rows fall back to base64.
- * The browser-side patched push then forwards those rows into the open stream
+ * The browser-side patched push then forwards those rows into the open stream.
  */
 async function writePayload(
 	payload: ReadableStream<Uint8Array>,
@@ -219,7 +219,7 @@ async function writePayload(
 /**
  * Wrap one payload row in a script tag that appends into the shared browser queue.
  * The script stays deliberately small: just push the row and let the patched push
- * do the rest
+ * do the rest.
  */
 function writePayloadScript(
 	chunk: string,

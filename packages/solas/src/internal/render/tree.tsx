@@ -17,7 +17,7 @@ const NOT_FOUND_ERROR = new HttpException(404, 'Not found')
 const SERVER_ERROR = new HttpException(500, 'Internal Server Error')
 
 /**
- * Render the resolved route tree for a matched page
+ * Render the resolved route tree for a matched page.
  *
  * The shell is always `layouts[0]`. Every deeper segment is then wrapped from
  * the inside out in this order:

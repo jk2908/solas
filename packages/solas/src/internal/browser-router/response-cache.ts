@@ -10,7 +10,7 @@ export namespace ResponseCache {
  * It lets a later navigation reuse a prefetched response for the same path,
  * and helps avoid issuing a second fetch when navigation follows shortly
  * after prefetch. Entries are stored by normalised path with TTL and
- * max size eviction
+ * max size eviction.
  */
 export class ResponseCache {
 	#cache = new Map<string, ResponseCache.Entry>()
@@ -25,7 +25,7 @@ export class ResponseCache {
 
 	/**
 	 * Converts a url path to a cache key by normalising it
-	 * against a base url
+	 * against a base url.
 	 */
 	static toCacheKey(path: string, base: string) {
 		try {
@@ -38,7 +38,7 @@ export class ResponseCache {
 	}
 
 	/**
-	 * Evicts the oldest entry from the cache
+	 * Evicts the oldest entry from the cache.
 	 */
 	evict() {
 		if (this.#cache.size === 0) return
@@ -53,7 +53,7 @@ export class ResponseCache {
 	}
 
 	/**
-	 * Returns a boolean indicating whether a cached response exists for the given path
+	 * Returns a boolean indicating whether a cached response exists for the given path.
 	 */
 	has(path: string) {
 		return this.#cache.has(path)
@@ -61,7 +61,7 @@ export class ResponseCache {
 
 	/**
 	 * Retrieves a fresh response promise for the given path if it exists by
-	 * cloning the cached response so each consumer gets an unread stream
+	 * cloning the cached response so each consumer gets an unread stream.
 	 */
 	get(path: string) {
 		const promise = this.#cache.get(path)?.promise
@@ -72,7 +72,7 @@ export class ResponseCache {
 
 	/**
 	 * Caches a response promise for the given path with a timeout to automatically
-	 * clear the cache after a certain period (TTL_MS)
+	 * clear the cache after a certain period (TTL_MS).
 	 */
 	set(path: string, promise: Promise<Response>) {
 		const existing = this.#cache.get(path)
@@ -96,7 +96,7 @@ export class ResponseCache {
 	}
 
 	/**
-	 * Removes the cached response for the given path and clears the associated timeout
+	 * Removes the cached response for the given path and clears the associated timeout.
 	 */
 	remove(path: string) {
 		const cached = this.#cache.get(path)
@@ -107,7 +107,7 @@ export class ResponseCache {
 	}
 
 	/**
-	 * Clears the entire cache and all associated timeouts
+	 * Clears the entire cache and all associated timeouts.
 	 */
 	clear() {
 		for (const entry of this.#cache.values()) {

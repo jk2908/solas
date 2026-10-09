@@ -8,9 +8,19 @@ import type { BuildManifest } from '../types.js'
 import * as Config from '../config.js'
 import * as Manifest from '../manifest.js'
 import * as Prerender from './prerender.js'
-import { Runtime } from './runtimes/runtime.js'
 
 const logger = new Logger()
+
+/**
+ * Overrides the RSC bundle that postbuild imports to prerender routes. Defaults
+ * to `dist/rsc/index.js`; platform adapters that relocate the server bundle (for
+ * example Cloudflare, whose Worker bundle lives under `.cloudflare`) set this.
+ */
+let rscEntryOverride: string | undefined
+
+export function setRscEntry(entry: string) {
+	rscEntryOverride = entry
+}
 
 export async function postbuild(cwd: string = process.cwd()) {
 	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
@@ -28,10 +38,15 @@ export async function postbuild(cwd: string = process.cwd()) {
 	const outDir = path.resolve(cwd, Config.OUT_DIR)
 	const rscDir = path.join(outDir, 'rsc')
 	const artifactRoot = Prerender.getArtifactRootPath(outDir)
+	const staticRoot = path.join(outDir, 'static')
+	const staticMode = manifest.trailingSlash === 'always' ? 'always' : 'never'
 
-	// clear old prerender artifacts so routes that have switched modes
-	// do not keep stale metadata from a previous build
-	await fs.rm(artifactRoot, { recursive: true, force: true })
+	// clear old prerender artifacts and static output so routes that have
+	// switched modes do not keep stale files from a previous build
+	await Promise.all([
+		fs.rm(artifactRoot, { recursive: true, force: true }),
+		fs.rm(staticRoot, { recursive: true, force: true }),
+	])
 
 	const artfifactManifest: Prerender.ArtifactManifest = {}
 
@@ -44,7 +59,8 @@ export async function postbuild(cwd: string = process.cwd()) {
 			`prerendering ${manifest.prerenderRoutes.length} routes (concurrency: ${concurrency})...`,
 		)
 
-		const rscEntry = path.join(rscDir, 'index.js')
+		const rscEntry = rscEntryOverride ?? path.join(rscDir, 'index.js')
+		rscEntryOverride = undefined
 		const { default: app } = await import(/* @vite-ignore */ rscEntry)
 
 		async function enqueueWrite(task: () => Promise<void>) {
@@ -87,8 +103,8 @@ export async function postbuild(cwd: string = process.cwd()) {
 						await fs.mkdir(artifactDir, { recursive: true })
 
 						const writes: Promise<void>[] = [
-							Runtime.write(path.join(artifactDir, 'prelude.html'), artifact.html),
-							Runtime.write(
+							fs.writeFile(path.join(artifactDir, 'prelude.html'), artifact.html),
+							fs.writeFile(
 								path.join(artifactDir, 'metadata.json'),
 								JSON.stringify({
 									schema: artifact.schema,
@@ -101,7 +117,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 
 						if (artifact.postponed !== undefined) {
 							writes.push(
-								Runtime.write(
+								fs.writeFile(
 									path.join(artifactDir, 'postponed.json'),
 									JSON.stringify(artifact.postponed),
 								),
@@ -122,31 +138,19 @@ export async function postbuild(cwd: string = process.cwd()) {
 						return
 					}
 
-					await fs.mkdir(artifactDir, { recursive: true })
+					// full prerenders are emitted at their real route path so a static
+					// asset host can serve them directly, without invoking the server
+					const staticPath = path.join(
+						staticRoot,
+						Prerender.staticRoutePath(route, staticMode),
+					)
 
-					await Promise.all([
-						Runtime.write(
-							path.join(artifactDir, 'metadata.json'),
-							JSON.stringify({
-								schema: artifact.schema,
-								route: artifact.route,
-								createdAt: artifact.createdAt,
-								mode: artifact.mode,
-							}),
-						),
-						Runtime.write(
-							Prerender.getArtifactFilePath(
-								outDir,
-								route,
-								Prerender.FULL_PRERENDER_FILENAME,
-							),
-							artifact.html,
-						),
-					])
+					await fs.mkdir(path.dirname(staticPath), { recursive: true })
+					await fs.writeFile(staticPath, artifact.html)
 
 					artfifactManifest[route] = {
 						mode: artifact.mode,
-						files: ['metadata', 'html'],
+						files: ['html'],
 					}
 
 					logger.info(`[prerender]: ${route} (full)`)
@@ -168,7 +172,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 		publicFiles: manifest.publicFiles,
 	}
 
-	await Runtime.write(Manifest.getManifestPath(outDir), JSON.stringify(runtimeManifest))
+	await fs.writeFile(Manifest.getManifestPath(outDir), JSON.stringify(runtimeManifest))
 
 	if (manifest.sitemapRoutes.length > 0 && manifest.url) {
 		const origin = manifest.url.replace(/\/$/, '')
@@ -183,7 +187,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 			'</urlset>',
 		].join('\n')
 
-		await Runtime.write(path.join(outDir, 'sitemap.xml'), sitemap)
+		await fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap)
 		logger.info('[sitemap]', `generated ${manifest.sitemapRoutes.length} urls`)
 	}
 
@@ -204,21 +208,20 @@ export async function postbuild(cwd: string = process.cwd()) {
 
 				const normalisedPath = relativePath.split(path.sep).join('/')
 
-				// only browser-served client/public files benefit from generic precompression
-				if (normalisedPath.startsWith('client/')) {
+				// browser-served client assets and static prerendered routes benefit
+				// from generic precompression; internal ppr support files are read by
+				// the server rather than served raw to browsers
+				if (
+					normalisedPath.startsWith('client/') ||
+					normalisedPath.startsWith('static/')
+				) {
 					return /\.(js|css|html|svg|json|txt)$/.test(normalisedPath)
 				}
 
-				// full prerendered html is served straight from disk, but internal ppr
-				// support files like prelude/metadata/postponed are read by the server
-
-				return (
-					normalisedPath.startsWith(`${Config.GENERATED_DIR}/ppr/`) &&
-					normalisedPath.endsWith(`/${Prerender.FULL_PRERENDER_FILENAME}`)
-				)
+				return false
 			},
 		})) {
-			await Runtime.write(`${input}.br`, compressed)
+			await fs.writeFile(`${input}.br`, compressed)
 			logger.info('[precompress]', `${path.basename(input)}.br`)
 		}
 	}

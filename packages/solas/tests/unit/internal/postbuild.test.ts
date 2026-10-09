@@ -14,17 +14,6 @@ vi.mock('node:fs/promises', () => ({
 	},
 }))
 
-vi.mock('../../../src/internal/runtimes/runtime.js', () => ({
-	Runtime: {
-		write: vi.fn(),
-		exists: vi.fn(),
-		readText: vi.fn(),
-		hash: vi.fn(() => 'hash'),
-		mimeType: vi.fn(() => 'text/plain'),
-		readBuffer: vi.fn(),
-	},
-}))
-
 import { postbuild } from '../../../src/internal/postbuild.js'
 
 describe('postbuild', () => {

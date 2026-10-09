@@ -11,7 +11,7 @@ import {
 } from './utils.js'
 
 /**
- * Generates the import map for all route components, endpoints, layouts, shells, and middlewares
+ * Generates the import map for all route components, endpoints, layouts, shells, and middlewares.
  */
 export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 	const statics = [

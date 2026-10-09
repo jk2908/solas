@@ -39,7 +39,7 @@ class Boundary extends Component<
 
 /**
  * A component that catches redirect errors in its child component tree and performs
- * a client-side redirect using a meta refresh tag
+ * a client-side redirect using a meta refresh tag.
  */
 export function RedirectBoundary({ children }: { children: React.ReactNode }) {
 	return (

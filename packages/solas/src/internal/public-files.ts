@@ -6,7 +6,7 @@ import * as Config from '../config.js'
 /**
  * Collect the root request paths for files that originate in Vite's public dir.
  * Vite copies these files into the built client output unchanged. Solas stores
- * the request paths here so runtime serving can whitelist them
+ * the request paths here so runtime serving can whitelist them.
  *
  * @example
  * ```ts

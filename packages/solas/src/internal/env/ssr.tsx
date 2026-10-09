@@ -45,7 +45,7 @@ function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
 }
 
 /**
- * SSR handler - returns a ReadableStream response for HTML requests
+ * SSR handler - returns a ReadableStream response for HTML requests.
  */
 async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	const { formState, nonce, ppr = false } = opts
@@ -93,8 +93,8 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 }
 
 /**
- * Build-time prerender artifact generation
- * @description for PPR routes this returns static prelude HTML + opaque postponed state
+ * Build-time prerender artifact generation.
+ * @description For PPR routes this returns static prelude HTML + opaque postponed state.
  */
 async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	const { ppr = false, nonce, route } = opts
@@ -195,7 +195,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 }
 
 /**
- * Request-time resume for PPR routes
+ * Request-time resume for PPR routes.
  */
 async function resume(
 	rscStream: ReadableStream<Uint8Array>,

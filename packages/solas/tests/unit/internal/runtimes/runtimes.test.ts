@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest'
 
+import { hash } from '../../../../src/utils/hash.js'
+
+import { nodeAssets } from '../../../../src/internal/runtimes/assets.js'
 import { getMimeTypeFromPath } from '../../../../src/internal/runtimes/mime.js'
-import { Runtime } from '../../../../src/internal/runtimes/runtime.js'
 
 describe('getMimeTypeFromPath', () => {
 	it('returns correct MIME types', () => {
@@ -34,14 +36,26 @@ describe('getMimeTypeFromPath', () => {
 	})
 })
 
-describe('Runtime hash', () => {
+describe('hash', () => {
 	it('produces a deterministic 16-char hex hash', () => {
-		const h1 = Runtime.hash('hello')
-		const h2 = Runtime.hash('hello')
-		const h3 = Runtime.hash('world')
+		const h1 = hash('hello')
+		const h2 = hash('hello')
+		const h3 = hash('world')
 
 		expect(h1).toBe(h2)
 		expect(h1).not.toBe(h3)
 		expect(h1).toMatch(/^[0-9a-f]{16}$/)
+	})
+})
+
+describe('nodeAssets', () => {
+	it('reports missing files', async () => {
+		expect(
+			await nodeAssets.exists({ namespace: 'client', path: 'not/a/real/file.txt' }),
+		).toBe(false)
+	})
+
+	it('exposes a mime type lookup', () => {
+		expect(nodeAssets.mimeType?.('/app.js')).toContain('text/javascript')
 	})
 })

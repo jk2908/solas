@@ -3,7 +3,7 @@ import * as Config from '../../config.js'
 import { AUTOGEN_MSG, source, toSourceLiteral } from './utils.js'
 
 /**
- * Generates the code to create an exported manifest object
+ * Generates the code to create an exported manifest object.
  */
 export function writeManifest(manifest: Manifest) {
 	return source`

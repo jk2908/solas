@@ -68,7 +68,7 @@ function mergeMiddlewares(
 }
 
 /**
- * Create the HTTP router from the generated manifest and import map
+ * Create the HTTP router from the generated manifest and import map.
  */
 export function createHttpRouter(
 	config: Pick<PluginConfig, 'trailingSlash' | 'trustedOrigins' | 'url'>,
