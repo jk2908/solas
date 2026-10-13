@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2
+
+### Fixes
+
+- The Cloudflare adapter copies `dist/sitemap.xml` to the asset root, so `/sitemap.xml` is served. It was generated at the output root but never copied into the deployed assets.
+
 ## 0.8.1
 
 ### Fixes

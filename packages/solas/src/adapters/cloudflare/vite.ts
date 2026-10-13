@@ -74,11 +74,13 @@ async function findAssetDirs(root: string, found: string[] = []) {
  *   renders RSC otherwise
  * - `dist/.solas/**` (runtime manifest + ppr artifacts) at `<prefix>`, read back
  *   through the `ASSETS` binding
+ * - `dist/sitemap.xml` at the asset root, so `/sitemap.xml` is served
  */
 async function copyOutput(cwd: string) {
 	const outDir = path.join(cwd, Config.OUT_DIR)
 	const artifactSource = path.join(outDir, Config.GENERATED_DIR)
 	const staticSource = path.join(outDir, 'static')
+	const sitemapSource = path.join(outDir, 'sitemap.xml')
 
 	const assetDirs = await findAssetDirs(path.join(cwd, '.cloudflare', 'output'))
 
@@ -103,6 +105,11 @@ async function copyOutput(cwd: string) {
 				force: true,
 				filter: skipPrecompressed,
 			})
+		}
+
+		// the sitemap is generated at the output root; serve it at the asset root
+		if (await pathExists(sitemapSource)) {
+			await fs.copyFile(sitemapSource, path.join(assetDir, 'sitemap.xml'))
 		}
 	}
 }
