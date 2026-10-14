@@ -11,7 +11,7 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 import { HttpRouter } from '../../../../src/internal/http-router/router.js'
 import {
 	getAlternatePathname,
-	normalisePathname,
+	normaliseTrailingSlash,
 	toPathPattern,
 } from '../../../../src/internal/http-router/utils.js'
 import { nodeAssets } from '../../../../src/internal/runtimes/assets.js'
@@ -44,15 +44,16 @@ describe('toPathPattern', () => {
 	})
 })
 
-describe('normalisePathname', () => {
-	it('preserves root', () => expect(normalisePathname('/')).toBe('/'))
+describe('normaliseTrailingSlash', () => {
+	it('preserves root', () => expect(normaliseTrailingSlash('/')).toBe('/'))
 	it('strips trailing slash with "never"', () =>
-		expect(normalisePathname('/about/', 'never')).toBe('/about'))
+		expect(normaliseTrailingSlash('/about/', 'never')).toBe('/about'))
 	it('adds trailing slash with "always"', () =>
-		expect(normalisePathname('/about', 'always')).toBe('/about/'))
+		expect(normaliseTrailingSlash('/about', 'always')).toBe('/about/'))
 	it('passes through with "ignore"', () =>
-		expect(normalisePathname('/about/', 'ignore')).toBe('/about/'))
-	it('defaults to "never"', () => expect(normalisePathname('/about/')).toBe('/about'))
+		expect(normaliseTrailingSlash('/about/', 'ignore')).toBe('/about/'))
+	it('defaults to "never"', () =>
+		expect(normaliseTrailingSlash('/about/')).toBe('/about'))
 })
 
 describe('getAlternatePathname', () => {

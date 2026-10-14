@@ -12,7 +12,7 @@ import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
-import { normalisePathname } from '../http-router/utils.js'
+import { normaliseTrailingSlash } from '../http-router/utils.js'
 import { Metadata } from '../metadata.js'
 import {
 	HttpException,
@@ -346,7 +346,7 @@ export function createHandler(
 
 		const mod = await import.meta.viteRsc.loadModule<SSRModule>('ssr', 'index')
 		const pathname = new URL(req.url).pathname
-		const lookupPath = normalisePathname(pathname, prerenderPathMode)
+		const lookupPath = normaliseTrailingSlash(pathname, prerenderPathMode)
 		const runtimePpr = !import.meta.env.DEV && ppr
 
 		async function tryErrorRecovery(err: unknown) {
@@ -508,108 +508,135 @@ export function createHandler(
 		}
 	}
 
-	const httpRouter = createHttpRouter(config, manifest, importMap, createResponse)
+	/**
+	 * Serve the saved HTML for a fully prerendered route. Runs as the route
+	 * handler, after middleware, so middleware applies to static routes too. It
+	 * returns null for anything else (a route without a saved prerender, an RSC
+	 * navigation, or a request without an HTML accept header), so the caller
+	 * falls back to rendering.
+	 */
+	async function serveFullPrerender(req: Request) {
+		if (import.meta.env.DEV) return null
+		if (!(req.headers.get('accept') ?? '').includes('text/html')) return null
+		if (req.headers.get(`x-${Config.SLUG}-prerender-artifact`) === '1') return null
+		if (!runtimeManifest) return null
+
+		const routedPath = stripBasePath(new URL(req.url).pathname, BASE_PATH)
+		if (routedPath == null) return null
+
+		const lookupPath = normaliseTrailingSlash(routedPath, prerenderPathMode)
+
+		if (runtimeManifest.artifacts[lookupPath]?.mode !== 'full') return null
+
+		const res = await HttpRouter.serveStatic(
+			assets,
+			{
+				namespace: 'static',
+				path: Prerender.staticRoutePath(lookupPath, prerenderPathMode),
+			},
+			req,
+			config.precompress,
+			{
+				// fully prerendered routes are immutable per build, so allow them
+				// to be cached and revalidated instead of forcing no-store
+				'Cache-Control': 'public, max-age=0, must-revalidate',
+				'Content-Type': 'text/html; charset=utf-8',
+			},
+		)
+
+		return res.status === 404 ? null : res
+	}
+
+	const httpRouter = createHttpRouter(
+		config,
+		manifest,
+		importMap,
+		createResponse,
+		serveFullPrerender,
+	)
+
+	/**
+	 * Add the configured `headers` to a response. Clones the response so
+	 * immutable ones (redirects, cached assets) can still be augmented.
+	 */
+	async function withHeaders(res: Response, req: Request) {
+		if (!config.headers) return res
+
+		const entries =
+			typeof config.headers === 'function' ? await config.headers(req) : config.headers
+		const headers = new Headers(res.headers)
+
+		for (const [key, value] of Object.entries(entries)) headers.set(key, value)
+
+		return new Response(res.body, {
+			status: res.status,
+			statusText: res.statusText,
+			headers,
+		})
+	}
+
+	async function dispatch(req: Request) {
+		const url = new URL(req.url)
+		const method = req.method.toUpperCase()
+
+		// fast path
+		if (method !== 'GET' && method !== 'HEAD') return httpRouter.fetch(req)
+
+		const routedPath = stripBasePath(url.pathname, BASE_PATH)
+		const canonicalPath =
+			routedPath == null
+				? null
+				: config.trailingSlash === 'ignore'
+					? routedPath
+					: normaliseTrailingSlash(routedPath, config.trailingSlash)
+		const canonicalPathname =
+			canonicalPath == null ? null : applyBasePath(canonicalPath, BASE_PATH)
+
+		if (
+			canonicalPathname != null &&
+			(method === 'GET' || method === 'HEAD') &&
+			config.trailingSlash !== 'ignore' &&
+			canonicalPathname !== url.pathname
+		) {
+			url.pathname = canonicalPathname
+			return Response.redirect(url.toString(), 308)
+		}
+
+		// block the bare /_solas namespace; only concrete solas asset files
+		// under /_solas/* are valid
+		if (routedPath === SOLAS_ASSETS_URL_ROOT) {
+			return new Response('Forbidden', { status: 403 })
+		}
+
+		if (routedPath?.startsWith(`${SOLAS_ASSETS_URL_ROOT}/`)) {
+			const asset = toClientAsset(
+				`${Config.ASSETS_DIR}/${routedPath.slice(`${SOLAS_ASSETS_URL_ROOT}/`.length)}`,
+			)
+
+			// pass through bad-request or forbidden responses from path resolution
+			if (asset instanceof Response) return asset
+
+			return HttpRouter.serveStatic(assets, asset, req, config.precompress, {
+				'Cache-Control': 'public, immutable, max-age=31536000',
+			})
+		}
+
+		if (routedPath && runtimeManifest?.publicFiles.has(routedPath)) {
+			const asset = toClientAsset(routedPath.slice(1))
+
+			// pass through bad-request or forbidden responses from path resolution
+			if (asset instanceof Response) return asset
+
+			return HttpRouter.serveStatic(assets, asset, req, config.precompress)
+		}
+
+		return httpRouter.fetch(req)
+	}
 
 	// vite-plugin-rsc entrypoint
 	return {
 		async fetch(req: Request) {
-			const url = new URL(req.url)
-			const method = req.method.toUpperCase()
-
-			// fast path
-			if (method !== 'GET' && method !== 'HEAD') return httpRouter.fetch(req)
-
-			const accept = req.headers.get('accept') ?? ''
-			const routedPath = stripBasePath(url.pathname, BASE_PATH)
-			const canonicalPath =
-				routedPath == null
-					? null
-					: config.trailingSlash === 'ignore'
-						? routedPath
-						: normalisePathname(routedPath, config.trailingSlash)
-			const canonicalPathname =
-				canonicalPath == null ? null : applyBasePath(canonicalPath, BASE_PATH)
-
-			if (
-				canonicalPathname != null &&
-				(method === 'GET' || method === 'HEAD') &&
-				config.trailingSlash !== 'ignore' &&
-				canonicalPathname !== url.pathname
-			) {
-				url.pathname = canonicalPathname
-				return Response.redirect(url.toString(), 308)
-			}
-
-			// block the bare /_solas namespace; only concrete solas asset files
-			// under /_solas/* are valid
-			if (routedPath === SOLAS_ASSETS_URL_ROOT) {
-				return new Response('Forbidden', { status: 403 })
-			}
-
-			if (routedPath?.startsWith(`${SOLAS_ASSETS_URL_ROOT}/`)) {
-				const asset = toClientAsset(
-					`${Config.ASSETS_DIR}/${routedPath.slice(`${SOLAS_ASSETS_URL_ROOT}/`.length)}`,
-				)
-
-				// pass through bad-request or forbidden responses from path resolution
-				if (asset instanceof Response) return asset
-
-				return HttpRouter.serveStatic(assets, asset, req, config.precompress, {
-					'Cache-Control': 'public, immutable, max-age=31536000',
-				})
-			}
-
-			if (routedPath && runtimeManifest?.publicFiles.has(routedPath)) {
-				const asset = toClientAsset(routedPath.slice(1))
-
-				// pass through bad-request or forbidden responses from path resolution
-				if (asset instanceof Response) return asset
-
-				return HttpRouter.serveStatic(assets, asset, req, config.precompress)
-			}
-
-			// fully prerendered html can be served straight from disk for normal
-			// document requests, but build-time artifact requests must bypass
-			// this shortcut so they still render fresh output
-			if (
-				canonicalPath != null &&
-				!import.meta.env.DEV &&
-				accept.includes('text/html') &&
-				req.headers.get(`x-${Config.SLUG}-prerender-artifact`) !== '1'
-			) {
-				// turn the request path into the normal route shape we use for artifact lookups
-				const lookupPath = normalisePathname(canonicalPath, prerenderPathMode)
-
-				// only full prerender routes have a saved html file we can serve directly
-				const staticAsset: AssetRef | null =
-					runtimeManifest?.artifacts[lookupPath]?.mode === 'full'
-						? {
-								namespace: 'static',
-								path: Prerender.staticRoutePath(lookupPath, prerenderPathMode),
-							}
-						: null
-
-				if (staticAsset) {
-					const res = await HttpRouter.serveStatic(
-						assets,
-						staticAsset,
-						req,
-						config.precompress,
-						{
-							// fully prerendered routes are immutable per build, so allow them
-							// to be cached and revalidated instead of forcing no-store
-							'Cache-Control': 'public, max-age=0, must-revalidate',
-							'Content-Type': 'text/html; charset=utf-8',
-						},
-					)
-
-					// only a missing prerendered file should fall back to normal request handling
-					// any other static-file response should be returned as-is
-					if (res.status !== 404) return res
-				}
-			}
-
-			return httpRouter.fetch(req)
+			return withHeaders(await dispatch(req), req)
 		},
 	}
 }

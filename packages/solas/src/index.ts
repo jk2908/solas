@@ -47,36 +47,24 @@ const DEFAULT_CONFIG = {
 } as const satisfies Partial<PluginConfig>
 
 /**
- * Validate a configured url and return its canonical origin (scheme and host,
- * without a trailing slash or path). Throws when it is not a http(s) origin.
+ * Parse a validated url into its canonical origin (scheme and host, without a
+ * trailing slash or path).
  */
-function resolveOrigin(value: string | undefined): Origin | undefined {
+function normaliseOrigin(value: string | undefined): Origin | undefined {
 	if (!value) return undefined
 
-	let url: URL
-
-	try {
-		url = new URL(value)
-	} catch {
-		throw new Error(`[solas] Invalid url: "${value}"`)
-	}
-
-	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-		throw new Error(`[solas] url must use http:// or https://: "${value}"`)
-	}
-
-	return url.origin as Origin
+	return new URL(value).origin as Origin
 }
 
 function solas(c?: PluginConfig): PluginOption[] {
-	const validatedConfig = Config.validate(c)
+	const envUrl = process.env.VITE_APP_URL?.toString()
+	const validatedConfig = Config.validate(c, envUrl)
 	const config: ConfiguredPluginConfig = {
 		...DEFAULT_CONFIG,
 		...validatedConfig,
 	}
 
-	const envUrl = process.env.VITE_APP_URL?.toString()
-	let resolvedUrl = resolveOrigin(c?.url) ?? resolveOrigin(envUrl)
+	let resolvedUrl = normaliseOrigin(c?.url) ?? normaliseOrigin(envUrl)
 
 	if (config.logger?.level) Logger.defaultLevel = config.logger.level
 

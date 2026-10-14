@@ -167,12 +167,10 @@ export async function postbuild(cwd: string = process.cwd()) {
 
 	await fs.mkdir(artifactRoot, { recursive: true })
 
-	const runtimeManifest = {
-		artifacts: artfifactManifest,
-		publicFiles: manifest.publicFiles,
-	}
-
-	await fs.writeFile(Manifest.getManifestPath(outDir), JSON.stringify(runtimeManifest))
+	// generated files served at the root: written to the output root (for the
+	// asset layer) and into the client output (for the Node server), then listed
+	// as public files so every runtime serves them
+	const generatedPublicFiles: string[] = []
 
 	if (manifest.sitemapRoutes.length > 0 && manifest.url) {
 		const origin = manifest.url.replace(/\/$/, '')
@@ -187,9 +185,43 @@ export async function postbuild(cwd: string = process.cwd()) {
 			'</urlset>',
 		].join('\n')
 
-		await fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap)
+		// point robots.txt at the sitemap, unless the app ships its own
+		const robots = manifest.publicFiles.some(
+			file => file.replace(/^\//, '') === 'robots.txt',
+		)
+			? null
+			: ['User-agent: *', 'Allow: /', '', `Sitemap: ${origin}/sitemap.xml`, ''].join('\n')
+
+		const clientDir = path.join(outDir, 'client')
+		await fs.mkdir(clientDir, { recursive: true })
+
+		const writes = [
+			fs.writeFile(path.join(outDir, 'sitemap.xml'), sitemap),
+			fs.writeFile(path.join(clientDir, 'sitemap.xml'), sitemap),
+		]
+
+		generatedPublicFiles.push('/sitemap.xml')
 		logger.info('[sitemap]', `generated ${manifest.sitemapRoutes.length} urls`)
+
+		if (robots) {
+			writes.push(
+				fs.writeFile(path.join(outDir, 'robots.txt'), robots),
+				fs.writeFile(path.join(clientDir, 'robots.txt'), robots),
+			)
+
+			generatedPublicFiles.push('/robots.txt')
+			logger.info('[robots]', 'generated robots.txt')
+		}
+
+		await Promise.all(writes)
 	}
+
+	const runtimeManifest = {
+		artifacts: artfifactManifest,
+		publicFiles: [...manifest.publicFiles, ...generatedPublicFiles],
+	}
+
+	await fs.writeFile(Manifest.getManifestPath(outDir), JSON.stringify(runtimeManifest))
 
 	if (manifest.precompress) {
 		logger.info('[precompress]', 'compressing assets...')

@@ -41,15 +41,27 @@ function toSafeUsable(metadata: Collection.Item | Promise<Collection.Item>) {
  */
 export function Head({
 	metadata: m,
+	url,
 }: {
 	metadata?: Collection.Item | Promise<Collection.Item>
+	url?: { pathname: string }
 }) {
 	if (!m) return null
 	const metadata = use(toSafeUsable(m))
 
+	// canonical url from the resolved origin and the request path, unless the
+	// route already declares one of its own
+	const origin: string | undefined = import.meta.env.VITE_APP_URL
+	const canonical =
+		origin && url && !metadata.link?.some(link => link.rel === 'canonical')
+			? new URL(url.pathname, origin).toString()
+			: null
+
 	return (
 		<>
 			<meta name="generator" content={Config.NAME} />
+
+			{canonical && <link rel="canonical" href={canonical} />}
 
 			{toContent(metadata.title) !== undefined && (
 				<title>{toContent(metadata.title)}</title>

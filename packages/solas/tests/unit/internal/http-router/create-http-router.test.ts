@@ -101,4 +101,62 @@ describe('createHttpRouter', () => {
 		}
 		expect(() => createHttpRouter({}, manifest, {}, rsc)).toThrow('missing page entry')
 	})
+
+	it('runs middleware before serving a full prerender', async () => {
+		const order: string[] = []
+
+		const middleware: HttpRouter.Middleware = async (_req, next) => {
+			order.push('middleware')
+
+			const res = await next()
+			res.headers.set('x-middleware', 'ran')
+
+			return res
+		}
+
+		const servePrerender = vi.fn(async () => {
+			order.push('prerender')
+			return new Response('static')
+		})
+
+		const manifest: any = { '/about': [pageEntry('/about')] }
+		const importMap: any = { about: { middlewares: [middleware] } }
+
+		const router = createHttpRouter({}, manifest, importMap, rsc, servePrerender)
+		const res = await router.fetch(
+			new Request('https://example.com/about', { headers: { accept: 'text/html' } }),
+		)
+
+		expect(order).toEqual(['middleware', 'prerender'])
+		expect(await res.text()).toBe('static')
+		expect(res.headers.get('x-middleware')).toBe('ran')
+	})
+
+	it('lets a short-circuiting middleware win over a prerender', async () => {
+		const middleware: HttpRouter.Middleware = () =>
+			new Response('blocked', { status: 403 })
+		const servePrerender = vi.fn(async () => new Response('static'))
+
+		const manifest: any = { '/about': [pageEntry('/about')] }
+		const importMap: any = { about: { middlewares: [middleware] } }
+
+		const router = createHttpRouter({}, manifest, importMap, rsc, servePrerender)
+		const res = await router.fetch(new Request('https://example.com/about'))
+
+		expect(res.status).toBe(403)
+		expect(servePrerender).not.toHaveBeenCalled()
+	})
+
+	it('renders rsc when there is no prerender to serve', async () => {
+		const servePrerender = vi.fn(async () => null)
+
+		const manifest: any = { '/about': [pageEntry('/about')] }
+		const importMap: any = { about: { middlewares: [] } }
+
+		const router = createHttpRouter({}, manifest, importMap, rsc, servePrerender)
+		const res = await router.fetch(new Request('https://example.com/about'))
+
+		expect(await res.text()).toBe('rsc')
+		expect(servePrerender).toHaveBeenCalledOnce()
+	})
 })

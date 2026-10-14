@@ -261,6 +261,8 @@ export default defineConfig({
 })
 ```
 
+Beyond sitemap URLs, the resolved origin is used to write a `<link rel="canonical">` into each document's head (unless a route declares its own canonical link in `metadata`).
+
 ### `precompress`
 
 Use `precompress` to control whether Solas writes compressed browser-served build assets (like `.js`, `.css`, etc.).
@@ -449,6 +451,33 @@ export default defineConfig({
 
 Only add origins you completely trust.
 
+### `headers`
+
+Use `headers` to add response headers to every response Solas serves: documents, RSC payloads, endpoints, and static assets. This is where security headers belong.
+
+```ts
+solas({
+	headers: {
+		'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+		'X-Content-Type-Options': 'nosniff',
+		'Referrer-Policy': 'strict-origin-when-cross-origin',
+		'Content-Security-Policy': "default-src 'self'",
+	},
+})
+```
+
+Pass a function to vary the headers per request, for example a per-request CSP nonce:
+
+```ts
+solas({
+	headers: req => ({
+		'Content-Security-Policy': `default-src 'self'; script-src 'nonce-${nonce(req)}'`,
+	}),
+})
+```
+
+The function can be async. Configured headers win over any header Solas sets.
+
 ### `sitemap`
 
 Use `sitemap` to generate a `sitemap.xml` at build time.
@@ -495,7 +524,7 @@ sitemap: {
 }
 ```
 
-The sitemap is written to the build output directory as `sitemap.xml` after prerendering and before precompression.
+The sitemap is written to the build output directory as `sitemap.xml` after prerendering and before precompression, and served at `/sitemap.xml`. When enabled, Solas also writes a `robots.txt` (served at `/robots.txt`) that points at the sitemap, unless a `robots.txt` is provided in the public directory.
 
 ### `logger.level`
 

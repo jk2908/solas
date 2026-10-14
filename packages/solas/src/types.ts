@@ -16,6 +16,16 @@ export type LogLevel = (typeof Config.LOG_LEVELS)[number]
 export type Origin = `http://${string}` | `https://${string}`
 
 /**
+ * Response headers to add to every response Solas serves. A function form
+ * receives the request, for headers that depend on it (for example a
+ * per-request CSP nonce).
+ */
+export type HeaderEntries = Record<string, string>
+export type HeadersInput =
+	| HeaderEntries
+	| ((req: Request) => HeaderEntries | Promise<HeaderEntries>)
+
+/**
  * A platform deployment adapter. Solas registers `plugins` alongside its own,
  * so adapters are configured here instead of being spread into the Vite plugins
  * array.
@@ -31,6 +41,7 @@ type PluginConfigBase = {
 	metadata?: Metadata.Item
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 	trustedOrigins?: readonly string[]
+	headers?: HeadersInput
 	adapter?: Adapter
 	readonly logger?: {
 		level?: LogLevel

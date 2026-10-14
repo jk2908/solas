@@ -97,7 +97,9 @@ export function writeMaps(imports: Build.Imports, modules: Build.Modules) {
 		return `${toStringLiteral(moduleId)}: {\n${parts.map(part => indent(part, 1)).join(',\n')}\n}`
 	})
 
-	const importLines = [...statics, ...dynamics].join('\n')
+	const importLines = [statics.join('\n'), dynamics.join('\n')]
+		.filter(Boolean)
+		.join('\n\n')
 	const entries = map.map(entry => indent(entry, 1)).join(',\n')
 
 	return source`

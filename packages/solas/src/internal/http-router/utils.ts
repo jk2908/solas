@@ -58,15 +58,17 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
 /**
  * Apply the configured trailing-slash policy to a pathname.
  */
-export function normalisePathname(
+export function normaliseTrailingSlash(
 	pathname: string,
 	trailingSlash: PluginConfig['trailingSlash'] = 'never',
 ) {
 	if (pathname === '/') return pathname
 	// ignore mode keeps the incoming pathname shape as-is
 	if (trailingSlash === 'ignore') return pathname
-	if (trailingSlash === 'always')
+
+	if (trailingSlash === 'always') {
 		return pathname.endsWith('/') ? pathname : `${pathname}/`
+	}
 
 	return pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
 }

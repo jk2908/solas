@@ -19,9 +19,7 @@ export function getManifestPath(outDir: string) {
 		.join('/')
 }
 
-export async function loadManifest(
-	assets: Assets = nodeAssets,
-): Promise<Manifest | null> {
+export async function loadManifest(assets: Assets = nodeAssets) {
 	const asset = { namespace: 'artifact', path: Config.RUNTIME_MANIFEST } as const
 
 	if (!(await assets.exists(asset))) return null

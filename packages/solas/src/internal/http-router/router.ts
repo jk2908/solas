@@ -8,7 +8,7 @@ import * as Config from '../../config.js'
 import { HttpException } from '../navigation/http-exception.js'
 import { maybeAction } from '../server/actions.js'
 import { CsrfConfig, enforce } from '../server/csrf.js'
-import { getAlternatePathname, normalisePathname, toPathPattern } from './utils.js'
+import { getAlternatePathname, normaliseTrailingSlash, toPathPattern } from './utils.js'
 
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 
@@ -125,7 +125,7 @@ export class HttpRouter {
 		// uses the same pathname shape
 		const routePath =
 			!path.includes(':') && !path.includes('*')
-				? normalisePathname(path, this.opts.trailingSlash ?? 'never')
+				? normaliseTrailingSlash(path, this.opts.trailingSlash ?? 'never')
 				: path
 		const segments = HttpRouter.#split(routePath)
 		const tokens: HttpRouter.Token[] = []
@@ -269,7 +269,7 @@ export class HttpRouter {
 				? null
 				: trailingSlash === 'ignore'
 					? routedPath
-					: normalisePathname(routedPath, trailingSlash)
+					: normaliseTrailingSlash(routedPath, trailingSlash)
 		let match: HttpRouter.Match | null = null
 		let action = false
 

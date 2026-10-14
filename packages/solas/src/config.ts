@@ -20,6 +20,7 @@ export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
 const CONFIG_KEYS = new Set([
 	'adapter',
+	'headers',
 	'logger',
 	'metadata',
 	'precompress',
@@ -36,7 +37,24 @@ const LOGGER_KEYS = new Set(['level'])
  * @param input - The unvalidated configuration object.
  * @returns The typed and validated configuration object.
  */
-export function validate(input: unknown) {
+function validateOrigin(value: unknown, label: string, errors: string[]) {
+	if (typeof value !== 'string') {
+		errors.push(`${label} must be a string`)
+		return
+	}
+
+	try {
+		const url = new URL(value)
+
+		if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+			errors.push(`${label} must use http:// or https://`)
+		}
+	} catch {
+		errors.push(`${label} must be a valid URL`)
+	}
+}
+
+export function validate(input: unknown, envUrl?: string) {
 	if (input === undefined) return {} satisfies PluginConfig
 
 	const errors: string[] = []
@@ -52,19 +70,11 @@ export function validate(input: unknown) {
 	}
 
 	if ('url' in input && input.url !== undefined) {
-		if (typeof input.url !== 'string') {
-			errors.push('url must be a string')
-		} else {
-			try {
-				const url = new URL(input.url)
+		validateOrigin(input.url, 'url', errors)
+	}
 
-				if (url.protocol !== 'http:' && url.protocol !== 'https:') {
-					errors.push('url must use http:// or https://')
-				}
-			} catch {
-				errors.push('url must be a valid URL')
-			}
-		}
+	if (envUrl !== undefined && envUrl.length > 0) {
+		validateOrigin(envUrl, 'VITE_APP_URL', errors)
 	}
 
 	if ('adapter' in input && input.adapter !== undefined) {
@@ -82,6 +92,12 @@ export function validate(input: unknown) {
 	if ('precompress' in input && input.precompress !== undefined) {
 		if (typeof input.precompress !== 'boolean') {
 			errors.push('precompress must be a boolean')
+		}
+	}
+
+	if ('headers' in input && input.headers !== undefined) {
+		if (typeof input.headers !== 'function' && !isRecord(input.headers)) {
+			errors.push('headers must be an object or a function that returns one')
 		}
 	}
 

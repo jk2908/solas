@@ -15,7 +15,7 @@ import type {
 	Segment,
 } from '../types.js'
 import * as Config from '../config.js'
-import { normalisePathname } from './http-router/utils.js'
+import { normaliseTrailingSlash } from './http-router/utils.js'
 import * as Prerender from './prerender.js'
 
 /**
@@ -673,7 +673,7 @@ export class Finder {
 				// expand using the page's exported static params
 				if (shouldPrerender) {
 					if (!isDynamic && !isWildcard) {
-						prerenderRoutes.add(normalisePathname(route, trailingSlash))
+						prerenderRoutes.add(normaliseTrailingSlash(route, trailingSlash))
 					} else if (pagePath) {
 						const staticParams = await Prerender.getStaticParams(
 							pagePath,
@@ -681,7 +681,7 @@ export class Finder {
 						)
 
 						for (const r of Prerender.getDynamicRouteList(route, params, staticParams)) {
-							prerenderRoutes.add(normalisePathname(r, trailingSlash))
+							prerenderRoutes.add(normaliseTrailingSlash(r, trailingSlash))
 						}
 					}
 				}
@@ -689,7 +689,7 @@ export class Finder {
 				// track all concrete routes regardless of prerender mode
 				// so the sitemap can include ssr-only pages too
 				if (!isDynamic && !isWildcard) {
-					knownRoutes.add(normalisePathname(route, trailingSlash))
+					knownRoutes.add(normaliseTrailingSlash(route, trailingSlash))
 				}
 
 				const entry: Segment = {

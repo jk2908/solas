@@ -75,6 +75,7 @@ export function createHttpRouter(
 	manifest: Manifest,
 	importMap: ImportMap,
 	rsc: (req: SolasRequest) => Response | Promise<Response>,
+	serveFullPrerender?: (req: Request) => Promise<Response | null>,
 ) {
 	const router = new HttpRouter({
 		trailingSlash: config.trailingSlash,
@@ -91,14 +92,16 @@ export function createHttpRouter(
 				router.add(
 					group.__path,
 					group.method.toUpperCase(),
-					req => rsc(req),
+					async req => (await serveFullPrerender?.(req)) ?? rsc(req),
 					group.__params,
 					resolveMiddlewares(group, importMap),
 				)
+
 				continue
 			}
 
 			const endpoint = importMap[group.__id]?.endpoint
+
 			if (!endpoint) {
 				throw new Error(`Missing endpoint handler for ${group.__id}`)
 			}
@@ -112,6 +115,7 @@ export function createHttpRouter(
 				group.__params,
 				resolveMiddlewares(group, importMap),
 			)
+
 			continue
 		}
 
@@ -139,7 +143,7 @@ export function createHttpRouter(
 				const accept = req.headers.get('accept') ?? ''
 
 				if (accept.includes('text/html') || accept.includes('text/x-component')) {
-					return rsc(req)
+					return (await serveFullPrerender?.(req)) ?? rsc(req)
 				}
 
 				if (!endpoint) {

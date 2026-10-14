@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0
+
+### Features
+
+- Added a `headers` config option to add response headers to every response Solas serves, for security headers (CSP, HSTS, and so on). Pass an object, or a function for per-request values.
+- Solas now writes a `<link rel="canonical">` into each document's head, built from the resolved `url` origin and the request path. A route can override it by declaring its own canonical link in `metadata`.
+- When `sitemap` is enabled, Solas also generates a `robots.txt` pointing at the sitemap, unless the app ships its own.
+
+### Fixes
+
+- Middleware now runs for fully prerendered routes. The prerender shortcut used to run before routing, so `+middleware.ts` was skipped on static routes.
+- `url` and `VITE_APP_URL` are validated with the rest of the config (collected with the other errors) instead of throwing on invalid values.
+- Generated `maps.ts` now separates its static imports from its dynamic exports with a blank line.
+- The generated `sitemap.xml` and `robots.txt` are now served by the Node server as well as Cloudflare (the Node server returned 404 for them before).
+
 ## 0.8.3
 
 ### Changed

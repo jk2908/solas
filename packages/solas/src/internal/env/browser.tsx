@@ -50,7 +50,7 @@ export async function browser() {
 					url={p.url}>
 					<ErrorBoundary fallback={null}>
 						<Suspense fallback={null}>
-							<Head metadata={p.metadata} />
+							<Head metadata={p.metadata} url={p.url} />
 						</Suspense>
 					</ErrorBoundary>
 
