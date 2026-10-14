@@ -33,6 +33,11 @@ export type HeadersInput =
 export type Adapter = {
 	name: string
 	plugins: PluginOption[]
+	/**
+	 * Prerender mode the platform requires, which overrides the `solas()`
+	 * option. A static host has no server, so it needs `'full'`.
+	 */
+	prerender?: Route.Prerender
 }
 
 type PluginConfigBase = {

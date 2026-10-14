@@ -57,7 +57,9 @@ describe('writeCloudflareEntry', () => {
 	it('delegates worker behaviour to the typed createWorker helper', () => {
 		const result = writeCloudflareEntry()
 
-		expect(result).toContain("import { createWorker } from '@jk2908/solas/cloudflare'")
+		expect(result).toContain(
+			"import { createWorker } from '@jk2908/solas/adapters/cloudflare/runtime'",
+		)
 		expect(result).toContain(
 			'export default createWorker({ config, manifest, importMap })',
 		)

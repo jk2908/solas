@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 
-import { createCloudflareAssets } from '../../../../src/adapters/cloudflare/runtime.js'
+import { createCloudflareAssets } from '../../../../src/adapters/cloudflare/assets.js'
 
 function createAssets(files: Record<string, { body: string; status?: number }>) {
 	const fetch = vi.fn(async (input: RequestInfo | URL) => {

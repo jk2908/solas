@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- Adapters moved under `@jk2908/solas/adapters/*` and are now default exports: `import cloudflare from '@jk2908/solas/adapters/cloudflare'`, `import serve from '@jk2908/solas/adapters/node'`, `import staticAdapter from '@jk2908/solas/adapters/static'`. The Cloudflare runtime (`createWorker`, `createCloudflareAssets`) is now `@jk2908/solas/adapters/cloudflare/runtime`. The old `/cloudflare`, `/cloudflare/vite`, and `/node` entries are removed.
+
+### Features
+
+- Added a static site adapter, `@jk2908/solas/adapters/static`. It sets `prerender: 'full'` and merges the client assets, full prerenders, `sitemap.xml`, and `robots.txt` into one directory any static host can serve.
+
 ## 0.9.1
 
 - Trimmed the install section of the README.

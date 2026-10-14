@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import type { Plugin } from 'vite'
+import type { Plugin, PluginOption } from 'vite'
 
 import { cloudflare as cloudflareVitePlugin } from '@cloudflare/vite-plugin'
 
@@ -9,7 +9,7 @@ import type { Adapter } from '../../types.js'
 import * as Config from '../../config.js'
 import { writeCloudflareEntry } from '../../internal/codegen/environments.js'
 import { setRscEntry } from '../../internal/postbuild.js'
-import { NAMESPACE_PREFIX } from './runtime.js'
+import { NAMESPACE_PREFIX } from './assets.js'
 
 /**
  * @see {@link https://developers.cloudflare.com/workers/vite-plugin/}
@@ -160,7 +160,7 @@ function withAdapterConfig(
  * asset-backed store, points Solas's prerender step at the Cloudflare Worker
  * bundle, and copies prerender artifacts into the asset output.
  */
-export function cloudflare(options: SolasCloudflareOptions = {}): Adapter {
+export function adapter(options: SolasCloudflareOptions = {}) {
 	const cwd = process.cwd()
 	// back the virtual entry id with a path inside the generated dir so the
 	// generated entry's relative imports (`./manifest.js`, ...) resolve
@@ -224,5 +224,7 @@ export function cloudflare(options: SolasCloudflareOptions = {}): Adapter {
 		},
 	}
 
-	return { name: 'cloudflare', plugins: [adapter, ...cfPlugins] }
+	const plugins: PluginOption[] = [adapter, ...cfPlugins]
+
+	return { name: 'cloudflare', plugins } satisfies Adapter
 }

@@ -6,7 +6,7 @@ import path from 'node:path'
 
 import { describe, it, expect, afterEach } from 'vitest'
 
-import { serve } from '../../../src/adapters/node.js'
+import serve from '../../../src/adapters/node.js'
 
 async function writeEntry(source: string) {
 	const dir = await mkdtemp(path.join(os.tmpdir(), 'solas-node-'))

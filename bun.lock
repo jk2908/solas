@@ -47,9 +47,26 @@
         "vite": "^8.3.3",
       },
     },
+    "examples/static": {
+      "name": "solas-example-static",
+      "dependencies": {
+        "@jk2908/solas": "workspace:*",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+        "react-server-dom-webpack": "^19.2.4",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.2.22",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.1.2",
+        "typescript": "^5.9.3",
+        "vite": "^8.3.3",
+      },
+    },
     "packages/solas": {
       "name": "@jk2908/solas",
-      "version": "0.7.0",
+      "version": "0.9.1",
       "dependencies": {
         "@vitejs/plugin-rsc": "^0.5.36",
         "oxc-parser": "^0.134.0",
@@ -665,6 +682,8 @@
     "solas-example-basic": ["solas-example-basic@workspace:examples/basic"],
 
     "solas-example-cloudflare": ["solas-example-cloudflare@workspace:examples/cloudflare"],
+
+    "solas-example-static": ["solas-example-static@workspace:examples/static"],
 
     "solas-website": ["solas-website@workspace:packages/www"],
 

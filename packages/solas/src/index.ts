@@ -62,6 +62,9 @@ function solas(c?: PluginConfig): PluginOption[] {
 	const config: ConfiguredPluginConfig = {
 		...DEFAULT_CONFIG,
 		...validatedConfig,
+		// a platform's required prerender mode wins: a static host, for example,
+		// has no server to render PPR or SSR routes
+		...(c?.adapter?.prerender !== undefined ? { prerender: c.adapter.prerender } : {}),
 	}
 
 	let resolvedUrl = normaliseOrigin(c?.url) ?? normaliseOrigin(envUrl)

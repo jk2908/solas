@@ -34,7 +34,7 @@ Platform deployment is configured with the `adapter` option, which registers the
 import { defineConfig } from 'vite'
 
 import solas from '@jk2908/solas'
-import { cloudflare } from '@jk2908/solas/cloudflare/vite'
+import cloudflare from '@jk2908/solas/adapters/cloudflare'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
@@ -567,7 +567,7 @@ npm install -D @cloudflare/vite-plugin@beta cf
 import { defineConfig } from 'vite'
 
 import solas from '@jk2908/solas'
-import { cloudflare } from '@jk2908/solas/cloudflare/vite'
+import cloudflare from '@jk2908/solas/adapters/cloudflare'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
@@ -643,18 +643,18 @@ Because workers have no filesystem, the Worker reads its own output through the 
 `cloudflare()` forwards its `cloudflare` option to `@cloudflare/vite-plugin`. To build a Worker manually, `createWorker` composes the entry behaviour, and `createCloudflareAssets` builds the store directly:
 
 ```ts
-import { createCloudflareAssets } from '@jk2908/solas/cloudflare'
+import { createCloudflareAssets } from '@jk2908/solas/adapters/cloudflare/runtime'
 
 const assets = createCloudflareAssets(env)
 ```
 
 ## Node
 
-`vite dev` and `vite preview` already run the built handler in Node (via `@vitejs/plugin-rsc`'s default server handler), so nothing extra is needed locally. For a production Node server, use `@jk2908/solas/node`:
+`vite dev` and `vite preview` already run the built handler in Node (via `@vitejs/plugin-rsc`'s default server handler), so nothing extra is needed locally. For a production Node server, use `@jk2908/solas/adapters/node`:
 
 ```ts
 // server.ts
-import { serve } from '@jk2908/solas/node'
+import serve from '@jk2908/solas/adapters/node'
 
 await serve()
 ```
@@ -686,11 +686,32 @@ import handler from './dist/rsc/index.js'
 Deno.serve(request => handler.fetch(request))
 ```
 
-The handler reads `dist` through `node:fs`, which Bun and Deno (2.x, via Node compat) provide. Run from the project root. Bun can also run `@jk2908/solas/node` as-is, since it implements `node:http`.
+The handler reads `dist` through `node:fs`, which Bun and Deno (2.x, via Node compat) provide. Run from the project root. Bun can also run `@jk2908/solas/adapters/node` as-is, since it implements `node:http`.
+
+## Static
+
+The static adapter sets `prerender: 'full'` so every route is rendered to HTML at build time, then assembles a directory any static host can serve. There is no server.
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+
+import solas from '@jk2908/solas'
+import staticAdapter from '@jk2908/solas/adapters/static'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [solas({ adapter: staticAdapter() }), react()],
+})
+```
+
+`vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), plus `sitemap.xml` and `robots.txt`. Serve that directory with anything — `npx serve build`, GitHub Pages, Netlify, an S3 bucket, nginx.
+
+Because it forces full prerendering, routes that need a server are not a fit: per-route PPR or SSR opt-ins and dynamic routes without `params()`.
 
 ## Runtime
 
-At request time Solas reads its output through an `Assets` interface (`exists`/`readText`/`readBuffer`/`mimeType`) injected into `createHandler`, defaulting to the Node standard library (which Bun runs natively). References are logical (`{ namespace, path }`), where the namespaces are `client` (Vite client output), `static` (full prerenders), and `artifact` (runtime manifest and ppr files). Platforms without a filesystem provide their own store; `@jk2908/solas/cloudflare` builds one around the `ASSETS` binding via `createWorker`. Build-time reads and writes use `node:fs` directly and are not abstracted.
+At request time Solas reads its output through an `Assets` interface (`exists`/`readText`/`readBuffer`/`mimeType`) injected into `createHandler`, defaulting to the Node standard library (which Bun runs natively). References are logical (`{ namespace, path }`), where the namespaces are `client` (Vite client output), `static` (full prerenders), and `artifact` (runtime manifest and ppr files). Platforms without a filesystem provide their own store; `@jk2908/solas/adapters/cloudflare/runtime` builds one around the `ASSETS` binding via `createWorker`. Build-time reads and writes use `node:fs` directly and are not abstracted.
 
 ## Scripts
 

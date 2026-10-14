@@ -30,5 +30,5 @@
 			}
 		}
 	],
-	"ignorePatterns": ["**/dist/**", "**/.solas/**", "**/node_modules/**"]
+	"ignorePatterns": ["**/dist/**", "**/.solas/**", "**/build/**", "**/node_modules/**"]
 }

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vite'
 
 import solas from '@jk2908/solas'
-import { cloudflare } from '@jk2908/solas/cloudflare/vite'
+import cloudflare from '@jk2908/solas/adapters/cloudflare'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
