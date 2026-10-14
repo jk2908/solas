@@ -46,6 +46,28 @@ const DEFAULT_CONFIG = {
 	trailingSlash: 'never',
 } as const satisfies Partial<PluginConfig>
 
+/**
+ * Validate a configured url and return its canonical origin (scheme and host,
+ * without a trailing slash or path). Throws when it is not a http(s) origin.
+ */
+function resolveOrigin(value: string | undefined): Origin | undefined {
+	if (!value) return undefined
+
+	let url: URL
+
+	try {
+		url = new URL(value)
+	} catch {
+		throw new Error(`[solas] Invalid url: "${value}"`)
+	}
+
+	if (url.protocol !== 'http:' && url.protocol !== 'https:') {
+		throw new Error(`[solas] url must use http:// or https://: "${value}"`)
+	}
+
+	return url.origin as Origin
+}
+
 function solas(c?: PluginConfig): PluginOption[] {
 	const validatedConfig = Config.validate(c)
 	const config: ConfiguredPluginConfig = {
@@ -54,8 +76,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 	}
 
 	const envUrl = process.env.VITE_APP_URL?.toString()
-	let resolvedUrl: Origin | undefined =
-		c?.url ?? (envUrl && envUrl.length > 0 ? (envUrl as Origin) : undefined)
+	let resolvedUrl = resolveOrigin(c?.url) ?? resolveOrigin(envUrl)
 
 	if (config.logger?.level) Logger.defaultLevel = config.logger.level
 

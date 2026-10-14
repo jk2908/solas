@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.3
+
+### Changed
+
+- `url` and `trustedOrigins` now accept plain strings, so `process.env` values can be passed directly without a cast. The resolved `url` is validated (it must be an `http(s)` origin) and normalised to its origin.
+
 ## 0.8.2
 
 ### Fixes

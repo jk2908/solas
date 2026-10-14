@@ -30,7 +30,7 @@ type PluginConfigBase = {
 	prerender?: Route.Prerender
 	metadata?: Metadata.Item
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
-	trustedOrigins?: readonly Origin[]
+	trustedOrigins?: readonly string[]
 	adapter?: Adapter
 	readonly logger?: {
 		level?: LogLevel
@@ -38,7 +38,7 @@ type PluginConfigBase = {
 }
 
 export type PluginConfig = PluginConfigBase & {
-	url?: Origin
+	url?: string
 	sitemap?:
 		| boolean
 		| {
@@ -147,7 +147,7 @@ export type BuildManifest = {
 	sitemapRoutes: string[]
 	precompress: boolean
 	trailingSlash: (typeof Config.TRAILING_SLASH_MODES)[number]
-	url?: Origin
+	url?: string
 }
 
 export namespace Route {
