@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.9.1
+
+- Trimmed the install section of the README.
+
 ## 0.9.0
 
 ### Features
