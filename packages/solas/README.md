@@ -13,8 +13,6 @@ npm install @jk2908/solas react react-dom react-server-dom-webpack vite@^8
 npm install -D @vitejs/plugin-react@^6 typescript
 ```
 
-Use Vite's built-in TypeScript path resolution (`resolve.tsconfigPaths: true`) rather than `vite-tsconfig-paths`, which is not compatible with Rolldown's handling of the `file://` runtime imports the RSC plugin emits.
-
 ## Use
 
 Create a Vite config that registers Solas.
