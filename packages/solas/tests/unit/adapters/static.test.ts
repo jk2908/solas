@@ -2,6 +2,8 @@ import { describe, it, expect } from 'vitest'
 
 import staticAdapter from '../../../src/adapters/static.js'
 
+type Named = { name: string; buildApp?: { order: string; handler: unknown } }
+
 describe('static adapter', () => {
 	it('forces full prerendering', () => {
 		const adapter = staticAdapter()
@@ -10,16 +12,16 @@ describe('static adapter', () => {
 		expect(adapter.prerender).toBe('full')
 	})
 
-	it('exposes a post-build plugin that assembles the site', () => {
-		const adapter = staticAdapter()
+	it('installs the guards and a post-build plugin', () => {
+		const plugins = staticAdapter().plugins as Named[]
+		const names = plugins.map(plugin => plugin.name)
 
-		const plugin = adapter.plugins[0] as {
-			name: string
-			buildApp: { order: string; handler: unknown }
-		}
+		expect(names).toContain('solas:guards')
+		expect(names).toContain('solas-static')
 
-		expect(plugin.name).toBe('solas-static')
-		expect(plugin.buildApp.order).toBe('post')
-		expect(typeof plugin.buildApp.handler).toBe('function')
+		const builder = plugins.find(plugin => plugin.name === 'solas-static')
+
+		expect(builder?.buildApp?.order).toBe('post')
+		expect(typeof builder?.buildApp?.handler).toBe('function')
 	})
 })
