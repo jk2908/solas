@@ -164,6 +164,7 @@ export type BuildManifest = {
 	precompress: boolean
 	trailingSlash: (typeof Config.TRAILING_SLASH_MODES)[number]
 	url?: string
+	adapter?: string
 }
 
 export namespace Route {

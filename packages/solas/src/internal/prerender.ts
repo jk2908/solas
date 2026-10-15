@@ -449,6 +449,29 @@ export async function get(
 }
 
 /**
+ * Fetch the RSC payload for a route, the response a client would get for an RSC
+ * navigation. Written alongside a fully prerendered route's HTML so a static
+ * host can serve client-side navigation without a server.
+ */
+export async function getRscPayload(
+	app: { fetch: (req: Request) => Promise<Response> },
+	route: string,
+	opts: { origin?: string; base?: string },
+) {
+	const url = `${opts.origin ?? `http://${Config.SLUG}.local`}${applyBasePath(route, opts.base)}`
+
+	const res = await app.fetch(
+		new Request(url, { headers: { Accept: 'text/x-component' } }),
+	)
+
+	if (!(res instanceof Response) || !res.ok) {
+		throw new Error(`[prerender] RSC payload for ${route} was not served`)
+	}
+
+	return res.text()
+}
+
+/**
  * Run the prerendering process for a list of routes with a specified concurrency limit,
  * by calling the 'get' function for each route and yielding the results as they become available.
  */

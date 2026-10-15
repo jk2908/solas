@@ -170,6 +170,18 @@ export async function postbuild(cwd: string = process.cwd()) {
 					await fs.mkdir(path.dirname(staticPath), { recursive: true })
 					await fs.writeFile(staticPath, artifact.html)
 
+					// a static host has no server to answer an RSC navigation, so emit
+					// the payload next to the HTML for the client router to fetch
+					if (manifest.adapter === 'static') {
+						await fs.writeFile(
+							staticPath.replace(/\.html$/, '.rsc.txt'),
+							await Prerender.getRscPayload(app, route, {
+								origin: manifest.url,
+								base: manifest.base,
+							}),
+						)
+					}
+
 					artfifactManifest[route] = {
 						mode: artifact.mode,
 						files: ['html'],

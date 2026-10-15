@@ -36,6 +36,31 @@ const DEFAULT_GO_CONFIG = {
 const logger = new Logger()
 const responseCache = new ResponseCache()
 
+const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
+
+/**
+ * The URL to fetch the response for a navigation. On a static host that is the
+ * pre-generated RSC payload; otherwise the path itself carries the RSC response
+ * for an `Accept: text/x-component` request.
+ */
+function getPayloadUrl(path: string) {
+	const url = new URL(path, window.location.origin)
+
+	url.pathname = url.pathname.endsWith('/')
+		? `${url.pathname}index.rsc.txt`
+		: `${url.pathname}.rsc.txt`
+
+	url.search = ''
+
+	return url
+}
+
+function performNavigationFetch(path: string, init?: RequestInit) {
+	return STATIC
+		? fetch(getPayloadUrl(path), init)
+		: fetch(path, { ...init, headers: { ...init?.headers, accept: 'text/x-component' } })
+}
+
 export function BrowserRouterProvider({
 	children,
 	setPayload,
@@ -114,10 +139,7 @@ export function BrowserRouterProvider({
 					const ctrl = new AbortController()
 					controller.current = ctrl
 
-					promise = fetch(path, {
-						headers: { accept: 'text/x-component' },
-						signal: ctrl.signal,
-					})
+					promise = performNavigationFetch(path, { signal: ctrl.signal })
 
 					responseCache.set(path, promise)
 				}
@@ -128,8 +150,12 @@ export function BrowserRouterProvider({
 					promise,
 					createFromFetch<RscPayload>(promise),
 				])
-				const resolvedPath =
-					ResponseCache.toCacheKey(res.url, window.location.origin) ?? path
+
+				// on a static host the payload comes from `<path>.rsc.txt`, so the
+				// response URL is not the page path
+				const resolvedPath = STATIC
+					? path
+					: (ResponseCache.toCacheKey(res.url, window.location.origin) ?? path)
 
 				if (navigationId !== id.current) return resolvedPath
 
@@ -183,7 +209,7 @@ export function BrowserRouterProvider({
 		if (!key) return
 
 		if (responseCache.has(key)) return
-		responseCache.set(key, fetch(key, { headers: { Accept: 'text/x-component' } }))
+		responseCache.set(key, performNavigationFetch(key))
 	}, [])
 
 	/**

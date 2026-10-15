@@ -348,6 +348,9 @@ function solas(c?: PluginConfig): PluginOption[] {
 			viteConfig.define ??= {}
 			viteConfig.define['import.meta.env.VITE_APP_URL'] = JSON.stringify(resolvedUrl)
 			viteConfig.define['import.meta.env.SOLAS_VERSION'] = JSON.stringify(pkg.version)
+			viteConfig.define['import.meta.env.SOLAS_ADAPTER'] = JSON.stringify(
+				config.adapter?.name ?? '',
+			)
 
 			viteConfig.optimizeDeps ??= {}
 			viteConfig.optimizeDeps.exclude = [
@@ -436,6 +439,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 					precompress: config.precompress,
 					trailingSlash: config.trailingSlash,
 					url: resolvedUrl,
+					adapter: config.adapter?.name ?? '',
 				}),
 			)
 		},
