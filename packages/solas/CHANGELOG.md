@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- A route's static-params export is now `staticParams` (was `params`), matching the `Route.StaticParams` type. `Route.Prerender` became `Route.PrerenderMode` (`'full' | 'ppr'`); the `prerender` option and route export are typed `Route.PrerenderMode | false` (`false` turns prerendering off).
+
+### Features
+
+- Added build guards, installed by the adapters. An adapter declares the build features it supports (`actions`, `endpoints`) and Solas warns when the graph uses one it does not. The static adapter supports none, so it warns about server actions and `+endpoint` routes.
+
+### Fixes
+
+- The build-time prerender now shims `cloudflare:workers`, so an app that imports bindings at module scope no longer breaks the build. Bindings do not exist at build time, so reading one warns and returns `undefined`.
+
 ## 0.10.0
 
 ### Breaking

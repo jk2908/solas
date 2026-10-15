@@ -205,7 +205,7 @@ export const metadata: Route.Metadata<Solas.Routes['/writing/:slug']> = ({ param
 	}
 }
 
-export const params: Route.StaticParams<Solas.Routes['/writing/:slug']> = () =>
+export const staticParams: Route.StaticParams<Solas.Routes['/writing/:slug']> = () =>
 	allPosts?.map(p => ({ slug: p.__mdsrc.slug })) ?? []
 ```
 
@@ -318,10 +318,10 @@ export const prerender = false
 
 In that example, the app default is `full`, the `about` layout overrides it to `ppr`, and the page overrides it again to `false`.
 
-For dynamic routes, prerendering uses the params you export from the page:
+For dynamic routes, prerendering uses the staticParams you export from the page:
 
 ```tsx
-export const params = () => [{ id: 'post-1' }, { id: 'post-2' }]
+export const staticParams = () => [{ id: 'post-1' }, { id: 'post-2' }]
 export const prerender = 'full'
 ```
 
@@ -482,7 +482,7 @@ Use `sitemap` to generate a `sitemap.xml` at build time.
 
 Default: `false`
 
-When enabled, Solas writes a sitemap containing all routes with deterministic URLs: static routes, prerendered routes, and dynamic routes resolved via `params`. The origin for each URL comes from the resolved origin (see Config > `url`).
+When enabled, Solas writes a sitemap containing all routes with deterministic URLs: static routes, prerendered routes, and dynamic routes resolved via `staticParams`. The origin for each URL comes from the resolved origin (see Config > `url`).
 
 ```ts
 export default defineConfig(({ mode }) => ({
@@ -621,6 +621,8 @@ const value = await env.MY_KV.get('key')
 
 The Cloudflare Vite plugin emulates bindings in `cf dev` and `vite preview`, so there is nothing extra to configure locally.
 
+Bindings do not exist during the build-time prerender, where Solas imports the Worker in Node with `cloudflare:workers` shimmed. Reading one then warns and returns `undefined`, so guard it with a fallback or read it at request time.
+
 For types, the plugin writes `.cloudflare/types/index.d.ts` (bindings inferred from `cloudflare.config.ts`). Include it in `tsconfig.json` so `cloudflare:workers`'s `env` is typed:
 
 ```jsonc
@@ -708,6 +710,8 @@ export default defineConfig({
 `vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), plus `sitemap.xml` and `robots.txt`. Serve that directory with anything — `npx serve build`, GitHub Pages, Netlify, an S3 bucket, nginx.
 
 Because it forces full prerendering, routes that need a server are not a fit: per-route PPR or SSR opt-ins and dynamic routes without `params()`.
+
+Server actions and runtime endpoints also need a server, so the build warns when the graph contains any (a `'use server'` module or a `+endpoint` file).
 
 ## Runtime
 
