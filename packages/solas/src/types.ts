@@ -37,12 +37,12 @@ export type Adapter = {
 	 * Prerender mode the platform requires, which overrides the `solas()`
 	 * option. A static host has no server, so it needs `'full'`.
 	 */
-	prerender?: Route.Prerender
+	prerender?: Route.PrerenderMode | false
 }
 
 type PluginConfigBase = {
 	precompress?: boolean
-	prerender?: Route.Prerender
+	prerender?: Route.PrerenderMode | false
 	metadata?: Metadata.Item
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 	trustedOrigins?: readonly string[]
@@ -107,7 +107,7 @@ export type Segment = {
 		page?: string | null
 	}
 	error?: HttpException | Error
-	prerender: Route.Prerender
+	prerender: Route.PrerenderMode | false
 	dynamic: boolean
 	wildcard: boolean
 }
@@ -192,5 +192,5 @@ export namespace Route {
 		: { params: ParamsOf<TRoute> }) &
 		ErrorPropsOf<TError>
 
-	export type Prerender = (typeof Config.PRERENDER_MODES)[number]
+	export type PrerenderMode = (typeof Config.PRERENDER_MODES)[number]
 }

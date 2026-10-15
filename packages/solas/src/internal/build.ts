@@ -443,7 +443,7 @@ export class Finder {
 
 		// cache prerender flags per file path so shared layouts
 		// only trigger one export read across routes
-		const prerenderCache = new Map<string, Route.Prerender | undefined>()
+		const prerenderCache = new Map<string, Route.PrerenderMode | false | undefined>()
 
 		for (const segment of res.segments) {
 			try {
@@ -476,12 +476,13 @@ export class Finder {
 
 				// effective mode for this segment; start from global
 				// config then apply shell/layout/page overrides
-				let currentPrerenderMode: Route.Prerender = this.config?.prerender ?? false
+				let currentPrerenderMode: Route.PrerenderMode | false =
+					this.config?.prerender ?? false
 
 				/**
 				 * Apply explicit prerender mode overrides in inheritance order.
 				 */
-				function applyPrerenderMode(flag: Route.Prerender | undefined) {
+				function applyPrerenderMode(flag: Route.PrerenderMode | false | undefined) {
 					if (flag === undefined) return
 					currentPrerenderMode = flag
 				}
@@ -665,7 +666,7 @@ export class Finder {
 				// resolve final prerender mode after shell → layout → page overrides
 				const shouldPrerender =
 					currentPrerenderMode !== false && this.buildContext.command === 'build'
-				const prerenderMode: Route.Prerender = shouldPrerender
+				const prerenderMode: Route.PrerenderMode | false = shouldPrerender
 					? currentPrerenderMode
 					: false
 

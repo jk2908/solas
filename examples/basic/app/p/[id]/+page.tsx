@@ -42,7 +42,7 @@ async function Timestamp({ slug }: { slug: string }) {
 	return <div>{Date.now()}</div>
 }
 
-export const params: Route.StaticParams<Solas.Routes['/p/:id']> = () =>
+export const staticParams: Route.StaticParams<Solas.Routes['/p/:id']> = () =>
 	allPosts.map(p => ({ id: p.__mdsrc.slug }))
 
 //export const prerender = 'ppr'

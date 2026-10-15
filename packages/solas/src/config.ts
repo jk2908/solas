@@ -14,7 +14,8 @@ export const PUBLIC_DIR = 'public'
 export const $ = Symbol(SLUG)
 export const REQUEST_META_KEY = `__${SLUG.toUpperCase()}__`
 export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
-export const PRERENDER_MODES = ['full', 'ppr', false] as const
+export const PRERENDER_MODES = ['full', 'ppr'] as const
+export const PRERENDER_OPTIONS = [...PRERENDER_MODES, false] as const
 export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
 export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
@@ -148,7 +149,9 @@ export function validate(input: unknown, envUrl?: string) {
 
 	if ('prerender' in input && input.prerender !== undefined) {
 		if (
-			!new Set(PRERENDER_MODES).has(input.prerender as (typeof PRERENDER_MODES)[number])
+			!new Set(PRERENDER_OPTIONS).has(
+				input.prerender as (typeof PRERENDER_OPTIONS)[number],
+			)
 		) {
 			errors.push("prerender must be 'full', 'ppr', or false")
 		}

@@ -28,7 +28,8 @@ describe('Solas', () => {
 		})
 
 		it('has expected prerender modes', () => {
-			expect(Config.PRERENDER_MODES).toEqual(['full', 'ppr', false])
+			expect(Config.PRERENDER_MODES).toEqual(['full', 'ppr'])
+			expect(Config.PRERENDER_OPTIONS).toEqual(['full', 'ppr', false])
 		})
 
 		it('has expected trailing slash modes', () => {

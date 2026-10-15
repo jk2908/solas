@@ -347,10 +347,10 @@ export function getConcurrency() {
  * looking for an exported `prerender` binding and validating its value.
  */
 export async function getStaticFlag(filePath: string, buildContext: BuildContext) {
-	return buildContext.exportReader.literal<'full' | 'ppr' | false>(
+	return buildContext.exportReader.literal<(typeof Config.PRERENDER_OPTIONS)[number]>(
 		filePath,
 		'prerender',
-		(v): v is (typeof Config.PRERENDER_MODES)[number] =>
+		(v): v is (typeof Config.PRERENDER_OPTIONS)[number] =>
 			v === 'full' || v === 'ppr' || v === false,
 	)
 }
@@ -362,7 +362,7 @@ export async function getStaticFlag(filePath: string, buildContext: BuildContext
 export async function getStaticParams(filePath: string, buildContext: BuildContext) {
 	const params = await buildContext.exportReader.value<() => Promise<unknown> | unknown>(
 		filePath,
-		'params',
+		'staticParams',
 		(v): v is () => Promise<unknown> | unknown => typeof v === 'function',
 	)
 
