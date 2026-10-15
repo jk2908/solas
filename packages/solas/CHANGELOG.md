@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- A document request is now served as HTML by default. Solas only returns the RSC payload when the client asks for `text/x-component` (and not `text/html`); a request to a page without that, such as `Accept: */*` or no `Accept` header, used to receive the RSC payload — and, for a page with no endpoint, an error.
+
 ## 0.11.0
 
 ### Breaking

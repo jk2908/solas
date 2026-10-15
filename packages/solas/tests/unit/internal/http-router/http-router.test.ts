@@ -11,6 +11,7 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 import { HttpRouter } from '../../../../src/internal/http-router/router.js'
 import {
 	getAlternatePathname,
+	isRscRequest,
 	normaliseTrailingSlash,
 	toPathPattern,
 } from '../../../../src/internal/http-router/utils.js'
@@ -346,5 +347,21 @@ describe('HttpRouter', () => {
 			)
 			expect(res.status).toBe(404)
 		})
+	})
+})
+
+describe('isRscRequest', () => {
+	const withAccept = (accept?: string) =>
+		new Request('http://localhost/', accept ? { headers: { accept } } : undefined)
+
+	it('is true only when the client asks for the RSC payload', () => {
+		expect(isRscRequest(withAccept('text/x-component'))).toBe(true)
+	})
+
+	it('is false for documents and unqualified requests', () => {
+		expect(isRscRequest(withAccept('text/html'))).toBe(false)
+		expect(isRscRequest(withAccept('text/html,text/x-component'))).toBe(false)
+		expect(isRscRequest(withAccept('*/*'))).toBe(false)
+		expect(isRscRequest(withAccept())).toBe(false)
 	})
 })

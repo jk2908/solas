@@ -9,6 +9,7 @@ import type {
 	SolasRequest,
 } from '../../types.js'
 import { HttpRouter } from './router.js'
+import { isRscRequest } from './utils.js'
 
 function callEndpoint(
 	fn: (...args: [] | [Request]) => Response | Promise<Response>,
@@ -142,12 +143,11 @@ export function createHttpRouter(
 			async req => {
 				const accept = req.headers.get('accept') ?? ''
 
-				if (accept.includes('text/html') || accept.includes('text/x-component')) {
+				// a request that asks for a document or the RSC payload is rendered,
+				// as is any request to a page with no endpoint; anything else is the
+				// endpoint's own body
+				if (isRscRequest(req) || accept.includes('text/html') || !endpoint) {
 					return (await serveFullPrerender?.(req)) ?? rsc(req)
-				}
-
-				if (!endpoint) {
-					throw new Error(`Missing unified endpoint handler for ${page.__path}`)
 				}
 
 				return callEndpoint(

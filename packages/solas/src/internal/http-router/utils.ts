@@ -1,5 +1,18 @@
 import type { PluginConfig } from '../../types.js'
 
+/**
+ * Whether a request wants the RSC payload rather than a document.
+ *
+ * The client asks for `text/x-component` on navigations. Anything else (a
+ * browser, or a fetch with no explicit preference) should get HTML, so a plain
+ * request to a page never receives the RSC payload.
+ */
+export function isRscRequest(req: Request) {
+	const accept = req.headers.get('accept') ?? ''
+
+	return accept.includes('text/x-component') && !accept.includes('text/html')
+}
+
 export type PathPattern = {
 	path: string
 	wildcardNames: Set<string>

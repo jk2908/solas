@@ -12,7 +12,7 @@ import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
-import { normaliseTrailingSlash } from '../http-router/utils.js'
+import { isRscRequest, normaliseTrailingSlash } from '../http-router/utils.js'
 import { Metadata } from '../metadata.js'
 import {
 	HttpException,
@@ -333,7 +333,7 @@ export function createHandler(
 
 		const stream = await rscStream
 
-		if (!req.headers.get('accept')?.includes('text/html')) {
+		if (isRscRequest(req)) {
 			return new Response(stream, {
 				headers: {
 					'Cache-Control': 'private, no-store',
@@ -511,13 +511,12 @@ export function createHandler(
 	/**
 	 * Serve the saved HTML for a fully prerendered route. Runs as the route
 	 * handler, after middleware, so middleware applies to static routes too. It
-	 * returns null for anything else (a route without a saved prerender, an RSC
-	 * navigation, or a request without an HTML accept header), so the caller
-	 * falls back to rendering.
+	 * returns null for anything else (a route without a saved prerender or an RSC
+	 * navigation), so the caller falls back to rendering.
 	 */
 	async function serveFullPrerender(req: Request) {
 		if (import.meta.env.DEV) return null
-		if (!(req.headers.get('accept') ?? '').includes('text/html')) return null
+		if (isRscRequest(req)) return null
 		if (req.headers.get(`x-${Config.SLUG}-prerender-artifact`) === '1') return null
 		if (!runtimeManifest) return null
 
