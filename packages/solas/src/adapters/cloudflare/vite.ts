@@ -8,8 +8,9 @@ import { cloudflare as cloudflareVitePlugin } from '@cloudflare/vite-plugin'
 import type { Adapter } from '../../types.js'
 import * as Config from '../../config.js'
 import { writeCloudflareEntry } from '../../internal/codegen/environments.js'
-import { setRscEntry } from '../../internal/postbuild.js'
+import { setPrerenderImport, setRscEntry } from '../../internal/postbuild.js'
 import { NAMESPACE_PREFIX } from './assets.js'
+import { withBindingsShim } from './bindings.js'
 
 /**
  * @see {@link https://developers.cloudflare.com/workers/vite-plugin/}
@@ -187,6 +188,10 @@ export function adapter(options: SolasCloudflareOptions = {}) {
 			if (rscOutDir) {
 				setRscEntry(path.resolve(cwd, rscOutDir, 'index.js'))
 			}
+
+			// the Worker bundle imports `cloudflare:workers`, which only exists in
+			// workerd, so shim it around the Node import
+			setPrerenderImport(withBindingsShim)
 		},
 		configEnvironment(name, environment) {
 			// Pre-bundle the Worker environments so workerd never has to re-optimize

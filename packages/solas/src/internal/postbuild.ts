@@ -22,6 +22,23 @@ export function setRscEntry(entry: string) {
 	rscEntryOverride = entry
 }
 
+type App = Parameters<typeof Prerender.run>[0]
+
+/** Imports the server bundle `postbuild` prerenders with. */
+export type PrerenderImport = () => Promise<{ default: App }>
+
+let prerenderImport: ((next: PrerenderImport) => PrerenderImport) | undefined
+
+/**
+ * Set a wrapper for the import `postbuild` makes to prerender. It receives the
+ * plain import and returns one that sets up and tears down platform-specific
+ * module resolution around it, for example shimming a runtime module that Node
+ * cannot resolve (such as `cloudflare:workers`).
+ */
+export function setPrerenderImport(wrap: (next: PrerenderImport) => PrerenderImport) {
+	prerenderImport = wrap
+}
+
 export async function postbuild(cwd: string = process.cwd()) {
 	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
 
@@ -61,7 +78,12 @@ export async function postbuild(cwd: string = process.cwd()) {
 
 		const rscEntry = rscEntryOverride ?? path.join(rscDir, 'index.js')
 		rscEntryOverride = undefined
-		const { default: app } = await import(/* @vite-ignore */ rscEntry)
+
+		const base: PrerenderImport = () => import(/* @vite-ignore */ rscEntry)
+		const load = prerenderImport ? prerenderImport(base) : base
+		prerenderImport = undefined
+
+		const { default: app } = await load()
 
 		async function enqueueWrite(task: () => Promise<void>) {
 			const write = task().finally(() => {
