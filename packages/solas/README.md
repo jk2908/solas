@@ -229,6 +229,8 @@ Solas resolves the origin in this order:
 
 The resolved origin is exposed to your app as `import.meta.env.VITE_APP_URL` and is used for build-time prerender requests and `sitemap` URLs. When `url` is set, it is also used as a trusted origin for CSRF.
 
+The active adapter's name is exposed as `import.meta.env.SOLAS_ADAPTER`, so your app can branch on the platform it is deployed to.
+
 You usually only need `url` in production, where the Vite dev server origin is meaningless. For example, to generate a `sitemap.xml` with real URLs:
 
 ```ts
@@ -707,7 +709,9 @@ export default defineConfig({
 })
 ```
 
-`vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), plus `sitemap.xml` and `robots.txt`. Serve that directory with anything — `npx serve build`, GitHub Pages, Netlify, an S3 bucket, nginx.
+`vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), its RSC payload as `<route>.rsc.txt`, plus `sitemap.xml` and `robots.txt`. Serve that directory with anything — `npx serve build`, GitHub Pages, Netlify, an S3 bucket, nginx.
+
+Client-side navigation works with no server: the browser router fetches each route's `<route>.rsc.txt` payload instead of asking a server for `text/x-component`.
 
 Because it forces full prerendering, routes that need a server are not a fit: per-route PPR or SSR opt-ins and dynamic routes without `params()`.
 

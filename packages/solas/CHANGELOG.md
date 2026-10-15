@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- The static adapter supports client-side navigation. The build emits each fully prerendered route's RSC payload as `<route>.rsc.txt` next to its HTML, and the browser router fetches it, so a static host needs no server to answer navigations.
+- The active adapter's name is exposed as `import.meta.env.SOLAS_ADAPTER`, so apps can branch on the platform.
+
 ## 0.11.1
 
 ### Fixes
