@@ -74,6 +74,24 @@ describe('createHttpRouter', () => {
 		expect(router).toBeInstanceOf(HttpRouter)
 	})
 
+	it('passes the request to endpoint handlers with no declared parameters', async () => {
+		let received: Request | undefined
+
+		// a default parameter gives the function a `.length` of 0
+		function endpointHandler(req = undefined as unknown as Request) {
+			received = req
+			return new Response('data')
+		}
+
+		const manifest: any = { '/api/data': [endpointEntry('/api/data', 'api-data')] }
+		const importMap: any = { 'api-data': { endpoint: endpointHandler } }
+		const router = createHttpRouter({}, manifest, importMap, rsc)
+
+		await router.fetch(new Request('https://example.com/api/data'))
+
+		expect(received).toBeInstanceOf(Request)
+	})
+
 	it('creates a unified page+endpoint route', () => {
 		const endpointHandler = () => new Response('json-data')
 		const manifest: any = {

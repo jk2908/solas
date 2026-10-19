@@ -11,12 +11,10 @@ import type {
 import { HttpRouter } from './router.js'
 import { isRscRequest } from './utils.js'
 
-function callEndpoint(
-	fn: (...args: [] | [Request]) => Response | Promise<Response>,
-	req: Request,
-) {
-	// endpoint modules may export either a zero-arg handler or one that expects the request
-	if (fn.length === 0) return fn()
+function callEndpoint(fn: (req?: Request) => Response | Promise<Response>, req: Request) {
+	// always pass the request; handlers that do not need it simply ignore the
+	// argument. relying on `fn.length` silently dropped the request for
+	// default/rest parameters and compiled handlers
 	return fn(req)
 }
 
