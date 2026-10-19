@@ -220,6 +220,8 @@ function buildSegment(dir: string, page: string | undefined, chains: InheritedCh
  * result into the manifest, import map, and module map.
  */
 export class Finder {
+	static #importPaths = new Map<string, string>()
+
 	constructor(
 		public readonly buildContext: BuildContext,
 		public readonly config: PluginConfig,
@@ -264,12 +266,22 @@ export class Finder {
 	 */
 	static getImportPath(file: string) {
 		const cwd = process.cwd()
-		const generatedDir = path.join(cwd, Config.GENERATED_DIR)
+		const key = `${cwd}\0${file}`
+		const cached = Finder.#importPaths.get(key)
 
-		return path
+		if (cached !== undefined) return cached
+
+		const generatedDir = path.join(cwd, Config.GENERATED_DIR)
+		const result = path
 			.relative(generatedDir, path.resolve(cwd, file))
 			.replace(/\\/g, '/')
 			.replace(/\.(t|j)sx?$/, '')
+
+		// shared shells, layouts and boundaries are resolved once per segment, so
+		// cache the result for the rest of the build
+		Finder.#importPaths.set(key, result)
+
+		return result
 	}
 
 	/**

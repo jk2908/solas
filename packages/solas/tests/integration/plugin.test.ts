@@ -132,6 +132,30 @@ describe('solas() plugin integration', () => {
 		)
 	})
 
+	it('ignores build output but keeps generated route files watched', async () => {
+		const plugin = getPlugin()
+		const viteConfig: UserConfig = { server: {} }
+
+		await runConfig(plugin, viteConfig)
+
+		const ignored = viteConfig.server?.watch?.ignored as string[]
+
+		expect(ignored).toContain('**/dist/**')
+		expect(ignored).not.toContain('**/.solas/**')
+	})
+
+	it('preserves existing watch.ignored entries', async () => {
+		const plugin = getPlugin()
+		const viteConfig: UserConfig = { server: { watch: { ignored: ['**/tmp/**'] } } }
+
+		await runConfig(plugin, viteConfig)
+
+		const ignored = viteConfig.server?.watch?.ignored as string[]
+
+		expect(ignored).toContain('**/tmp/**')
+		expect(ignored).toContain('**/dist/**')
+	})
+
 	it('writes generated route artifacts for a basic app', async () => {
 		const plugin = getPlugin()
 

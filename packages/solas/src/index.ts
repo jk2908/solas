@@ -333,6 +333,23 @@ function solas(c?: PluginConfig): PluginOption[] {
 			viteConfig.server ??= {}
 			viteConfig.server.port ??= 8787
 
+			// build output can be large and is rewritten during a session; keep it
+			// out of the watcher so route-change filtering does not process it.
+			// `.solas` stays watched on purpose: Vite needs those generated-file
+			// events to reload the route graph during dev
+			viteConfig.server.watch ??= {}
+
+			const watchIgnored = viteConfig.server.watch.ignored
+
+			viteConfig.server.watch.ignored = [
+				...(Array.isArray(watchIgnored)
+					? watchIgnored
+					: watchIgnored
+						? [watchIgnored]
+						: []),
+				`**/${Config.OUT_DIR}/**`,
+			]
+
 			// derive the public url from vite's dev server settings when no
 			// origin was set explicitly via the url option or VITE_APP_URL
 			if (resolvedUrl === undefined) {
