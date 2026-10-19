@@ -12,7 +12,11 @@ import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
-import { isRscRequest, normaliseTrailingSlash } from '../http-router/utils.js'
+import {
+	isRscRequest,
+	normaliseTrailingSlash,
+	resolveRequestPath,
+} from '../http-router/utils.js'
 import { Metadata } from '../metadata.js'
 import {
 	HttpException,
@@ -389,8 +393,8 @@ export function createHandler(
 			}
 		}
 
-		// prerender artifact requests bypass the normal document path so the cli
-		// gets structured JSON instead of a rendered html response
+		// prerender artifact requests bypass the normal document path so the
+		// prerenderer gets structured JSON instead of a rendered html response
 		if (
 			req.headers.get(`x-${Config.SLUG}-prerender`) === '1' &&
 			req.headers.get(`x-${Config.SLUG}-prerender-artifact`) === '1'
@@ -581,20 +585,15 @@ export function createHandler(
 		// fast path
 		if (method !== 'GET' && method !== 'HEAD') return httpRouter.fetch(req)
 
-		const routedPath = stripBasePath(url.pathname, BASE_PATH)
-		const canonicalPath =
-			routedPath == null
-				? null
-				: config.trailingSlash === 'ignore'
-					? routedPath
-					: normaliseTrailingSlash(routedPath, config.trailingSlash)
-		const canonicalPathname =
-			canonicalPath == null ? null : applyBasePath(canonicalPath, BASE_PATH)
+		const {
+			routedPath,
+			path: canonicalPath,
+			pathname: canonicalPathname,
+		} = resolveRequestPath(url.pathname, BASE_PATH, config.trailingSlash)
 
 		if (
 			canonicalPathname != null &&
 			(method === 'GET' || method === 'HEAD') &&
-			config.trailingSlash !== 'ignore' &&
 			canonicalPathname !== url.pathname
 		) {
 			url.pathname = canonicalPathname
@@ -629,7 +628,10 @@ export function createHandler(
 			return HttpRouter.serveStatic(assets, asset, req, config.precompress)
 		}
 
-		return httpRouter.fetch(req)
+		// the path is already canonical here: a mismatched shape redirected above,
+		// so hand the resolved path to the router rather than letting it recompute
+		// the base path and trailing slash a second time
+		return httpRouter.fetch(req, canonicalPath)
 	}
 
 	// vite-plugin-rsc entrypoint

@@ -13,9 +13,14 @@ import {
 	getAlternatePathname,
 	isRscRequest,
 	normaliseTrailingSlash,
+	resolveRequestPath,
 	toPathPattern,
 } from '../../../../src/internal/http-router/utils.js'
-import { nodeAssets } from '../../../../src/internal/runtimes/assets.js'
+import {
+	nodeAssets,
+	type AssetRef,
+	type Assets,
+} from '../../../../src/internal/runtimes/assets.js'
 
 const ok = () => new Response('ok')
 const handler = () => vi.fn().mockReturnValue(new Response('ok'))
@@ -63,6 +68,80 @@ describe('getAlternatePathname', () => {
 		expect(getAlternatePathname('/about/')).toBe('/about')
 	})
 	it('returns root for root', () => expect(getAlternatePathname('/')).toBe('/'))
+})
+
+describe('resolveRequestPath', () => {
+	const base = '/docs/'
+
+	it('resolves routes under a base path', () => {
+		expect(resolveRequestPath('/docs/about', base, 'never')).toEqual({
+			routedPath: '/about',
+			path: '/about',
+			pathname: '/docs/about',
+		})
+	})
+
+	it('keeps both route shapes in ignore mode', () => {
+		expect(resolveRequestPath('/docs/about', base, 'ignore')).toEqual({
+			routedPath: '/about',
+			path: '/about',
+			pathname: '/docs/about',
+		})
+		expect(resolveRequestPath('/docs/about/', base, 'ignore')).toEqual({
+			routedPath: '/about/',
+			path: '/about/',
+			pathname: '/docs/about/',
+		})
+	})
+
+	it('canonicalises the base root even in ignore mode', () => {
+		// this is the only shape `ignore` does not leave alone, and the case
+		// that used to disagree between the dispatch layer and the router
+		expect(resolveRequestPath('/docs', base, 'ignore')).toEqual({
+			routedPath: '/',
+			path: '/',
+			pathname: '/docs/',
+		})
+		expect(resolveRequestPath('/docs/', base, 'ignore')).toEqual({
+			routedPath: '/',
+			path: '/',
+			pathname: '/docs/',
+		})
+	})
+
+	it('applies the trailing-slash policy', () => {
+		expect(resolveRequestPath('/docs/about/', base, 'never')).toEqual({
+			routedPath: '/about/',
+			path: '/about',
+			pathname: '/docs/about',
+		})
+		expect(resolveRequestPath('/docs/about', base, 'always')).toEqual({
+			routedPath: '/about',
+			path: '/about/',
+			pathname: '/docs/about/',
+		})
+	})
+
+	it('returns nulls for paths outside the base', () => {
+		expect(resolveRequestPath('/other', base, 'never')).toEqual({
+			routedPath: null,
+			path: null,
+			pathname: null,
+		})
+	})
+
+	it('leaves root-base paths unchanged', () => {
+		expect(resolveRequestPath('/about/', '/', 'ignore')).toEqual({
+			routedPath: '/about/',
+			path: '/about/',
+			pathname: '/about/',
+		})
+		expect(resolveRequestPath('/', '/', 'never')).toEqual({
+			routedPath: '/',
+			path: '/',
+			pathname: '/',
+		})
+	})
 })
 
 describe('HttpRouter', () => {
@@ -339,6 +418,23 @@ describe('HttpRouter', () => {
 	})
 
 	describe('serveStatic', () => {
+		function fakeAssets(files: Record<string, string>) {
+			const exists = vi.fn(async (asset: AssetRef) => asset.path in files)
+			const readBuffer = vi.fn(
+				async (asset: AssetRef) =>
+					new TextEncoder().encode(files[asset.path]).buffer as ArrayBuffer,
+			)
+
+			const assets: Assets = {
+				exists,
+				readText: async () => '',
+				readBuffer,
+				mimeType: () => 'text/html',
+			}
+
+			return { assets, exists, readBuffer }
+		}
+
 		it('returns 404 for missing files', async () => {
 			const res = await HttpRouter.serveStatic(
 				nodeAssets,
@@ -346,6 +442,63 @@ describe('HttpRouter', () => {
 				http('/'),
 			)
 			expect(res.status).toBe(404)
+		})
+
+		it('skips the second existence check when a brotli variant exists', async () => {
+			const { assets, exists } = fakeAssets({
+				'about.html': 'plain',
+				'about.html.br': 'compressed',
+			})
+			const req = new Request('http://localhost/about', {
+				headers: { 'accept-encoding': 'br' },
+			})
+
+			const res = await HttpRouter.serveStatic(
+				assets,
+				{ namespace: 'static', path: 'about.html' },
+				req,
+				true,
+			)
+
+			expect(res.status).toBe(200)
+			expect(res.headers.get('Content-Encoding')).toBe('br')
+			expect(res.headers.get('Vary')).toBe('Accept-Encoding')
+			expect(await res.text()).toBe('compressed')
+			expect(exists).toHaveBeenCalledTimes(1)
+		})
+
+		it('checks the original when no brotli variant exists', async () => {
+			const { assets, exists } = fakeAssets({ 'about.html': 'plain' })
+			const req = new Request('http://localhost/about', {
+				headers: { 'accept-encoding': 'br' },
+			})
+
+			const res = await HttpRouter.serveStatic(
+				assets,
+				{ namespace: 'static', path: 'about.html' },
+				req,
+				true,
+			)
+
+			expect(res.status).toBe(200)
+			expect(res.headers.get('Content-Encoding')).toBeNull()
+			expect(await res.text()).toBe('plain')
+			expect(exists).toHaveBeenCalledTimes(2)
+		})
+	})
+
+	describe('resolved path', () => {
+		it('uses a caller-resolved path instead of recomputing it', async () => {
+			const router = addRoute(createRouter(), '/about')
+
+			// a document request to /about/ would normally redirect to /about
+			const redirect = await router.fetch(http('/about/'))
+			expect(redirect.status).toBe(308)
+
+			// the dispatch layer has already normalised the path and owns the
+			// redirect, so the router can match directly
+			const res = await router.fetch(http('/about/'), '/about')
+			expect(res.status).toBe(200)
 		})
 	})
 })

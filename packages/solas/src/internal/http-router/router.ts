@@ -1,6 +1,6 @@
 import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 
-import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
+import { normaliseBasePath } from '../../utils/base-path.js'
 
 import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
 import type { AssetRef, Assets } from '../runtimes/assets.js'
@@ -8,7 +8,12 @@ import * as Config from '../../config.js'
 import { HttpException } from '../navigation/http-exception.js'
 import { maybeAction } from '../server/actions.js'
 import { CsrfConfig, enforce } from '../server/csrf.js'
-import { getAlternatePathname, normaliseTrailingSlash, toPathPattern } from './utils.js'
+import {
+	getAlternatePathname,
+	normaliseTrailingSlash,
+	resolveRequestPath,
+	toPathPattern,
+} from './utils.js'
 
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 
@@ -260,22 +265,21 @@ export class HttpRouter {
 	/**
 	 * Handle an incoming request.
 	 */
-	async fetch(req: Request) {
-		const url = new URL(req.url)
-		const trailingSlash = this.opts.trailingSlash ?? 'never'
-		const routedPath = stripBasePath(url.pathname, BASE_PATH)
-		const path =
-			routedPath == null
-				? null
-				: trailingSlash === 'ignore'
-					? routedPath
-					: normaliseTrailingSlash(routedPath, trailingSlash)
-		let match: HttpRouter.Match | null = null
-		let action = false
+	async fetch(req: Request, resolvedPath?: string | null) {
+		// callers that have already applied the base-path and trailing-slash
+		// policy (the RSC dispatch layer) pass the resolved path in, so the
+		// request does not pay for that normalisation twice
+		let path = resolvedPath
 
-		try {
+		if (path === undefined) {
+			const url = new URL(req.url)
+			const trailingSlash = this.opts.trailingSlash ?? 'never'
+			const resolved = resolveRequestPath(url.pathname, BASE_PATH, trailingSlash)
+
+			path = resolved.path
+
 			const method = req.method.toUpperCase() as HttpMethod
-			const canonicalPathname = path == null ? null : applyBasePath(path, BASE_PATH)
+			const canonicalPathname = resolved.pathname
 
 			if (
 				canonicalPathname != null &&
@@ -291,6 +295,13 @@ export class HttpRouter {
 				url.pathname = canonicalPathname
 				req = new Request(url.toString(), req)
 			}
+		}
+
+		let match: HttpRouter.Match | null = null
+		let action = false
+
+		try {
+			const method = req.method.toUpperCase() as HttpMethod
 
 			const { action: isAction, formData: parsedFormData } = await maybeAction(req)
 			action = isAction
@@ -410,7 +421,10 @@ export class HttpRouter {
 			}
 		}
 
-		if (!(await assets.exists(resolved))) {
+		// a precompressed variant is only emitted for an asset that existed, so a
+		// brotli hit above already proves the file is there. skipping the second
+		// lookup saves a round trip on stores where `exists` is a remote call
+		if (encoding === null && !(await assets.exists(resolved))) {
 			return new Response('Not found', { status: 404 })
 		}
 

@@ -1,3 +1,5 @@
+import { applyBasePath, stripBasePath } from '../../utils/base-path.js'
+
 import type { PluginConfig } from '../../types.js'
 
 /**
@@ -16,6 +18,35 @@ export function isRscRequest(req: Request) {
 export type PathPattern = {
 	path: string
 	wildcardNames: Set<string>
+}
+
+/**
+ * Resolve an incoming request pathname against the base path and trailing-slash
+ * policy. Both the dispatch layer and the router use this so the two never
+ * disagree about what a canonical path looks like.
+ *
+ * `routedPath` is the raw app-relative path, `path` is what the router matches,
+ * and `pathname` is the canonical URL pathname including the base path, so the
+ * caller can tell whether a redirect is needed.
+ */
+export function resolveRequestPath(
+	pathname: string,
+	base: string | null | undefined,
+	trailingSlash: PluginConfig['trailingSlash'] = 'never',
+) {
+	const routedPath = stripBasePath(pathname, base)
+	const path =
+		routedPath == null
+			? null
+			: trailingSlash === 'ignore'
+				? routedPath
+				: normaliseTrailingSlash(routedPath, trailingSlash)
+
+	return {
+		routedPath,
+		path,
+		pathname: path == null ? null : applyBasePath(path, base),
+	}
 }
 
 /**
