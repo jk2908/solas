@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- The Node adapter's response-stream loop and close handlers use declarations and `while (true)` for readability. No behaviour change.
+
 ## 0.13.1
 
 ### Fixes
