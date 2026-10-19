@@ -83,7 +83,7 @@ async function webToNode<T extends Uint8Array>(
 
 	// a client that goes away leaves nothing to write to; cancel the source so
 	// its producer stops instead of buffering into a dead socket
-	const onClose = () => {
+	function onClose() {
 		closed = true
 		void reader.cancel().catch(() => {})
 	}
@@ -91,7 +91,7 @@ async function webToNode<T extends Uint8Array>(
 	res.once('close', onClose)
 
 	try {
-		for (;;) {
+		while (true) {
 			if (closed) break
 
 			const { done, value } = await reader.read()
@@ -104,7 +104,7 @@ async function webToNode<T extends Uint8Array>(
 				// fast producer and a slow client would buffer the whole body in memory
 				if (!res.write(value)) {
 					await new Promise<void>(resolve => {
-						const settle = () => {
+						function settle() {
 							res.off('drain', settle)
 							res.off('close', settle)
 							resolve()
@@ -215,7 +215,7 @@ async function adapter(options: ServeOptions = {}) {
 
 		// `close` before the response has finished means the client went away;
 		// surface that through `req.signal` so long-lived work can stop
-		const onClose = () => {
+		function onClose() {
 			if (!res.writableEnded) abort.abort(new Error('client disconnected'))
 		}
 
