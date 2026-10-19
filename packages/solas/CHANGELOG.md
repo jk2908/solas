@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- The Node adapter now aborts `request.signal` when the client disconnects, so streaming endpoints such as SSE can stop their producers.
+- The Node adapter flushes response headers before streaming the body, so a delayed first chunk no longer leaves the client waiting with no response.
+- The Node adapter cancels the response stream when the client disconnects, instead of continuing to write into a dead socket.
+
 ## 0.13.0
 
 ### Features
