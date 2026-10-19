@@ -213,6 +213,18 @@ That keeps your route params aligned across links, imperative navigation, metada
 
 `router.refresh()` clears the cached RSC response for the current path and fetches a fresh payload, so it is most useful for routes that render request-time data. `router.isNavigating` exposes pending client-side navigation state.
 
+Navigation manages scroll for you: `Link` and `router.go(...)` scroll to the top of the new route, or to the target element when the URL has a hash. Back and forward restore the position each history entry was left at. Override this with the `scroll` option:
+
+```tsx
+await router.go('/search', { query: { q }, scroll: 'none' })
+
+<Link href="/results" scroll="none">
+	Keep position
+</Link>
+```
+
+`scroll` accepts `'top'` (the default), `'none'` to leave the position untouched, or `{ restore: y }` to restore a specific offset.
+
 ## Config
 
 All Solas options are passed to `solas()` inside `defineConfig`.
@@ -540,7 +552,7 @@ Valid values are `debug`, `info`, `warn`, `error`, and `fatal`.
 - `error`: only errors
 - `fatal`: only fatal errors
 
-This is mainly useful when debugging framework behaviour such as routing and prerendering. It is for Solas internals, not your app's general-purpose logging, and it does not control top-level CLI status output such as build and preview progress messages.
+This is mainly useful when debugging framework behaviour such as routing and prerendering. It is for Solas internals, not your app's general-purpose logging, and it does not control top-level build and preview status output.
 
 ```ts
 export default defineConfig({

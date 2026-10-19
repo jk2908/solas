@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Client navigation now scrolls to the top of a route on push, scrolls to a hash target when the URL has one, and restores the previous position on back and forward. `router.go(...)` and `Link` accept a `scroll` option (`'top'`, `'none'`, or `{ restore: y }`) to control this.
+
+### Fixes
+
+- Endpoint handlers with default or rest parameters now receive the request. Previously Solas passed it only when `Function.length` was non-zero.
+- Request handling no longer resolves the base path and trailing slash twice per request: the dispatch layer passes its already-normalised path to the router.
+
+### Changed
+
+- The route finder caches import paths, and the dev watcher ignores `dist`, so large route graphs and long dev sessions do less repeated work.
+
 ## 0.12.0
 
 ### Features
