@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- Runtime helpers moved out of `@jk2908/solas/adapters/*`: `serve` is now a named export from `@jk2908/solas/runtime/node`, and `createWorker`/`createCloudflareAssets` are now `@jk2908/solas/runtime/cloudflare`. The old `@jk2908/solas/adapters/node` and `@jk2908/solas/adapters/cloudflare/runtime` entries are removed. `@jk2908/solas/adapters/*` now contains build adapters only.
+
 ## 0.13.2
 
 ### Changed

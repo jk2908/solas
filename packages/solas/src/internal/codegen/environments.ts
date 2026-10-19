@@ -34,7 +34,7 @@ export function writeCloudflareEntry() {
 	return source`
 		${AUTOGEN_MSG}
 
-		import { createWorker } from '${Config.PKG_NAME}/adapters/cloudflare/runtime'
+		import { createWorker } from '${Config.PKG_NAME}/runtime/cloudflare'
 
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'

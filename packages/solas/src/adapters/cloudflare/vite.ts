@@ -9,7 +9,7 @@ import type { Adapter } from '../../types.js'
 import * as Config from '../../config.js'
 import { writeCloudflareEntry } from '../../internal/codegen/environments.js'
 import { setPrerenderImport, setRscEntry } from '../../internal/postbuild.js'
-import { NAMESPACE_PREFIX } from './assets.js'
+import { NAMESPACE_PREFIX } from '../../runtime/cloudflare/assets.js'
 import { withBindingsShim } from './bindings.js'
 
 /**

@@ -10,7 +10,7 @@ vi.mock('../../../../src/internal/env/rsc.js', () => ({
 	createRuntimeHandler: mockCreateRuntimeHandler,
 }))
 
-import { createWorker } from '../../../../src/adapters/cloudflare/worker.js'
+import { createWorker } from '../../../../src/runtime/cloudflare/worker.js'
 
 const init = { config: {}, manifest: {}, importMap: {} } as never
 

@@ -21,5 +21,5 @@ Guidance for agents working in this repo.
 
 ## Adapters
 
-- Live under `@jk2908/solas/adapters/*` and default-export a function named `adapter`, so `import adapter from '@jk2908/solas/adapters/static'`.
-- A platform with no server sets `prerender` on the returned `Adapter` to force the mode it needs.
+- Build adapters live under `@jk2908/solas/adapters/*` and default-export a function named `adapter` (`cloudflare()`, the static adapter), so `import adapter from '@jk2908/solas/adapters/static'`. They return the `Adapter` shape (`name`, `plugins`, optional `prerender`) and are passed to `solas({ adapter })`. A platform with no server sets `prerender` on the returned `Adapter` to force the mode it needs.
+- Runtime helpers live under `@jk2908/solas/runtime/*`. They execute at request time and are never passed to `solas({ adapter })`. The Node server is `import { serve } from '@jk2908/solas/runtime/node'`; the Cloudflare worker and asset store are `import { createWorker, createCloudflareAssets } from '@jk2908/solas/runtime/cloudflare'`.

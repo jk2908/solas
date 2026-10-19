@@ -73,17 +73,17 @@
 			"types": "./dist/adapters/cloudflare/index.d.ts",
 			"import": "./dist/adapters/cloudflare/index.js"
 		},
-		"./adapters/cloudflare/runtime": {
-			"types": "./dist/adapters/cloudflare/runtime.d.ts",
-			"import": "./dist/adapters/cloudflare/runtime.js"
-		},
-		"./adapters/node": {
-			"types": "./dist/adapters/node.d.ts",
-			"import": "./dist/adapters/node.js"
-		},
 		"./adapters/static": {
 			"types": "./dist/adapters/static.d.ts",
 			"import": "./dist/adapters/static.js"
+		},
+		"./runtime/cloudflare": {
+			"types": "./dist/runtime/cloudflare/index.d.ts",
+			"import": "./dist/runtime/cloudflare/index.js"
+		},
+		"./runtime/node": {
+			"types": "./dist/runtime/node.d.ts",
+			"import": "./dist/runtime/node.js"
 		}
 	},
 	"scripts": {

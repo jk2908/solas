@@ -202,7 +202,7 @@ async function sendResponse(res: http.ServerResponse, response: Response) {
  * Deno and Bun do not need this helper: use `Deno.serve(handler.fetch)` or
  * `Bun.serve({ fetch: handler.fetch })` directly.
  */
-async function adapter(options: ServeOptions = {}) {
+async function serve(options: ServeOptions = {}) {
 	const outDir = options.outDir ?? 'dist'
 	const entry = path.resolve(options.entry ?? path.join(outDir, 'rsc', 'index.js'))
 	const port = options.port ?? (Number(process.env.PORT) || 3000)
@@ -253,4 +253,4 @@ async function adapter(options: ServeOptions = {}) {
 	})
 }
 
-export { adapter as default }
+export { serve }
