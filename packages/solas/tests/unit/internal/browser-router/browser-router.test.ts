@@ -12,6 +12,14 @@ import {
 
 const defaultLocation = { pathname: '/', search: '', hash: '' }
 
+function setScrollY(value: number) {
+	Object.defineProperty(window, 'scrollY', {
+		value,
+		configurable: true,
+		writable: true,
+	})
+}
+
 function createHistory() {
 	return new BrowserRouterHistory(defaultLocation)
 }
@@ -131,7 +139,7 @@ describe('BrowserRouterHistory', () => {
 		expect(h.entries).toHaveLength(1)
 		expect(h.index).toBe(0)
 		expect(h.length).toBe(1)
-		expect(h.current).toEqual(defaultLocation)
+		expect(h.current).toEqual({ ...defaultLocation, scrollY: 0 })
 	})
 
 	it('pushes new entries', () => {
@@ -192,8 +200,34 @@ describe('BrowserRouterHistory', () => {
 	it('entries returns a copy', () => {
 		const h = createHistory()
 		const entries = h.entries
-		entries.push({ pathname: '', search: '', hash: '' })
+		entries.push({ pathname: '', search: '', hash: '', scrollY: 0 })
 		expect(h.entries).toHaveLength(1)
+	})
+
+	it('saves the outgoing scroll position on push and resets the new entry', () => {
+		const h = createHistory()
+		setScrollY(120)
+
+		pushHistory(h, '/a')
+
+		expect(h.entries[0]?.scrollY).toBe(120)
+		expect(h.current?.scrollY).toBe(0)
+	})
+
+	it('restores the saved scroll position when moving back', () => {
+		const h = createHistory()
+		setScrollY(120)
+		pushHistory(h, '/a')
+
+		setScrollY(40)
+		window.location.pathname = '/b'
+		h.pushState('/b')
+
+		// simulate the browser moving back to /a
+		window.location.pathname = '/a'
+		const entry = h.onPopState()
+
+		expect(entry.scrollY).toBe(40)
 	})
 })
 

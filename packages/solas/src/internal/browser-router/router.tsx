@@ -61,6 +61,71 @@ function performNavigationFetch(path: string, init?: RequestInit) {
 		: fetch(path, { ...init, headers: { ...init?.headers, accept: 'text/x-component' } })
 }
 
+const MAX_HASH_ATTEMPTS = 20
+
+function nextFrame(callback: () => void) {
+	if (typeof requestAnimationFrame === 'function') {
+		requestAnimationFrame(callback)
+		return
+	}
+
+	setTimeout(callback, 0)
+}
+
+/**
+ * Scroll to the element a hash points at, retrying for a few frames because the
+ * incoming tree may still be committing when the navigation resolves.
+ */
+function scrollToHash(hash: string, attempts = MAX_HASH_ATTEMPTS) {
+	let id: string
+
+	try {
+		id = decodeURIComponent(hash.replace(/^#/, ''))
+	} catch {
+		id = hash.replace(/^#/, '')
+	}
+
+	if (!id) {
+		window.scrollTo(0, 0)
+		return
+	}
+
+	const element = document.getElementById(id) ?? document.getElementsByName(id)[0] ?? null
+
+	if (element) {
+		element.scrollIntoView()
+		return
+	}
+
+	if (attempts <= 0) return
+
+	nextFrame(() => scrollToHash(hash, attempts - 1))
+}
+
+/**
+ * Apply the scroll position for a completed navigation. Push navigations go to
+ * the top (or the target hash), back/forward restore the saved position, and
+ * refreshes leave the page where it is.
+ */
+function applyScroll(intent: BrowserRouter.ScrollIntent, hash: string) {
+	if (typeof window === 'undefined') return
+	if (intent === 'none') return
+	if (typeof window.scrollTo !== 'function') return
+
+	if (typeof intent === 'object') {
+		// wait for the restored tree to commit so it has its full height
+		nextFrame(() => nextFrame(() => window.scrollTo(0, intent.restore)))
+		return
+	}
+
+	if (hash) {
+		scrollToHash(hash)
+		return
+	}
+
+	window.scrollTo(0, 0)
+}
+
 export function BrowserRouterProvider({
 	children,
 	setPayload,
@@ -90,6 +155,10 @@ export function BrowserRouterProvider({
 	 */
 	const go: BrowserRouter.Go = useCallback(
 		async (to: string | number, opts: BrowserRouter.GoOptions = {}) => {
+			// capture before the first await so a mutated options object cannot
+			// change how this navigation scrolls
+			const scrollIntent = opts.scroll ?? 'top'
+
 			id.current += 1
 			const navigationId = id.current
 
@@ -119,6 +188,7 @@ export function BrowserRouterProvider({
 				}
 
 				const url = new URL(target, window.location.origin)
+				const hash = url.hash
 				const key = ResponseCache.toCacheKey(url.toString(), window.location.origin)
 				if (!key) throw new Error('Invalid navigation url')
 
@@ -140,7 +210,6 @@ export function BrowserRouterProvider({
 					controller.current = ctrl
 
 					promise = performNavigationFetch(path, { signal: ctrl.signal })
-
 					responseCache.set(path, promise)
 				}
 
@@ -164,6 +233,7 @@ export function BrowserRouterProvider({
 				}
 
 				setPayload?.(payload)
+				applyScroll(scrollIntent, hash)
 
 				window.dispatchEvent(
 					new CustomEvent(Events.names.NAVIGATION, {
@@ -224,19 +294,20 @@ export function BrowserRouterProvider({
 		if (!key) return Promise.resolve(currentPath)
 		if (responseCache.has(key)) responseCache.remove(key)
 
-		return go(currentPath, {
-			replace: true,
-		})
+		// a refresh stays exactly where the user is
+		return go(currentPath, { replace: true, scroll: 'none' })
 	}, [go])
 
 	useEffect(() => {
 		const h = history.current
 
 		function handler() {
-			h.onPopState()
+			const entry = h.onPopState()
 
+			// back/forward restores the position the entry was left at
 			void go(BrowserRouter.toTarget(window.location.pathname + window.location.search), {
 				replace: true,
+				scroll: { restore: entry?.scrollY ?? 0 },
 			})
 		}
 
@@ -249,6 +320,40 @@ export function BrowserRouterProvider({
 			window.removeEventListener('popstate', handler)
 		}
 	}, [go])
+
+	// take over scroll restoration so back/forward can restore saved positions
+	useEffect(() => {
+		// remember the browser's own setting so an unmount can hand it back
+		const previous =
+			'scrollRestoration' in window.history ? window.history.scrollRestoration : undefined
+
+		if (previous !== undefined) {
+			window.history.scrollRestoration = 'manual'
+		}
+
+		let pending = false
+
+		function onScroll() {
+			if (pending) return
+
+			pending = true
+
+			nextFrame(() => {
+				pending = false
+				history.current.saveScroll()
+			})
+		}
+
+		window.addEventListener('scroll', onScroll, { passive: true })
+
+		return () => {
+			window.removeEventListener('scroll', onScroll)
+
+			if (previous !== undefined) {
+				window.history.scrollRestoration = previous
+			}
+		}
+	}, [])
 
 	const value = useMemo(
 		() => ({

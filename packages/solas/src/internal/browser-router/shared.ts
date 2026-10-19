@@ -13,10 +13,24 @@ export type Path = keyof Solas.Routes & string
 // shared option for choosing replaceState instead of pushState
 type Replace = { replace?: boolean }
 
+/**
+ * Where to position the page after a navigation.
+ *
+ * - `'top'`: scroll to the target hash when the URL has one, otherwise the top.
+ * - `'none'`: leave the scroll position untouched.
+ * - `{ restore: number }`: restore a specific offset. Used by the router for
+ *   back and forward.
+ */
+export type ScrollIntent = 'top' | 'none' | { restore: number }
+
 export type GoOptions = {
 	replace?: boolean
 	query?: Query
 	params?: Params
+	/**
+	 * Where to position the page after navigating. Defaults to `'top'`.
+	 */
+	scroll?: ScrollIntent
 }
 
 export type Context = {
@@ -39,6 +53,7 @@ export type HistoryEntry = {
 	pathname: string
 	search: string
 	hash: string
+	scrollY: number
 }
 
 /**
@@ -135,6 +150,7 @@ export type Target = ExternalTarget | TargetSuffix<ResolvedPath<Path>>
 type TargetConfig = {
 	params?: never
 	query?: Query
+	scroll?: ScrollIntent
 }
 
 /**
@@ -158,6 +174,7 @@ type TargetConfig = {
  */
 type PatternConfig<TPath extends Path> = {
 	query?: Query
+	scroll?: ScrollIntent
 } & (Solas.Routes[TPath] extends {
 	params: infer TParams extends Params
 }

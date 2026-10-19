@@ -14,6 +14,7 @@ export class BrowserRouterHistory {
 			pathname: url.pathname,
 			search: url.search ?? '',
 			hash: url.hash ?? '',
+			scrollY: 0,
 		}
 
 		this.#entries = [entry]
@@ -49,9 +50,13 @@ export class BrowserRouterHistory {
 	}
 
 	/**
-	 * Pushes a new history entry and advances the index.
+	 * Push a new history entry and advances the index.
 	 */
 	pushState(path: string) {
+		// remember where the user was before leaving the current entry so a
+		// later back navigation can restore it
+		this.saveScroll()
+
 		if (this.#index < this.#entries.length - 1) {
 			// drop forward entries when pushing from the middle
 			this.#entries = this.#entries.slice(0, this.#index + 1)
@@ -63,6 +68,7 @@ export class BrowserRouterHistory {
 			pathname: window.location.pathname,
 			search: window.location.search,
 			hash: window.location.hash,
+			scrollY: 0,
 		}
 
 		this.#entries.push(entry)
@@ -81,6 +87,8 @@ export class BrowserRouterHistory {
 			pathname: window.location.pathname,
 			search: window.location.search,
 			hash: window.location.hash,
+			// replacing the url does not move the page, so keep the position
+			scrollY: this.#entries[this.#index]?.scrollY ?? 0,
 		}
 
 		if (this.#entries.length === 0) {
@@ -94,12 +102,25 @@ export class BrowserRouterHistory {
 	}
 
 	/**
+	 * Store the current window scroll position on the active entry.
+	 */
+	saveScroll() {
+		const current = this.#entries[this.#index]
+		if (!current) return
+
+		current.scrollY = window.scrollY
+	}
+
+	/**
 	 * Applies relative history movement and updates local index.
 	 */
 	go(delta: number) {
 		if (!Number.isInteger(delta) || delta === 0) {
 			return this.current
 		}
+
+		// capture the outgoing position before the browser moves
+		this.saveScroll()
 
 		const nextIndex = Math.max(0, Math.min(this.#index + delta, this.#entries.length - 1))
 		if (nextIndex !== this.#index) this.#index = nextIndex
@@ -117,42 +138,35 @@ export class BrowserRouterHistory {
 			pathname: window.location.pathname,
 			search: window.location.search,
 			hash: window.location.hash,
+			// unknown entries start at the top
+			scrollY: 0,
 		}
 		const prev = this.#entries[this.#index - 1]
 		const next = this.#entries[this.#index + 1]
 
-		if (
-			prev &&
-			prev.pathname === current.pathname &&
-			prev.search === current.search &&
-			prev.hash === current.hash
-		) {
+		if (prev && matches(prev, current)) {
 			this.#index--
+			// restore the position this entry had when it was left
+			current.scrollY = prev.scrollY
 			this.#entries[this.#index] = current
 			return current
 		}
 
-		if (
-			next &&
-			next.pathname === current.pathname &&
-			next.search === current.search &&
-			next.hash === current.hash
-		) {
+		if (next && matches(next, current)) {
 			this.#index++
+			current.scrollY = next.scrollY
 			this.#entries[this.#index] = current
 			return current
 		}
 
 		// fallback: locate an existing matching entry
-		const index = this.#entries.findIndex(
-			entry =>
-				entry.pathname === current.pathname &&
-				entry.search === current.search &&
-				entry.hash === current.hash,
-		)
+		const index = this.#entries.findIndex(entry => matches(entry, current))
 
 		if (index >= 0) {
+			const entry = this.#entries[index]
+
 			this.#index = index
+			current.scrollY = entry?.scrollY ?? 0
 			this.#entries[index] = current
 			return current
 		}
@@ -162,4 +176,11 @@ export class BrowserRouterHistory {
 
 		return current
 	}
+}
+
+/**
+ * Whether two history entries point at the same location.
+ */
+function matches(a: BrowserRouter.HistoryEntry, b: BrowserRouter.HistoryEntry) {
+	return a.pathname === b.pathname && a.search === b.search && a.hash === b.hash
 }

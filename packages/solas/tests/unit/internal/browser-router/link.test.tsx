@@ -88,6 +88,24 @@ describe('Link', () => {
 		expect(go).toHaveBeenCalledWith('/internal', { params: undefined, query: undefined })
 	})
 
+	it('forwards the scroll option to go', async () => {
+		const go = vi.fn().mockResolvedValue('/')
+		mockRouter({ go })
+
+		const screen = await render(
+			<Link href="/internal" scroll="none">
+				Keep
+			</Link>,
+		)
+		await screen.getByRole('link', { name: 'Keep' }).click()
+
+		expect(go).toHaveBeenCalledWith('/internal', {
+			params: undefined,
+			query: undefined,
+			scroll: 'none',
+		})
+	})
+
 	it('does not call go on meta-click', async () => {
 		const go = vi.fn()
 		mockRouter({ go })

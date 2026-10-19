@@ -37,6 +37,7 @@ export function Link({
 	params,
 	prefetch = 'none',
 	query,
+	scroll,
 	...rest
 }: Props) {
 	const { go, prefetch: prefetcher } = useRouter()
@@ -78,7 +79,7 @@ export function Link({
 				if (handled.current) return
 
 				e.preventDefault()
-				go(href, { params, query })
+				go(href, { params, query, scroll })
 			}}
 			onFocus={e => {
 				rest.onFocus?.(e)
