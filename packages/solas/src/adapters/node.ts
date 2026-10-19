@@ -1,4 +1,3 @@
-import { once } from 'node:events'
 import http from 'node:http'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -80,26 +79,61 @@ async function webToNode<T extends Uint8Array>(
 	res: http.ServerResponse,
 ) {
 	const reader = stream.getReader()
+	let closed = false
+
+	// a client that goes away leaves nothing to write to; cancel the source so
+	// its producer stops instead of buffering into a dead socket
+	const onClose = () => {
+		closed = true
+		void reader.cancel().catch(() => {})
+	}
+
+	res.once('close', onClose)
 
 	try {
-		while (true) {
+		for (;;) {
+			if (closed) break
+
 			const { done, value } = await reader.read()
 			if (done) break
+			if (closed || res.destroyed || res.writableEnded) break
 
-			// `write` returns false when the socket buffer is full. That is not an
-			// error: wait for the `'drain'` event before writing more, otherwise a
-			// fast producer and a slow client would buffer the whole body in memory
-			if (!res.write(value)) await once(res, 'drain')
+			try {
+				// `write` returns false when the socket buffer is full. That is not an
+				// error: wait for the `'drain'` event before writing more, otherwise a
+				// fast producer and a slow client would buffer the whole body in memory
+				if (!res.write(value)) {
+					await new Promise<void>(resolve => {
+						const settle = () => {
+							res.off('drain', settle)
+							res.off('close', settle)
+							resolve()
+						}
+
+						res.on('drain', settle)
+						res.on('close', settle)
+					})
+				}
+			} catch {
+				// the socket died between the checks above
+				break
+			}
 		}
 	} finally {
-		reader.releaseLock()
+		res.off('close', onClose)
+
+		try {
+			reader.releaseLock()
+		} catch {
+			// a pending read can outlive a cancel by a tick
+		}
 	}
 }
 
 /**
  * Convert a Node request into a fetch `Request`, streaming the body when present.
  */
-function toRequest(req: http.IncomingMessage): Request {
+function toRequest(req: http.IncomingMessage, signal?: AbortSignal): Request {
 	const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
 	const headers = new Headers()
 
@@ -120,6 +154,7 @@ function toRequest(req: http.IncomingMessage): Request {
 		headers,
 		body: hasBody ? nodeToWeb(req) : undefined,
 		duplex: 'half',
+		signal,
 	}
 
 	return new Request(url, init)
@@ -147,8 +182,12 @@ async function sendResponse(res: http.ServerResponse, response: Response) {
 		return
 	}
 
+	// send headers now so a delayed first chunk (SSE, slow streams) does not
+	// leave the client waiting with no response
+	res.flushHeaders()
+
 	await webToNode(response.body, res)
-	res.end()
+	if (!res.destroyed) res.end()
 }
 
 /**
@@ -172,14 +211,33 @@ async function adapter(options: ServeOptions = {}) {
 	const handler = await loadHandler(entry)
 
 	const server = http.createServer(async (req, res) => {
+		const abort = new AbortController()
+
+		// `close` before the response has finished means the client went away;
+		// surface that through `req.signal` so long-lived work can stop
+		const onClose = () => {
+			if (!res.writableEnded) abort.abort(new Error('client disconnected'))
+		}
+
+		res.once('close', onClose)
+
 		try {
-			const response = await handler.fetch(toRequest(req))
+			const response = await handler.fetch(toRequest(req, abort.signal))
+
 			await sendResponse(res, response)
 		} catch (err) {
 			console.error('[solas] request failed', err)
+
+			if (res.headersSent) {
+				res.destroy()
+				return
+			}
+
 			res.statusCode = 500
 			res.setHeader('content-type', 'text/plain; charset=utf-8')
 			res.end('Internal Server Error')
+		} finally {
+			res.off('close', onClose)
 		}
 	})
 
