@@ -77,15 +77,6 @@ export function getDocumentNonce() {
 }
 
 /**
- * Add the current document nonce to a request that renders RSC content.
- */
-export function addNonceHeader(headers: Headers) {
-	const nonce = getDocumentNonce()
-
-	if (nonce) headers.set('x-solas-nonce', nonce)
-}
-
-/**
  * These targets are used as-is. They are not matched against the route table,
  * so this covers normal external URLs and hash-only links.
  */

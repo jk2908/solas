@@ -11,7 +11,7 @@ import {
 
 import type { RscPayload } from './rsc.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
-import { addNonceHeader } from '../browser-router/shared.js'
+import { getDocumentNonce } from '../browser-router/shared.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
@@ -65,8 +65,9 @@ export async function browser() {
 		const url = new URL(window.location.href)
 		const temporaryReferences = createTemporaryReferenceSet()
 		const headers = new Headers({ 'x-rsc-action-id': id })
+		const nonce = getDocumentNonce()
 
-		addNonceHeader(headers)
+		if (nonce) headers.set('x-solas-nonce', nonce)
 
 		const payload = await createFromFetch<RscPayload>(
 			fetch(url, {
@@ -99,8 +100,9 @@ export async function browser() {
 		import.meta.hot.on?.('rsc:update', async () => {
 			try {
 				const headers = new Headers({ Accept: 'text/x-component' })
+				const nonce = getDocumentNonce()
 
-				addNonceHeader(headers)
+				if (nonce) headers.set('x-solas-nonce', nonce)
 
 				const p = await createFromFetch<RscPayload>(
 					fetch(window.location.href, { headers }),

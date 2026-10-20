@@ -60,7 +60,9 @@ function performNavigationFetch(path: string, init?: RequestInit) {
 
 	const headers = new Headers(init?.headers)
 	headers.set('accept', 'text/x-component')
-	BrowserRouter.addNonceHeader(headers)
+
+	const nonce = BrowserRouter.getDocumentNonce()
+	if (nonce) headers.set('x-solas-nonce', nonce)
 
 	return fetch(path, { ...init, headers })
 }
