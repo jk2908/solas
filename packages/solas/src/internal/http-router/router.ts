@@ -27,7 +27,7 @@ function withRequestMeta(request: Request, source: SolasRequest): SolasRequest {
 
 	return Object.assign(request, {
 		[Config.REQUEST_META_KEY]: source[Config.REQUEST_META_KEY],
-	}) as SolasRequest
+	})
 }
 
 export namespace HttpRouter {

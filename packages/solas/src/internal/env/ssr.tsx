@@ -24,14 +24,6 @@ type Opts = {
 	route?: string
 }
 
-/**
- * React 19 accepts `{ script, style }` at runtime so hoistable styles receive
- * the style nonce, but `@types/react-dom` still declares only the string form.
- */
-function toNonceOption(nonce?: string) {
-	return nonce ? { script: nonce, style: nonce } : undefined
-}
-
 const logger = new Logger()
 
 function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
@@ -86,7 +78,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	const htmlStream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
 		bootstrapScriptContent,
 		// @ts-expect-error React 19 accepts the object form; @types/react-dom declares only string
-		nonce: toNonceOption(nonce),
+		nonce: { script: nonce, style: nonce },
 		formState,
 		onError(err) {
 			const digest = getKnownDigest(err)
@@ -183,7 +175,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 	const stream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
 		bootstrapScriptContent,
 		// @ts-expect-error React 19 accepts the object form; @types/react-dom declares only string
-		nonce: toNonceOption(nonce),
+		nonce: { script: nonce, style: nonce },
 		onError(err) {
 			const digest = getKnownDigest(err)
 
@@ -221,7 +213,7 @@ async function resume(
 		postponedState as never,
 		{
 			// @ts-expect-error React 19 accepts the object form; @types/react-dom declares only string
-			nonce: toNonceOption(opts.nonce),
+			nonce: opts.nonce ? { script: opts.nonce, style: opts.nonce } : undefined,
 			onError(err) {
 				const digest = getKnownDigest(err)
 

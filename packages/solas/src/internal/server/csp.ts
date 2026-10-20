@@ -1,9 +1,3 @@
-const NONCE = /'nonce-([^']+)'/
-
-function extractNonce(csp: string | null | undefined) {
-	return csp?.match(NONCE)?.[1] || undefined
-}
-
 /**
  * Resolve the nonce for a request.
  *
@@ -17,7 +11,11 @@ export function resolveNonce(
 	clientNonce?: string | null,
 ) {
 	if (clientNonce) return clientNonce
-	if (requestCsp) return extractNonce(requestCsp)
+	if (requestCsp) return extract(requestCsp)
 
-	return extractNonce(new Headers(configuredHeaders).get('content-security-policy'))
+	return extract(new Headers(configuredHeaders).get('content-security-policy'))
+}
+
+function extract(csp: string | null | undefined) {
+	return csp?.match(/'nonce-([^']+)'/)?.[1] || undefined
 }
