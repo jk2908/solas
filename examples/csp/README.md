@@ -1,0 +1,56 @@
+# Solas CSP example
+
+A small app that enforces a nonce-based Content Security Policy in production.
+
+The CSP is generated in `app/+middleware.ts`:
+
+- production: `script-src 'self' 'nonce-...' 'strict-dynamic'` and
+  `style-src 'self' 'nonce-...'`
+- development: relaxed for Vite HMR and React's development tooling
+
+## Run
+
+From the repo root:
+
+```sh
+bun install
+```
+
+Then, from this directory:
+
+```sh
+bun run dev       # relaxed CSP on http://127.0.0.1:4322
+bun run build     # production build
+bun run start     # strict CSP on http://127.0.0.1:4322
+```
+
+Stop `dev` before `start`; both use port 4322.
+
+## What to check
+
+Open the app in production and navigate from `/` to `/styles` with the client
+router.
+
+- The document response has a `Content-Security-Policy` header with a nonce.
+- The head contains `<meta name="solas-nonce" content="...">`.
+- The layout's inline `<style>` has the same nonce.
+- The `/styles` page renders a hoistable `<style href precedence nonce>`.
+  React only keeps the rules when the tag and the renderer use the same nonce.
+- Navigating between `/` and `/styles` keeps the style working. The browser
+  router sends the document nonce as `x-solas-nonce` on the RSC request, so the
+  new payload is rendered with the nonce the document already enforces.
+
+The `/styles` page is a plain React hoistable style. `@jk2908/cxx` returns the
+same kind of tag, so its style needs the same `nonce` prop:
+
+```tsx
+<style href={href} precedence="medium" nonce={nonce}>
+	{css}
+</style>
+```
+
+If you do not need strict style nonces, keep the nonce for scripts and use
+`style-src 'self' 'unsafe-inline'`; then CSS-in-JS needs no nonce plumbing.
+
+Full prerenders, PPR shells, and the static adapter cannot use per-request
+nonces. Use hashes or Subresource Integrity for those.
