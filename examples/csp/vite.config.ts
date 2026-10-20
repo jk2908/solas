@@ -1,6 +1,7 @@
 import { defineConfig } from 'vite'
 
 import solas from '@jk2908/solas'
+import cxx from '@jk2908/cxx/vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
@@ -15,5 +16,6 @@ export default defineConfig({
 			},
 		}),
 		react(),
+		cxx(),
 	],
 })

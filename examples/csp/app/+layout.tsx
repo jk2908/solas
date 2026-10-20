@@ -27,6 +27,7 @@ export default async function Shell({ children }: { children: React.ReactNode })
 					<nav>
 						<Link href="/">home</Link>
 						<Link href="/styles">styles</Link>
+						<Link href="/cxx">cxx</Link>
 					</nav>
 				</header>
 

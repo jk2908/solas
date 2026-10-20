@@ -9,6 +9,7 @@
 		"start": "NODE_ENV=production PORT=4322 bun run server.ts"
 	},
 	"dependencies": {
+		"@jk2908/cxx": "^0.3.7",
 		"@jk2908/solas": "workspace:*",
 		"react": "^19.2.4",
 		"react-dom": "^19.2.4",
