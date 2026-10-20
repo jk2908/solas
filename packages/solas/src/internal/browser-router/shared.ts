@@ -57,6 +57,32 @@ export type HistoryEntry = {
 }
 
 /**
+ * The CSP nonce for the current document.
+ *
+ * RSC navigations are part of the same document as the initial page load, so
+ * they must render with the same nonce. Read it from a framework script or
+ * style tag that already carries it.
+ */
+export function getDocumentNonce() {
+	if (typeof document === 'undefined') return undefined
+
+	const element = document.querySelector<HTMLScriptElement | HTMLStyleElement>(
+		'script[nonce], style[nonce]',
+	)
+
+	return element?.nonce || element?.getAttribute('nonce') || undefined
+}
+
+/**
+ * Add the current document nonce to a request that renders RSC content.
+ */
+export function addNonceHeader(headers: Headers) {
+	const nonce = getDocumentNonce()
+
+	if (nonce) headers.set('x-solas-nonce', nonce)
+}
+
+/**
  * These targets are used as-is. They are not matched against the route table,
  * so this covers normal external URLs and hash-only links.
  */

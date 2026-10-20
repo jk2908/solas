@@ -4,6 +4,8 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { BrowserRouterHistory } from '../../../../src/internal/browser-router/history.js'
 import { ResponseCache } from '../../../../src/internal/browser-router/response-cache.js'
 import {
+	addNonceHeader,
+	getDocumentNonce,
 	isExternalTarget,
 	isHashOnlyTarget,
 	toTarget,
@@ -30,6 +32,51 @@ function pushHistory(h: BrowserRouterHistory, ...paths: string[]) {
 		h.pushState(p)
 	}
 }
+
+describe('document nonce', () => {
+	afterEach(() => {
+		document.head.innerHTML = ''
+		document.body.innerHTML = ''
+	})
+
+	it('reads the nonce from a nonced script', () => {
+		const script = document.createElement('script')
+		script.setAttribute('nonce', 'abc123')
+		document.head.appendChild(script)
+
+		expect(getDocumentNonce()).toBe('abc123')
+	})
+
+	it('reads the nonce from a nonced style', () => {
+		const style = document.createElement('style')
+		style.setAttribute('nonce', 'style-nonce')
+		document.head.appendChild(style)
+
+		expect(getDocumentNonce()).toBe('style-nonce')
+	})
+
+	it('returns undefined without a nonce', () => {
+		expect(getDocumentNonce()).toBeUndefined()
+	})
+
+	it('adds the nonce to request headers', () => {
+		const script = document.createElement('script')
+		script.setAttribute('nonce', 'abc123')
+		document.body.appendChild(script)
+
+		const headers = new Headers()
+		addNonceHeader(headers)
+
+		expect(headers.get('x-solas-nonce')).toBe('abc123')
+	})
+
+	it('does not add a header without a nonce', () => {
+		const headers = new Headers()
+		addNonceHeader(headers)
+
+		expect(headers.has('x-solas-nonce')).toBe(false)
+	})
+})
 
 describe('BrowserRouter', () => {
 	describe('isHashOnlyTarget', () => {

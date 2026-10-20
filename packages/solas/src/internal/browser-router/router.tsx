@@ -56,9 +56,13 @@ function getPayloadUrl(path: string) {
 }
 
 function performNavigationFetch(path: string, init?: RequestInit) {
-	return STATIC
-		? fetch(getPayloadUrl(path), init)
-		: fetch(path, { ...init, headers: { ...init?.headers, accept: 'text/x-component' } })
+	if (STATIC) return fetch(getPayloadUrl(path), init)
+
+	const headers = new Headers(init?.headers)
+	headers.set('accept', 'text/x-component')
+	BrowserRouter.addNonceHeader(headers)
+
+	return fetch(path, { ...init, headers })
 }
 
 const MAX_HASH_ATTEMPTS = 20

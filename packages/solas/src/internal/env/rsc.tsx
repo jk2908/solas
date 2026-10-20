@@ -372,7 +372,10 @@ export function createHandler(
 		const configuredHeaders = await resolveHeaders(req)
 		const requestCsp = req.headers.get('content-security-policy')
 		const configuredCsp = getHeader(configuredHeaders, 'content-security-policy')
-		const nonce = resolveNonce(requestCsp, configuredCsp)
+		const rscOrAction = isRscRequest(req) || Boolean(req[Config.REQUEST_META_KEY].action)
+		const clientNonce = rscOrAction ? req.headers.get('x-solas-nonce') : null
+		const documentNonce = clientNonce || undefined
+		const nonce = documentNonce ?? resolveNonce(requestCsp, configuredCsp)
 
 		if (config.headers && typeof config.headers !== 'function' && nonce) {
 			warnOnce(

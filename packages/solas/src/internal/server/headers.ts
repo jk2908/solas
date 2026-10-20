@@ -21,6 +21,7 @@ export async function headers(): Promise<ReadonlyMap<string, string>> {
 	// expose the effective CSP nonce to server components under the same header
 	// name used by the proxy pattern; a request header alone is not enough
 	// because the nonce may come from the configured `headers` fallback
+	map.delete('x-solas-nonce')
 	map.delete('x-nonce')
 	if (nonce) map.set('x-nonce', nonce)
 

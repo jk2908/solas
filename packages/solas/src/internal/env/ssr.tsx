@@ -24,6 +24,14 @@ type Opts = {
 	route?: string
 }
 
+/**
+ * React 19 accepts `{ script, style }` at runtime so hoistable styles receive
+ * the style nonce, but `@types/react-dom` still declares only the string form.
+ */
+function toNonceOption(nonce?: string) {
+	return nonce ? ({ script: nonce, style: nonce } as unknown as string) : undefined
+}
+
 const logger = new Logger()
 
 function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
@@ -77,7 +85,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 
 	const htmlStream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
 		bootstrapScriptContent,
-		nonce,
+		nonce: toNonceOption(nonce),
 		formState,
 		onError(err) {
 			const digest = getKnownDigest(err)
@@ -173,6 +181,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 
 	const stream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
 		bootstrapScriptContent,
+		nonce: toNonceOption(nonce),
 		onError(err) {
 			const digest = getKnownDigest(err)
 
@@ -209,7 +218,7 @@ async function resume(
 		<A payloadPromise={payloadPromise} />,
 		postponedState as never,
 		{
-			nonce: opts.nonce,
+			nonce: toNonceOption(opts.nonce),
 			onError(err) {
 				const digest = getKnownDigest(err)
 

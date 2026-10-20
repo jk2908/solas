@@ -857,6 +857,26 @@ const nonce = (await headers()).get('x-nonce')
 return <style nonce={nonce}>{`body { margin: 0 }`}</style>
 ```
 
+If you use `@jk2908/cxx`, pass the nonce to the style tag it returns:
+
+```tsx
+const nonce = (await headers()).get('x-nonce')
+
+return (
+	<style href={href} precedence="medium" nonce={nonce}>
+		{css}
+	</style>
+)
+```
+
+React 19 treats `<style href precedence>` as a hoistable resource. It drops the rules unless the tag carries the same nonce the renderer was given. Solas passes the nonce to React as both a script and a style nonce, so the tag only needs the matching `nonce` prop.
+
+#### Client navigation
+
+Nonces belong to the document, not to each request. Solas reads the document nonce from the first nonced script or style in the DOM and sends it as `x-solas-nonce` on RSC navigations, prefetches, and server actions. The server renders those payloads with that nonce instead of generating a new one.
+
+That keeps new inline styles and scripts inserted during client navigation aligned with the CSP the browser is already enforcing. It happens automatically; you only need to pass the nonce to your own tags.
+
 #### Configured headers
 
 If you do not use middleware, generate the nonce in the `headers` function. Solas evaluates it before rendering, extracts the nonce, and reuses the same headers on the response:
@@ -885,7 +905,16 @@ Nonces require `prerender: false`. Fully prerendered and PPR routes are generate
 
 For static routes, use CSP hashes or Subresource Integrity instead. Nonces are not compatible with shared caching either: a per-request nonce makes the document unique.
 
-Nonces are per document. If you render new inline styles during client navigation, keep them in external CSS or use the document nonce.
+Nonces are per document, and Solas keeps the document nonce for client navigations. Inline styles and scripts you render still need the nonce explicitly.
+
+If strict style nonces are more work than you need, keep the nonce for scripts and allow inline styles instead:
+
+```http
+script-src 'self' 'nonce-...' 'strict-dynamic';
+style-src 'self' 'unsafe-inline';
+```
+
+That keeps script execution strict while letting a CSS-in-JS library inject styles without nonce plumbing.
 
 ### CSRF
 
