@@ -11,10 +11,6 @@ export default async function Page() {
 		<section>
 			<h1>Styles</h1>
 
-			{/*
-				React 19 hoists a style with href + precedence. It needs the same nonce
-				as the renderer, otherwise React drops the rules under a style nonce.
-			*/}
 			<style href="/example.css" precedence="medium" nonce={nonce}>
 				{`.styled { color: crimson; font-weight: 700; }`}
 			</style>

@@ -1,7 +1,3 @@
-/**
- * A nonce-based CSP in production, relaxed in development because Vite and
- * React use inline scripts and eval for HMR and richer error stacks.
- */
 export function middleware(req: Request, next: (request?: Request) => Promise<Response>) {
 	const dev = import.meta.env.DEV
 	const nonce = crypto.randomUUID()

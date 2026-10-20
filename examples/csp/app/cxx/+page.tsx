@@ -25,7 +25,6 @@ export default async function Page() {
 		<section>
 			<h1>cxx</h1>
 
-			{/* React 19 hoists this; it needs the document nonce under style-src. */}
 			<style href={href} precedence="medium" nonce={nonce}>
 				{css}
 			</style>

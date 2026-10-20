@@ -14,7 +14,6 @@ export default async function Shell({ children }: { children: React.ReactNode })
 				<meta charSet="utf-8" />
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
 
-				{/* user-rendered inline styles need the nonce too */}
 				<style nonce={nonce}>{`
 					:root { color-scheme: light dark; font-family: ui-monospace, monospace; }
 					body { margin: 0; padding: 2rem; line-height: 1.5; }
