@@ -7,6 +7,7 @@ export default defineConfig(() => {
 	return {
 		plugins: [
 			solas({
+				precompress: true,
 				prerender: 'full',
 				sitemap: {
 					async routes(existing) {
