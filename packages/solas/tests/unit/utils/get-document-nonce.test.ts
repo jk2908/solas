@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from 'vitest'
 
-import { getDocumentNonce } from '../../../src/utils/document.js'
+import { getDocumentNonce } from '../../../src/utils/get-document-nonce.js'
 
 describe('getDocumentNonce', () => {
 	afterEach(() => {

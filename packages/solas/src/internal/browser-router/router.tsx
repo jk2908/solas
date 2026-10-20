@@ -3,7 +3,7 @@ import { createContext, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
-import { getDocumentNonce } from '../../utils/document.js'
+import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 import { Logger } from '../../utils/logger.js'
 
 import type { RscPayload } from '../env/rsc.js'

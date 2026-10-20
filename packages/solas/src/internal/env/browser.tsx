@@ -9,7 +9,7 @@ import {
 	setServerCallback,
 } from '@vitejs/plugin-rsc/browser'
 
-import { getDocumentNonce } from '../../utils/document.js'
+import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 
 import type { RscPayload } from './rsc.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
