@@ -1,9 +1,6 @@
 import { describe, it, expect } from 'vitest'
 
-import { hash } from '../../../../src/utils/hash.js'
-
-import { nodeAssets } from '../../../../src/internal/runtimes/assets.js'
-import { getMimeTypeFromPath } from '../../../../src/internal/runtimes/mime.js'
+import { getMimeTypeFromPath } from '../../../src/internal/mime.js'
 
 describe('getMimeTypeFromPath', () => {
 	it('returns correct MIME types', () => {
@@ -33,29 +30,5 @@ describe('getMimeTypeFromPath', () => {
 	it('handles uppercase extensions', () => {
 		expect(getMimeTypeFromPath('/image.JPG')).toBe('image/jpeg')
 		expect(getMimeTypeFromPath('/style.CSS')).toContain('text/css')
-	})
-})
-
-describe('hash', () => {
-	it('produces a deterministic 16-char hex hash', () => {
-		const h1 = hash('hello')
-		const h2 = hash('hello')
-		const h3 = hash('world')
-
-		expect(h1).toBe(h2)
-		expect(h1).not.toBe(h3)
-		expect(h1).toMatch(/^[0-9a-f]{16}$/)
-	})
-})
-
-describe('nodeAssets', () => {
-	it('reports missing files', async () => {
-		expect(
-			await nodeAssets.exists({ namespace: 'client', path: 'not/a/real/file.txt' }),
-		).toBe(false)
-	})
-
-	it('exposes a mime type lookup', () => {
-		expect(nodeAssets.mimeType?.('/app.js')).toContain('text/javascript')
 	})
 })

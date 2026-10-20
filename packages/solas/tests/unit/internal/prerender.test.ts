@@ -18,7 +18,7 @@ import {
 	type Metadata,
 } from '../../../src/internal/prerender.js'
 
-vi.mock('../../../src/internal/runtimes/assets.js', () => ({
+vi.mock('../../../src/internal/assets.js', () => ({
 	nodeAssets: {
 		exists: vi.fn(),
 		readText: vi.fn(),
@@ -26,7 +26,7 @@ vi.mock('../../../src/internal/runtimes/assets.js', () => ({
 	},
 }))
 
-const { nodeAssets } = await import('../../../src/internal/runtimes/assets.js')
+const { nodeAssets } = await import('../../../src/internal/assets.js')
 
 describe('Prerender', () => {
 	describe('Artifact', () => {

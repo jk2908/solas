@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import * as Config from '../../config.js'
+import * as Config from '../config.js'
 import { getMimeTypeFromPath } from './mime.js'
 
 /**

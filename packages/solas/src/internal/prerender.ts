@@ -6,11 +6,11 @@ import { applyBasePath } from '../utils/base-path.js'
 import { Logger } from '../utils/logger.js'
 
 import type { BuildContext } from '../types.js'
-import type { AssetRef, Assets } from './runtimes/assets.js'
+import type { AssetRef, Assets } from './assets.js'
 import * as Config from '../config.js'
 import * as Solas from '../solas.js'
+import { nodeAssets } from './assets.js'
 import { toPathPattern } from './http-router/utils.js'
-import { nodeAssets } from './runtimes/assets.js'
 
 const logger = new Logger()
 

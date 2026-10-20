@@ -8,6 +8,11 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 	loadServerAction: vi.fn(),
 }))
 
+import {
+	nodeAssets,
+	type AssetRef,
+	type Assets,
+} from '../../../../src/internal/assets.js'
 import { HttpRouter } from '../../../../src/internal/http-router/router.js'
 import {
 	getAlternatePathname,
@@ -16,11 +21,6 @@ import {
 	resolveRequestPath,
 	toPathPattern,
 } from '../../../../src/internal/http-router/utils.js'
-import {
-	nodeAssets,
-	type AssetRef,
-	type Assets,
-} from '../../../../src/internal/runtimes/assets.js'
 
 const ok = () => new Response('ok')
 const handler = () => vi.fn().mockReturnValue(new Response('ok'))

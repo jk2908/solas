@@ -1,7 +1,7 @@
-import type { Assets } from './internal/runtimes/assets.js'
+import type { Assets } from './internal/assets.js'
 import * as Config from './config.js'
+import { nodeAssets } from './internal/assets.js'
 import * as Prerender from './internal/prerender.js'
-import { nodeAssets } from './internal/runtimes/assets.js'
 
 export type Manifest = {
 	artifacts: Prerender.ArtifactManifest

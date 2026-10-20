@@ -6,10 +6,11 @@ import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/bas
 import { Logger } from '../../utils/logger.js'
 
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
-import type { AssetRef, Assets } from '../runtimes/assets.js'
+import type { AssetRef, Assets } from '../assets.js'
 import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
+import { nodeAssets } from '../assets.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
 import {
@@ -28,14 +29,13 @@ import { isRedirect, toRedirect } from '../navigation/redirect.js'
 import * as Prerender from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
-import { nodeAssets } from '../runtimes/assets.js'
 import { processActionRequest } from '../server/actions.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
 export { loadManifest } from '../../manifest.js'
-export type { Assets } from '../runtimes/assets.js'
+export type { Assets } from '../assets.js'
 
 export type HandlerOptions = {
 	/**

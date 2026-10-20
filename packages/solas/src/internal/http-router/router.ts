@@ -3,7 +3,7 @@ import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 import { normaliseBasePath } from '../../utils/base-path.js'
 
 import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
-import type { AssetRef, Assets } from '../runtimes/assets.js'
+import type { AssetRef, Assets } from '../assets.js'
 import * as Config from '../../config.js'
 import { HttpException } from '../navigation/http-exception.js'
 import { maybeAction } from '../server/actions.js'

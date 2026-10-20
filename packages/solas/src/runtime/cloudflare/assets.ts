@@ -1,5 +1,5 @@
-import type { AssetNamespace, AssetRef, Assets } from '../../internal/runtimes/assets.js'
-import { getMimeTypeFromPath } from '../../internal/runtimes/mime.js'
+import type { AssetNamespace, AssetRef, Assets } from '../../internal/assets.js'
+import { getMimeTypeFromPath } from '../../internal/mime.js'
 
 /**
  * The subset of the Cloudflare `assets` Fetcher binding that Solas needs.

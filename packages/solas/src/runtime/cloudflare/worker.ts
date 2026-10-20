@@ -1,7 +1,7 @@
-import type { Assets } from '../../internal/runtimes/assets.js'
+import type { Assets } from '../../internal/assets.js'
 import type { ImportMap, Manifest, RuntimeConfig } from '../../types.js'
+import { nodeAssets } from '../../internal/assets.js'
 import { createRuntimeHandler } from '../../internal/env/rsc.js'
-import { nodeAssets } from '../../internal/runtimes/assets.js'
 import { type CloudflareEnv, createCloudflareAssets } from './assets.js'
 
 export type CreateWorkerOptions = {
