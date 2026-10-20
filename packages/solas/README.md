@@ -903,7 +903,9 @@ If a proxy or CDN sets `Content-Security-Policy` on the request, Solas uses that
 
 #### Dynamic rendering only
 
-Nonces require `prerender: false`. Fully prerendered and PPR routes are generated without a request, so their static HTML cannot carry a per-request nonce. Solas warns if a nonce CSP reaches a full or PPR response.
+Nonces require `prerender: false`. Fully prerendered and PPR routes are generated without a request, so their static HTML cannot carry a per-request nonce. Solas does not apply a nonce to those responses, and it does not log a warning.
+
+If you configure a nonce CSP globally, make sure every route that serves inline scripts is dynamic, or give static and PPR routes a hash-based or relaxed CSP. Otherwise those routes will fail in the browser with CSP violations.
 
 For static routes, use CSP hashes or Subresource Integrity instead. Nonces are not compatible with shared caching either: a per-request nonce makes the document unique.
 

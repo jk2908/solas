@@ -311,14 +311,6 @@ export function createHandler(
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
 
 	const resolveHeaders = createHeaderResolver(config.headers)
-	const warned = new Set<string>()
-
-	function warnOnce(key: string, message: string) {
-		if (warned.has(key)) return
-
-		warned.add(key)
-		logger.warn('[csp]', message)
-	}
 
 	/**
 	 * Create the HTTP response for a single incoming request. Runs actions when needed,
@@ -389,13 +381,6 @@ export function createHandler(
 		const pathname = new URL(req.url).pathname
 		const lookupPath = normaliseTrailingSlash(pathname, prerenderPathMode)
 		const runtimePpr = !import.meta.env.DEV && ppr
-
-		if (ppr && nonce) {
-			warnOnce(
-				`ppr:${pathname}`,
-				`${pathname} is partially prerendered; CSP nonces require dynamic rendering. Use hashes or SRI for the static shell.`,
-			)
-		}
 
 		async function tryErrorRecovery(err: unknown) {
 			if (isRedirect(err)) {
@@ -576,18 +561,6 @@ export function createHandler(
 
 		const lookupPath = normaliseTrailingSlash(routedPath, prerenderPathMode)
 		if (runtimeManifest.artifacts[lookupPath]?.mode !== 'full') return null
-
-		const nonce = resolveNonce(
-			req.headers.get('content-security-policy'),
-			await resolveHeaders(req),
-		)
-
-		if (nonce) {
-			warnOnce(
-				`full:${lookupPath}`,
-				`${lookupPath} is fully prerendered; CSP nonces require dynamic rendering. Use hashes or SRI.`,
-			)
-		}
 
 		const res = await HttpRouter.serveStatic(
 			assets,

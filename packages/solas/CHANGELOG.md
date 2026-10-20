@@ -5,7 +5,7 @@
 ### Features
 
 - Middleware can pass a replacement request to `next(request)`, so it can add headers for downstream middleware and rendering.
-- Nonce-based CSP is supported for dynamically rendered HTML. Solas reads the nonce from the effective `Content-Security-Policy` set by middleware, an upstream proxy, or the `headers` config, applies it to the scripts it generates, and exposes it as `x-nonce` from `headers()`. Full and PPR routes warn because nonces require dynamic rendering.
+- Nonce-based CSP is supported for dynamically rendered HTML. Solas reads the nonce from the effective `Content-Security-Policy` set by middleware, an upstream proxy, or the `headers` config, applies it to the scripts it generates, and exposes it as `x-nonce` from `headers()`. Full and PPR routes do not receive nonces; use hashes or SRI for those.
 - Client navigations, prefetches, and server actions reuse the document nonce, so inline styles and scripts rendered after the initial load keep matching the document CSP. Hoistable `<style href precedence>` tags, including `@jk2908/cxx`, receive the nonce when the app passes it to the tag.
 
 ## 0.15.1
