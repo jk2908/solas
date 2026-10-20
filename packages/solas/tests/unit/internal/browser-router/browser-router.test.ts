@@ -55,17 +55,13 @@ describe('document nonce', () => {
 		expect(getDocumentNonce()).toBe('style-nonce')
 	})
 
-	it('prefers the solas-nonce meta tag', () => {
+	it('does not use a meta tag as the nonce source', () => {
 		const meta = document.createElement('meta')
 		meta.name = 'solas-nonce'
 		meta.content = 'meta-nonce'
 		document.head.appendChild(meta)
 
-		const script = document.createElement('script')
-		script.setAttribute('nonce', 'script-nonce')
-		document.head.appendChild(script)
-
-		expect(getDocumentNonce()).toBe('meta-nonce')
+		expect(getDocumentNonce()).toBeUndefined()
 	})
 
 	it('returns undefined without a nonce', () => {

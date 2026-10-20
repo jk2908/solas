@@ -32,7 +32,8 @@ Open the app in production and navigate from `/` to `/styles` and `/cxx` with
 the client router.
 
 - The document response has a `Content-Security-Policy` header with a nonce.
-- The head contains `<meta name="solas-nonce" content="...">`.
+- Solas reads the hidden `.nonce` property from a nonced script or style; the
+  nonce is not exposed as a normal attribute or meta tag.
 - The layout's inline `<style>` has the same nonce.
 - The `/styles` page renders a hoistable `<style href precedence nonce>`.
   React only keeps the rules when the tag and the renderer use the same nonce.
