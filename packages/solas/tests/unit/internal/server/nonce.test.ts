@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { resolveNonce } from '../../../../src/internal/env/csp.js'
+import { resolveNonce } from '../../../../src/internal/server/nonce.js'
 
 describe('resolveNonce', () => {
 	it('prefers the client document nonce', () => {
