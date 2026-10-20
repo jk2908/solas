@@ -478,57 +478,17 @@ solas({
 })
 ```
 
-Pass a function to vary the headers per request. The second argument receives the per-request CSP nonce when `nonce` is enabled:
+Pass a function to vary the headers per request, for example a per-request CSP nonce:
 
 ```ts
 solas({
-	nonce: true,
-	headers: (req, { nonce }) => ({
-		'Content-Security-Policy': `default-src 'self'; script-src 'nonce-${nonce}'`,
+	headers: req => ({
+		'Content-Security-Policy': `default-src 'self'; script-src 'nonce-${nonce(req)}'`,
 	}),
 })
 ```
 
 The function can be async. Configured headers win over any header Solas sets.
-
-### `nonce`
-
-Generate a per-request CSP nonce for HTML responses.
-
-Default: `false`
-
-- `true` generates a 128-bit random nonce for each request.
-- A function can return a custom nonce. It must be self-contained because it is serialised into the generated runtime config.
-
-Solas adds the nonce to the scripts it generates: the Vite bootstrap, the RSC payload scripts, and the PPR resume scripts. Use the `nonce` context argument in `headers` to put it in your CSP, and the `nonce()` helper from `@jk2908/solas/server` for inline `<style>` or custom `<script>` tags in server components.
-
-```ts
-// vite.config.ts
-solas({
-	nonce: true,
-	headers: (req, { nonce }) => ({
-		'Content-Security-Policy': `default-src 'self'; script-src 'nonce-${nonce}'; style-src 'nonce-${nonce}'`,
-	}),
-})
-```
-
-```tsx
-// server component
-import { nonce } from '@jk2908/solas/server'
-
-export default function Layout({ children }: { children: React.ReactNode }) {
-	return (
-		<>
-			<style nonce={nonce()}>{`body { margin: 0 }`}</style>
-			{children}
-		</>
-	)
-}
-```
-
-Fully prerendered HTML is built with a nonce placeholder and the placeholder is replaced per request. Those responses are served with `Cache-Control: private, no-store`, because the nonce makes them request-specific. If you need shared caching for prerendered HTML, use CSP hashes instead of nonces.
-
-The `headers` object form cannot interpolate the nonce; use the function form.
 
 ### `sitemap`
 

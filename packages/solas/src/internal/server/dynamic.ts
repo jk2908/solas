@@ -9,7 +9,7 @@ const NEVER: Promise<never> = new Promise(() => {})
  * resolves immediately.
  */
 export async function dynamic() {
-	const { prerender } = RequestContext.get()
+	const { prerender } = RequestContext.use()
 	if (prerender !== 'ppr') return
 
 	await NEVER

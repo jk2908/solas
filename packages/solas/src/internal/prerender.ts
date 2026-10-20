@@ -4,7 +4,6 @@ import { compile } from 'path-to-regexp'
 
 import { applyBasePath } from '../utils/base-path.js'
 import { Logger } from '../utils/logger.js'
-import { replaceNonce } from '../utils/nonce.js'
 
 import type { BuildContext } from '../types.js'
 import type { AssetRef, Assets } from './assets.js'
@@ -235,23 +234,26 @@ const decoder = new TextDecoder()
 export function composePreludeAndResume(
 	prelude: string,
 	resumeStream: ReadableStream<Uint8Array>,
-	nonce?: string,
 ) {
-	const html = nonce ? replaceNonce(prelude, nonce) : prelude
-
-	// `html` is the static shell html as one complete string, usually shaped like
+	// `prelude` is the static shell html as one complete string, usually shaped like
 	// `<html>...<body>static shell...</body></html>` or an html fragment with no close tags
 	// search both cases to avoid duplicating the full string with toLowerCase
-	const bodyClose = Math.max(html.lastIndexOf('</body>'), html.lastIndexOf('</BODY>'))
-	const htmlClose = Math.max(html.lastIndexOf('</html>'), html.lastIndexOf('</HTML>'))
+	const bodyClose = Math.max(
+		prelude.lastIndexOf('</body>'),
+		prelude.lastIndexOf('</BODY>'),
+	)
+	const htmlClose = Math.max(
+		prelude.lastIndexOf('</html>'),
+		prelude.lastIndexOf('</HTML>'),
+	)
 	// prefer inserting before </body>, then before </html>, and fall back
 	// to appending when the prelude is only a fragment with no close tags
-	const splitAt = bodyClose >= 0 ? bodyClose : htmlClose >= 0 ? htmlClose : html.length
+	const splitAt = bodyClose >= 0 ? bodyClose : htmlClose >= 0 ? htmlClose : prelude.length
 
 	return new ReadableStream<Uint8Array>({
 		async start(controller) {
 			// send everything before the closing tags so the resume stream can be injected
-			controller.enqueue(encoder.encode(html.slice(0, splitAt)))
+			controller.enqueue(encoder.encode(prelude.slice(0, splitAt)))
 
 			// resumeStream is the html React emits when it resumes postponed work for this page. Its
 			// first chunk begins with an extra `</body></html>` pair, then continues with the

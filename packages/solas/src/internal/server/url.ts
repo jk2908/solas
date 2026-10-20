@@ -12,7 +12,7 @@ const logger = new Logger()
 export async function url() {
 	await dynamic()
 
-	const { req, cache } = RequestContext.get()
+	const { req, cache } = RequestContext.use()
 
 	// always return a clone so consumers can mutate (e.g. searchParams.set)
 	// without corrupting the cached instance shared across the request

@@ -21,15 +21,9 @@ export type Origin = `http://${string}` | `https://${string}`
  * per-request CSP nonce).
  */
 export type HeaderEntries = Record<string, string>
-export type HeadersContext = {
-	/**
-	 * The per-request CSP nonce, or `undefined` when `nonce` is not enabled.
-	 */
-	nonce: string | undefined
-}
 export type HeadersInput =
 	| HeaderEntries
-	| ((req: Request, context: HeadersContext) => HeaderEntries | Promise<HeaderEntries>)
+	| ((req: Request) => HeaderEntries | Promise<HeaderEntries>)
 
 /**
  * A platform deployment adapter. Solas registers `plugins` alongside its own,
@@ -53,11 +47,6 @@ type PluginConfigBase = {
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 	trustedOrigins?: readonly string[]
 	headers?: HeadersInput
-	/**
-	 * Generate a CSP nonce for each HTML request. `true` uses the built-in
-	 * cryptographic generator; a function can return a custom value.
-	 */
-	nonce?: boolean | ((req: Request) => string | Promise<string>)
 	adapter?: Adapter
 	readonly logger?: {
 		level?: LogLevel

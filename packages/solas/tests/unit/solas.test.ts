@@ -92,18 +92,6 @@ describe('Solas', () => {
 				expect(Config.validate({ precompress: true })).toHaveProperty('precompress', true)
 			})
 
-			it('rejects invalid nonce', () => {
-				expect(() => Config.validate({ nonce: 'yes' })).toThrow()
-			})
-
-			it('accepts valid nonce values', () => {
-				expect(Config.validate({ nonce: true })).toHaveProperty('nonce', true)
-				expect(Config.validate({ nonce: false })).toHaveProperty('nonce', false)
-
-				const generator = () => 'abc123'
-				expect(Config.validate({ nonce: generator })).toHaveProperty('nonce', generator)
-			})
-
 			it('rejects invalid trailingSlash', () => {
 				expect(() => Config.validate({ trailingSlash: 'sometimes' })).toThrow()
 			})

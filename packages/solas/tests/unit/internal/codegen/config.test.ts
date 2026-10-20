@@ -40,10 +40,6 @@ describe('writeConfig', () => {
 		expect(result).not.toContain('some-plugin')
 	})
 
-	it('serialises nonce', () => {
-		expect(writeConfig({ nonce: true })).toContain('nonce: true')
-	})
-
 	it('snapshot: minimal config', () => {
 		expect(writeConfig({ trailingSlash: 'never' })).toMatchSnapshot()
 	})

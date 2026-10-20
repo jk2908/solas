@@ -6,7 +6,6 @@ import { prerender as reactPrerender } from 'react-dom/static.edge'
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 
 import { Logger } from '../../utils/logger.js'
-import { addNonceToTags } from '../../utils/nonce.js'
 
 import type { RscPayload } from './rsc.js'
 import * as Solas from '../../solas.js'
@@ -145,39 +144,35 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		// if prerender produced no postponed state, this route is effectively
 		// fully prerenderable. Emit full HTML with embedded RSC payload
 		if (postponed == null) {
-			const html = await new Response(
-				prelude.pipeThrough(injectPayload(s2, { nonce })),
-			).text()
-
 			return {
 				schema,
 				route,
 				createdAt: Date.now(),
 				mode: 'full',
-				html: nonce ? addNonceToTags(html, nonce) : html,
+				html: await new Response(
+					prelude.pipeThrough(injectPayload(s2, { nonce })),
+				).text(),
 			}
 		}
 
 		// save the static payload rows in the cached prelude and leave the
 		// postponed work for the later resume response
 		const partialPayload = await captureBuffered(s2)
-		const html = await new Response(
-			prelude.pipeThrough(injectPayload(partialPayload, { nonce })),
-		).text()
 
 		return {
 			schema,
 			route,
 			createdAt: Date.now(),
 			mode: 'ppr',
-			html: nonce ? addNonceToTags(html, nonce) : html,
+			html: await new Response(
+				prelude.pipeThrough(injectPayload(partialPayload, { nonce })),
+			).text(),
 			postponed,
 		}
 	}
 
 	const stream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
 		bootstrapScriptContent,
-		nonce,
 		onError(err) {
 			const digest = getKnownDigest(err)
 
@@ -190,14 +185,12 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 
 	await stream.allReady
 
-	const html = await new Response(stream.pipeThrough(injectPayload(s2, { nonce }))).text()
-
 	return {
 		schema,
 		route,
 		createdAt: Date.now(),
 		mode: 'full',
-		html: nonce ? addNonceToTags(html, nonce) : html,
+		html: await new Response(stream.pipeThrough(injectPayload(s2, { nonce }))).text(),
 	}
 }
 

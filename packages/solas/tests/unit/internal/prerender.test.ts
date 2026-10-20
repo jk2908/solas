@@ -328,35 +328,6 @@ describe('Prerender', () => {
 				expect(result).not.toContain('</body></html>')
 				expect(result).toContain('actual data')
 			})
-
-			it('replaces the nonce placeholder in the prelude', async () => {
-				const resumeStream = new ReadableStream<Uint8Array>({
-					start(controller) {
-						controller.enqueue(new TextEncoder().encode('resume data'))
-						controller.close()
-					},
-				})
-
-				const stream = composePreludeAndResume(
-					'<html><body><script nonce="__SOLAS_NONCE__">x</script><!-- PRELUDE_MARKER -->prelude</body></html>',
-					resumeStream,
-					'abc123',
-				)
-
-				const reader = stream.getReader()
-				const chunks: Uint8Array[] = []
-
-				while (true) {
-					const { done, value } = await reader.read()
-					if (done) break
-					if (value) chunks.push(value)
-				}
-
-				const result = chunks.map(c => new TextDecoder().decode(c)).join('')
-				expect(result).toContain('nonce="abc123"')
-				expect(result).not.toContain('__SOLAS_NONCE__')
-				expect(result).toContain('resume data')
-			})
 		})
 	})
 

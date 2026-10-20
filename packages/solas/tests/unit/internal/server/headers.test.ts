@@ -6,7 +6,7 @@ vi.mock('../../../../src/internal/server/dynamic.js', () => ({
 
 vi.mock('../../../../src/internal/env/request-context.js', () => ({
 	RequestContext: {
-		get: vi.fn(),
+		use: vi.fn(),
 	},
 }))
 
@@ -20,7 +20,7 @@ const { headers } = await import('../../../../src/internal/server/headers.js')
 function setupContext(req: Request, cache: RequestCache = {}) {
 	vi.mocked(dynamic).mockResolvedValue(undefined)
 	const ctx = mockRequestContext(req, cache)
-	vi.mocked(RequestContext.get).mockReturnValue(ctx)
+	vi.mocked(RequestContext.use).mockReturnValue(ctx)
 }
 
 describe('headers', () => {

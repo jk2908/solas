@@ -11,7 +11,7 @@ import { dynamic } from './dynamic.js'
 export async function cookies(): Promise<Readonly<ReturnType<typeof Cookies.parse>>> {
 	await dynamic()
 
-	const { req, cache } = RequestContext.get()
+	const { req, cache } = RequestContext.use()
 	// use request cache if possible to avoid reparsing
 	if (cache.cookies) return cache.cookies
 
