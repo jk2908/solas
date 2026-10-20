@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('../../../../src/internal/env/request-context.js', () => ({
 	RequestContext: {
-		use: vi.fn(),
+		get: vi.fn(),
 	},
 }))
 
@@ -13,7 +13,7 @@ const { dynamic } = await import('../../../../src/internal/server/dynamic.js')
 
 function setupContext(prerender: null | 'full' | 'ppr') {
 	const ctx = mockRequestContext(new Request('http://localhost'), {}, prerender)
-	vi.mocked(RequestContext.use).mockReturnValue(ctx)
+	vi.mocked(RequestContext.get).mockReturnValue(ctx)
 }
 
 describe('dynamic', () => {

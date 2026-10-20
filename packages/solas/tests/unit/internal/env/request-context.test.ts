@@ -6,7 +6,7 @@ import { RequestContext } from '../../../../src/internal/env/request-context.js'
 describe('RequestContext', () => {
 	describe('use', () => {
 		it('throws when no context is available', () => {
-			expect(() => RequestContext.use()).toThrow('No request context available')
+			expect(() => RequestContext.get()).toThrow('No request context available')
 		})
 	})
 
@@ -19,7 +19,7 @@ describe('RequestContext', () => {
 			const ctx = { req, prerender: null as const, cache: {} }
 
 			const result = await RequestContext.write(ctx, () => {
-				const current = RequestContext.use()
+				const current = RequestContext.get()
 				return current.req.url
 			})
 
@@ -34,7 +34,7 @@ describe('RequestContext', () => {
 			const ctx = { req, prerender: 'full' as const, cache: {} }
 
 			const result = await RequestContext.write(ctx, () => {
-				return RequestContext.use().prerender
+				return RequestContext.get().prerender
 			})
 
 			expect(result).toBe('full')
@@ -49,7 +49,7 @@ describe('RequestContext', () => {
 			const ctx = { req, prerender: null as const, cache }
 
 			const result = await RequestContext.write(ctx, () => {
-				return RequestContext.use().cache
+				return RequestContext.get().cache
 			})
 
 			expect(result).toBe(cache)
@@ -64,7 +64,7 @@ describe('RequestContext', () => {
 
 			const result = await RequestContext.write(ctx, async () => {
 				await new Promise(r => setTimeout(r, 10))
-				return RequestContext.use().req.url
+				return RequestContext.get().req.url
 			})
 
 			expect(result).toBe('http://localhost/')
@@ -82,10 +82,10 @@ describe('RequestContext', () => {
 			const result = await RequestContext.write(
 				{ req: req1, prerender: null, cache: {} },
 				async () => {
-					const outerUrl = RequestContext.use().req.url
+					const outerUrl = RequestContext.get().req.url
 					const innerUrl = await RequestContext.write(
 						{ req: req2, prerender: null, cache: {} },
-						() => RequestContext.use().req.url,
+						() => RequestContext.get().req.url,
 					)
 					return { outerUrl, innerUrl }
 				},
@@ -102,8 +102,8 @@ describe('RequestContext', () => {
 
 			const ctx = { req, prerender: null as const, cache: {} }
 
-			await RequestContext.write(ctx, () => RequestContext.use())
-			expect(() => RequestContext.use()).toThrow()
+			await RequestContext.write(ctx, () => RequestContext.get())
+			expect(() => RequestContext.get()).toThrow()
 		})
 	})
 })

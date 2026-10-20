@@ -8,7 +8,7 @@ import { dynamic } from './dynamic.js'
 export async function headers(): Promise<ReadonlyMap<string, string>> {
 	await dynamic()
 
-	const { req, cache } = RequestContext.use()
+	const { req, cache } = RequestContext.get()
 	// use request cache if possible to avoid reconstructing the map
 	if (cache.headers) return cache.headers
 

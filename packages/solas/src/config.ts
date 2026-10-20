@@ -24,6 +24,7 @@ const CONFIG_KEYS = new Set([
 	'headers',
 	'logger',
 	'metadata',
+	'nonce',
 	'precompress',
 	'prerender',
 	'sitemap',
@@ -99,6 +100,12 @@ export function validate(input: unknown, envUrl?: string) {
 	if ('headers' in input && input.headers !== undefined) {
 		if (typeof input.headers !== 'function' && !isRecord(input.headers)) {
 			errors.push('headers must be an object or a function that returns one')
+		}
+	}
+
+	if ('nonce' in input && input.nonce !== undefined) {
+		if (typeof input.nonce !== 'boolean' && typeof input.nonce !== 'function') {
+			errors.push('nonce must be a boolean or a function that returns a string')
 		}
 	}
 

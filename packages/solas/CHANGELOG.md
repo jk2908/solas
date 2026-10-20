@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Per-request CSP nonces. Set `nonce: true` (or provide a generator), read the value from the second argument of the `headers` function, and use `nonce()` from `@jk2908/solas/server` for your own inline `<style>` or `<script>` tags. Solas nonces the bootstrap, RSC payload, and PPR resume scripts, and replaces a build-time placeholder in prerendered HTML.
+
 ## 0.15.1
 
 ### Fixes

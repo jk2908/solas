@@ -4,6 +4,7 @@ import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
 import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 import { Logger } from '../../utils/logger.js'
+import { NONCE_PLACEHOLDER, createNonce, replaceNonce } from '../../utils/nonce.js'
 
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
@@ -97,6 +98,7 @@ async function createPayload(
 	returnValue?: { ok: boolean; data: unknown },
 	formState?: ReactFormState,
 	temporaryReferences?: unknown,
+	nonce?: string,
 ) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = req.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -158,6 +160,7 @@ async function createPayload(
 					req,
 					prerender: prerender ? 'full' : null,
 					cache: {},
+					nonce,
 				},
 				() =>
 					renderToReadableStream(rscPayload, {
@@ -206,6 +209,7 @@ async function createPayload(
 				req,
 				prerender: prerender ? (ppr ? 'ppr' : 'full') : null,
 				cache: {},
+				nonce,
 			},
 			() =>
 				renderToReadableStream(rscPayload, {
@@ -240,6 +244,7 @@ async function createPayload(
 					req,
 					prerender: prerender ? 'full' : null,
 					cache: {},
+					nonce,
 				},
 				() =>
 					renderToReadableStream(
@@ -298,6 +303,32 @@ export function createHandler(
 
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
 
+	const nonceCache = new WeakMap<Request, Promise<string | undefined>>()
+
+	/**
+	 * Resolve the per-request CSP nonce once. The renderer and the configured
+	 * `headers` function must see the same value.
+	 */
+	function resolveNonce(req: Request) {
+		if (!config.nonce) return Promise.resolve(undefined)
+
+		let pending = nonceCache.get(req)
+
+		if (!pending) {
+			pending = Promise.resolve(
+				typeof config.nonce === 'function' ? config.nonce(req) : createNonce(),
+			).then(value => {
+				if (!value) throw new Error('[solas] nonce generator returned an empty value')
+
+				return value
+			})
+
+			nonceCache.set(req, pending)
+		}
+
+		return pending
+	}
+
 	/**
 	 * Create the HTTP response for a single incoming request. Runs actions when needed,
 	 * converts the payload into component, HTML, or prerender artifact responses, and
@@ -321,6 +352,13 @@ export function createHandler(
 			})
 		}
 
+		const prerenderRequest = req.headers.get(`x-${Config.SLUG}-prerender`) === '1'
+		const nonce = config.nonce
+			? prerenderRequest
+				? NONCE_PLACEHOLDER
+				: await resolveNonce(req)
+			: undefined
+
 		const {
 			stream: rscStream,
 			status,
@@ -333,6 +371,7 @@ export function createHandler(
 			opts.returnValue,
 			opts.formState,
 			opts.temporaryReferences,
+			nonce,
 		)
 
 		const stream = await rscStream
@@ -380,6 +419,7 @@ export function createHandler(
 					opts.returnValue,
 					opts.formState,
 					opts.temporaryReferences,
+					nonce,
 				)
 
 				const retriedStream = await retriedRscStream
@@ -402,6 +442,7 @@ export function createHandler(
 			try {
 				const artifact = await mod.prerender(stream, {
 					formState: opts.formState,
+					nonce,
 					ppr: runtimePpr,
 					route: pathname,
 				})
@@ -421,6 +462,7 @@ export function createHandler(
 				if (recovered) {
 					const artifact = await mod.prerender(recovered.retriedStream, {
 						formState: opts.formState,
+						nonce,
 						ppr: false,
 						route: pathname,
 					})
@@ -456,12 +498,12 @@ export function createHandler(
 					// the cached prelude already carries the static payload, only needs to
 					// stream the html completions for postponed boundaries
 					const resumeStream = await mod.resume(stream, postponedState, {
-						nonce: undefined,
+						nonce,
 						injectPayload: false,
 					})
 
 					const body = prelude
-						? Prerender.composePreludeAndResume(prelude, resumeStream)
+						? Prerender.composePreludeAndResume(prelude, resumeStream, nonce)
 						: resumeStream
 
 					return new Response(body, {
@@ -477,6 +519,7 @@ export function createHandler(
 
 			const htmlStream = await mod.ssr(stream, {
 				formState: opts.formState,
+				nonce,
 				ppr: runtimePpr,
 			})
 
@@ -495,6 +538,7 @@ export function createHandler(
 			if (recovered) {
 				const retriedHtmlStream = await mod.ssr(recovered.retriedStream, {
 					formState: opts.formState,
+					nonce,
 					ppr: false,
 				})
 
@@ -531,6 +575,7 @@ export function createHandler(
 
 		if (runtimeManifest.artifacts[lookupPath]?.mode !== 'full') return null
 
+		const nonce = config.nonce ? await resolveNonce(req) : undefined
 		const res = await HttpRouter.serveStatic(
 			assets,
 			{
@@ -538,7 +583,7 @@ export function createHandler(
 				path: Prerender.staticRoutePath(lookupPath, prerenderPathMode),
 			},
 			req,
-			config.precompress,
+			nonce ? false : config.precompress,
 			{
 				// fully prerendered routes are immutable per build, so allow them
 				// to be cached and revalidated instead of forcing no-store
@@ -547,7 +592,29 @@ export function createHandler(
 			},
 		)
 
-		return res.status === 404 ? null : res
+		if (res.status === 404) return null
+		if (!nonce) return res
+
+		// a per-request nonce makes the document unique to this request, so it
+		// cannot be shared and the precompressed variant cannot be reused
+		const html = await res.text()
+
+		if (!html.includes(NONCE_PLACEHOLDER)) {
+			return new Response(html, {
+				status: res.status,
+				statusText: res.statusText,
+				headers: res.headers,
+			})
+		}
+
+		const headers = new Headers(res.headers)
+		headers.set('Cache-Control', 'private, no-store')
+
+		return new Response(replaceNonce(html, nonce), {
+			status: res.status,
+			statusText: res.statusText,
+			headers,
+		})
 	}
 
 	const httpRouter = createHttpRouter(
@@ -566,7 +633,9 @@ export function createHandler(
 		if (!config.headers) return res
 
 		const entries =
-			typeof config.headers === 'function' ? await config.headers(req) : config.headers
+			typeof config.headers === 'function'
+				? await config.headers(req, { nonce: await resolveNonce(req) })
+				: config.headers
 		const headers = new Headers(res.headers)
 
 		for (const [key, value] of Object.entries(entries)) headers.set(key, value)
