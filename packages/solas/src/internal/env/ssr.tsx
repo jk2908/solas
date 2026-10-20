@@ -34,21 +34,31 @@ function toNonceOption(nonce?: string) {
 
 const logger = new Logger()
 
-function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
+function A({
+	payloadPromise,
+	nonce,
+}: {
+	payloadPromise: Promise<RscPayload>
+	nonce?: string
+}) {
 	const payload = use(payloadPromise)
 
 	return (
-		<RedirectBoundary>
-			<BrowserRouterProvider url={payload.url}>
-				<ErrorBoundary fallback={null}>
-					<Suspense fallback={null}>
-						<Head metadata={payload.metadata} url={payload.url} />
-					</Suspense>
-				</ErrorBoundary>
+		<>
+			{nonce && <meta name="solas-nonce" content={nonce} />}
 
-				{payload.root}
-			</BrowserRouterProvider>
-		</RedirectBoundary>
+			<RedirectBoundary>
+				<BrowserRouterProvider url={payload.url}>
+					<ErrorBoundary fallback={null}>
+						<Suspense fallback={null}>
+							<Head metadata={payload.metadata} url={payload.url} />
+						</Suspense>
+					</ErrorBoundary>
+
+					{payload.root}
+				</BrowserRouterProvider>
+			</RedirectBoundary>
+		</>
 	)
 }
 
@@ -68,34 +78,40 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	// dynamic content is streamed via suspense
 	// rsc payload is injected after
 	if (ppr) {
-		const { prelude } = await reactPrerender(<A payloadPromise={payloadPromise} />, {
+		const { prelude } = await reactPrerender(
+			<A payloadPromise={payloadPromise} nonce={nonce} />,
+			{
+				bootstrapScriptContent,
+				onError(err) {
+					const digest = getKnownDigest(err)
+
+					if (digest) return digest
+					if (isKnownError(err)) return
+
+					logger.error('[ssr:ppr]', err)
+				},
+			},
+		)
+
+		return prelude.pipeThrough(injectPayload(s2, { nonce }))
+	}
+
+	const htmlStream = await renderToReadableStream(
+		<A payloadPromise={payloadPromise} nonce={nonce} />,
+		{
 			bootstrapScriptContent,
+			nonce: toNonceOption(nonce),
+			formState,
 			onError(err) {
 				const digest = getKnownDigest(err)
 
 				if (digest) return digest
 				if (isKnownError(err)) return
 
-				logger.error('[ssr:ppr]', err)
+				logger.error('[ssr]', err)
 			},
-		})
-
-		return prelude.pipeThrough(injectPayload(s2, { nonce }))
-	}
-
-	const htmlStream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
-		bootstrapScriptContent,
-		nonce: toNonceOption(nonce),
-		formState,
-		onError(err) {
-			const digest = getKnownDigest(err)
-
-			if (digest) return digest
-			if (isKnownError(err)) return
-
-			logger.error('[ssr]', err)
 		},
-	})
+	)
 
 	return htmlStream.pipeThrough(injectPayload(s2, { nonce }))
 }
@@ -132,7 +148,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		}, 0)
 
 		const { prelude, postponed } = await reactPrerender(
-			<A payloadPromise={payloadPromise} />,
+			<A payloadPromise={payloadPromise} nonce={nonce} />,
 			{
 				bootstrapScriptContent,
 				signal: controller.signal,
@@ -179,18 +195,21 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		}
 	}
 
-	const stream = await renderToReadableStream(<A payloadPromise={payloadPromise} />, {
-		bootstrapScriptContent,
-		nonce: toNonceOption(nonce),
-		onError(err) {
-			const digest = getKnownDigest(err)
+	const stream = await renderToReadableStream(
+		<A payloadPromise={payloadPromise} nonce={nonce} />,
+		{
+			bootstrapScriptContent,
+			nonce: toNonceOption(nonce),
+			onError(err) {
+				const digest = getKnownDigest(err)
 
-			if (digest) return digest
-			if (isKnownError(err)) return
+				if (digest) return digest
+				if (isKnownError(err)) return
 
-			logger.error('[ssr:prerender:full]', err)
+				logger.error('[ssr:prerender:full]', err)
+			},
 		},
-	})
+	)
 
 	await stream.allReady
 
@@ -215,7 +234,7 @@ async function resume(
 	const payloadPromise: Promise<RscPayload> = createFromReadableStream<RscPayload>(s1)
 
 	const htmlStream = await reactResume(
-		<A payloadPromise={payloadPromise} />,
+		<A payloadPromise={payloadPromise} nonce={opts.nonce} />,
 		postponedState as never,
 		{
 			nonce: toNonceOption(opts.nonce),

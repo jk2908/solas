@@ -66,6 +66,10 @@ export type HistoryEntry = {
 export function getDocumentNonce() {
 	if (typeof document === 'undefined') return undefined
 
+	const meta = document.querySelector<HTMLMetaElement>('meta[name="solas-nonce"]')
+	if (meta?.content) return meta.content
+
+	// fallback for documents rendered before the meta tag was available
 	const element = document.querySelector<HTMLScriptElement | HTMLStyleElement>(
 		'script[nonce], style[nonce]',
 	)

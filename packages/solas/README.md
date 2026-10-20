@@ -873,7 +873,7 @@ React 19 treats `<style href precedence>` as a hoistable resource. It drops the 
 
 #### Client navigation
 
-Nonces belong to the document, not to each request. Solas reads the document nonce from the first nonced script or style in the DOM and sends it as `x-solas-nonce` on RSC navigations, prefetches, and server actions. The server renders those payloads with that nonce instead of generating a new one.
+Nonces belong to the document, not to each request. Solas emits a `<meta name="solas-nonce" content="...">` for dynamic responses, reads it in the browser, and sends it as `x-solas-nonce` on RSC navigations, prefetches, and server actions. It falls back to the first nonced script or style for documents rendered before the meta tag was available. The server renders those payloads with that nonce instead of generating a new one.
 
 That keeps new inline styles and scripts inserted during client navigation aligned with the CSP the browser is already enforcing. It happens automatically; you only need to pass the nonce to your own tags.
 

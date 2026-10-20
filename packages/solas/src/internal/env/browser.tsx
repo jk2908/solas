@@ -11,7 +11,7 @@ import {
 
 import type { RscPayload } from './rsc.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
-import { addNonceHeader } from '../browser-router/shared.js'
+import { addNonceHeader, getDocumentNonce } from '../browser-router/shared.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
@@ -24,6 +24,7 @@ export async function browser() {
 	// read the initial payload from the inline __FLIGHT_DATA pushes that were
 	// injected into the html document during ssr/prerender
 	const payload = await createFromReadableStream<RscPayload>(rscStream)
+	const documentNonce = getDocumentNonce()
 
 	const payloadSetter: { current: (payload: RscPayload) => void } = {
 		current: () => {},
@@ -44,20 +45,24 @@ export async function browser() {
 		payloadSetter.current = setPayloadInTransition
 
 		return (
-			<RedirectBoundary>
-				<BrowserRouterProvider
-					setPayload={setPayloadInTransition}
-					isNavigating={isPending}
-					url={p.url}>
-					<ErrorBoundary fallback={null}>
-						<Suspense fallback={null}>
-							<Head metadata={p.metadata} url={p.url} />
-						</Suspense>
-					</ErrorBoundary>
+			<>
+				{documentNonce && <meta name="solas-nonce" content={documentNonce} />}
 
-					{p.root}
-				</BrowserRouterProvider>
-			</RedirectBoundary>
+				<RedirectBoundary>
+					<BrowserRouterProvider
+						setPayload={setPayloadInTransition}
+						isNavigating={isPending}
+						url={p.url}>
+						<ErrorBoundary fallback={null}>
+							<Suspense fallback={null}>
+								<Head metadata={p.metadata} url={p.url} />
+							</Suspense>
+						</ErrorBoundary>
+
+						{p.root}
+					</BrowserRouterProvider>
+				</RedirectBoundary>
+			</>
 		)
 	}
 
