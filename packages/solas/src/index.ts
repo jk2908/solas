@@ -51,7 +51,7 @@ const DEFAULT_CONFIG = {
  * trailing slash or path).
  */
 function normaliseOrigin(value: string | undefined): Origin | undefined {
-	if (!value) return undefined
+	if (!value) return
 
 	return new URL(value).origin as Origin
 }

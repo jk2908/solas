@@ -37,7 +37,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import DefaultErr from '../ui/defaults/error.js'
-import { extractNonce, getHeader, resolveNonce } from './csp.js'
+import { resolveNonce } from './csp.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
@@ -370,31 +370,15 @@ export function createHandler(
 		}
 
 		const configuredHeaders = await resolveHeaders(req)
-		const requestCsp = req.headers.get('content-security-policy')
-		const configuredCsp = getHeader(configuredHeaders, 'content-security-policy')
-		const rscOrAction = isRscRequest(req) || Boolean(req[Config.REQUEST_META_KEY].action)
-		const clientNonce = rscOrAction ? req.headers.get('x-solas-nonce') : null
-		const documentNonce = clientNonce || undefined
-		const nonce = documentNonce ?? resolveNonce(requestCsp, configuredCsp)
-
-		if (config.headers && typeof config.headers !== 'function' && nonce) {
-			warnOnce(
-				'static-nonce',
-				'the configured headers use a static nonce; generate a nonce per request with the function form',
-			)
-		}
-
-		if (requestCsp && configuredCsp) {
-			const requestNonce = extractNonce(requestCsp)
-			const configuredNonce = extractNonce(configuredCsp)
-
-			if (requestNonce && configuredNonce && requestNonce !== configuredNonce) {
-				warnOnce(
-					'nonce-conflict',
-					'the request CSP nonce differs from the configured headers CSP; using the request nonce',
-				)
-			}
-		}
+		const clientNonce =
+			isRscRequest(req) || req[Config.REQUEST_META_KEY].action
+				? req.headers.get('x-solas-nonce')
+				: null
+		const nonce = resolveNonce(
+			req.headers.get('content-security-policy'),
+			configuredHeaders,
+			clientNonce,
+		)
 
 		const {
 			stream: rscStream,
@@ -618,9 +602,10 @@ export function createHandler(
 
 		if (runtimeManifest.artifacts[lookupPath]?.mode !== 'full') return null
 
-		const requestCsp = req.headers.get('content-security-policy')
-		const configuredCsp = getHeader(await resolveHeaders(req), 'content-security-policy')
-		const nonce = resolveNonce(requestCsp, configuredCsp)
+		const nonce = resolveNonce(
+			req.headers.get('content-security-policy'),
+			await resolveHeaders(req),
+		)
 
 		if (nonce) {
 			warnOnce(
@@ -668,13 +653,7 @@ export function createHandler(
 		const headers = new Headers(res.headers)
 
 		for (const [key, value] of Object.entries(entries)) {
-			if (requestCsp && key.toLowerCase() === 'content-security-policy') {
-				warnOnce(
-					'csp-conflict',
-					'ignoring the configured Content-Security-Policy because the request already has one',
-				)
-				continue
-			}
+			if (requestCsp && key.toLowerCase() === 'content-security-policy') continue
 
 			headers.set(key, value)
 		}

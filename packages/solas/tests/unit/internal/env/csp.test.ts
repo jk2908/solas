@@ -1,64 +1,45 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-	extractNonce,
-	getHeader,
-	resolveNonce,
-} from '../../../../src/internal/env/csp.js'
-
-describe('extractNonce', () => {
-	it('extracts a nonce from script-src', () => {
-		expect(extractNonce("default-src 'self'; script-src 'nonce-abc123'")).toBe('abc123')
-	})
-
-	it('extracts a nonce from style-src', () => {
-		expect(extractNonce("style-src 'self' 'nonce-XYZ+/='")).toBe('XYZ+/=')
-	})
-
-	it('returns undefined when there is no nonce', () => {
-		expect(extractNonce("default-src 'self'")).toBeUndefined()
-		expect(extractNonce(null)).toBeUndefined()
-		expect(extractNonce(undefined)).toBeUndefined()
-	})
-
-	it('ignores an empty nonce', () => {
-		expect(extractNonce("script-src 'nonce-'")).toBeUndefined()
-	})
-})
-
-describe('getHeader', () => {
-	it('finds a header case-insensitively', () => {
-		expect(
-			getHeader(
-				{ 'content-security-policy': "script-src 'self'" },
-				'Content-Security-Policy',
-			),
-		).toBe("script-src 'self'")
-	})
-
-	it('returns undefined for a missing header', () => {
-		expect(getHeader({}, 'content-security-policy')).toBeUndefined()
-	})
-})
+import { resolveNonce } from '../../../../src/internal/env/csp.js'
 
 describe('resolveNonce', () => {
-	it('prefers the request nonce', () => {
+	it('prefers the client document nonce', () => {
 		expect(
-			resolveNonce("script-src 'nonce-request'", "script-src 'nonce-configured'"),
+			resolveNonce(
+				"script-src 'self'",
+				{ 'content-security-policy': "script-src 'nonce-configured'" },
+				'client',
+			),
+		).toBe('client')
+	})
+
+	it('uses the request CSP', () => {
+		expect(
+			resolveNonce("script-src 'nonce-request'", {
+				'content-security-policy': "script-src 'nonce-configured'",
+			}),
 		).toBe('request')
 	})
 
-	it('does not fall back to the configured nonce when the request has a CSP', () => {
+	it('treats a request CSP without a nonce as authoritative', () => {
 		expect(
-			resolveNonce("script-src 'self'", "script-src 'nonce-configured'"),
+			resolveNonce("script-src 'self'", {
+				'Content-Security-Policy': "script-src 'nonce-configured'",
+			}),
 		).toBeUndefined()
 	})
 
-	it('falls back to the configured nonce when the request has no CSP', () => {
-		expect(resolveNonce(null, "script-src 'nonce-configured'")).toBe('configured')
+	it('falls back to configured headers', () => {
+		expect(
+			resolveNonce(null, { 'Content-Security-Policy': "script-src 'nonce-configured'" }),
+		).toBe('configured')
 	})
 
-	it('returns undefined when neither has a nonce', () => {
-		expect(resolveNonce(null, undefined)).toBeUndefined()
+	it('ignores an empty nonce', () => {
+		expect(resolveNonce("script-src 'nonce-'", {})).toBeUndefined()
+	})
+
+	it('returns undefined when there is no CSP', () => {
+		expect(resolveNonce(null, {})).toBeUndefined()
 	})
 })
