@@ -15,7 +15,8 @@ import { mockRequestContext } from '../../../utils.js'
 
 const { dynamic } = await import('../../../../src/internal/server/dynamic.js')
 const { RequestContext } = await import('../../../../src/internal/env/request-context.js')
-const { headers } = await import('../../../../src/internal/server/headers.js')
+const { createHeaderResolver, headers } =
+	await import('../../../../src/internal/server/headers.js')
 
 function setupContext(req: Request, cache: RequestCache = {}, nonce?: string) {
 	vi.mocked(dynamic).mockResolvedValue(undefined)
@@ -85,5 +86,51 @@ describe('headers', () => {
 		)
 
 		expect((await headers()).has('x-nonce')).toBe(false)
+	})
+})
+
+describe('createHeaderResolver', () => {
+	it('returns an empty object when no headers are configured', async () => {
+		const resolve = createHeaderResolver(undefined)
+
+		expect(await resolve(new Request('http://localhost/'))).toEqual({})
+	})
+
+	it('returns the configured object', async () => {
+		const configured = { 'x-test': '1' }
+		const resolve = createHeaderResolver(configured)
+
+		expect(await resolve(new Request('http://localhost/'))).toBe(configured)
+	})
+
+	it('evaluates a function once per request', async () => {
+		const configured = vi.fn(() => ({ 'x-test': '1' }))
+		const resolve = createHeaderResolver(configured)
+		const req = new Request('http://localhost/')
+
+		const [first, second] = await Promise.all([resolve(req), resolve(req)])
+
+		expect(first).toBe(second)
+		expect(configured).toHaveBeenCalledOnce()
+	})
+
+	it('evaluates a function separately for different requests', async () => {
+		const configured = vi.fn((req: Request) => ({ 'x-url': req.url }))
+		const resolve = createHeaderResolver(configured)
+
+		const first = await resolve(new Request('http://localhost/a'))
+		const second = await resolve(new Request('http://localhost/b'))
+
+		expect(first['x-url']).toContain('/a')
+		expect(second['x-url']).toContain('/b')
+		expect(configured).toHaveBeenCalledTimes(2)
+	})
+
+	it('turns a synchronous throw into a rejection', async () => {
+		const resolve = createHeaderResolver(() => {
+			throw new Error('boom')
+		})
+
+		await expect(resolve(new Request('http://localhost/'))).rejects.toThrow('boom')
 	})
 })

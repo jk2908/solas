@@ -1,3 +1,4 @@
+import type { HeaderEntries, HeadersInput } from '../../types.js'
 import { RequestContext } from '../env/request-context.js'
 import { dynamic } from './dynamic.js'
 
@@ -28,4 +29,28 @@ export async function headers(): Promise<ReadonlyMap<string, string>> {
 	cache.headers = map
 
 	return map
+}
+
+/**
+ * Resolve the configured response headers once per request.
+ *
+ * The nonce extracted from a configured CSP and the headers applied to the
+ * response must come from the same evaluation.
+ */
+export function createHeaderResolver(input: HeadersInput | undefined) {
+	const cache = new WeakMap<Request, Promise<HeaderEntries>>()
+
+	return function resolveHeaders(req: Request): Promise<HeaderEntries> {
+		if (!input) return Promise.resolve({})
+		if (typeof input !== 'function') return Promise.resolve(input)
+
+		let pending = cache.get(req)
+
+		if (!pending) {
+			pending = Promise.resolve().then(() => input(req))
+			cache.set(req, pending)
+		}
+
+		return pending
+	}
 }
