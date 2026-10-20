@@ -5,7 +5,13 @@ import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 import { Logger } from '../../utils/logger.js'
 
-import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
+import type {
+	HeaderEntries,
+	ImportMap,
+	Manifest,
+	RuntimeConfig,
+	SolasRequest,
+} from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
 import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
@@ -31,6 +37,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import DefaultErr from '../ui/defaults/error.js'
+import { extractNonce, getHeader, resolveNonce } from './csp.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
@@ -97,6 +104,7 @@ async function createPayload(
 	returnValue?: { ok: boolean; data: unknown },
 	formState?: ReactFormState,
 	temporaryReferences?: unknown,
+	nonce?: string,
 ) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = req.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -111,6 +119,10 @@ async function createPayload(
 			req[Config.REQUEST_META_KEY].error,
 		),
 	)
+
+	// Nonces require a dynamic response. Full and PPR routes are static, and
+	// build-time prerender requests have no request nonce.
+	const effectiveNonce = prerender || match?.prerender ? undefined : nonce
 
 	// if there's no match then no user supplied error boundary
 	// has been found, and we should server render a default
@@ -158,6 +170,7 @@ async function createPayload(
 					req,
 					prerender: prerender ? 'full' : null,
 					cache: {},
+					nonce: effectiveNonce,
 				},
 				() =>
 					renderToReadableStream(rscPayload, {
@@ -167,6 +180,7 @@ async function createPayload(
 			),
 			status: 404,
 			ppr: false,
+			nonce: effectiveNonce,
 		}
 	}
 
@@ -206,6 +220,7 @@ async function createPayload(
 				req,
 				prerender: prerender ? (ppr ? 'ppr' : 'full') : null,
 				cache: {},
+				nonce: effectiveNonce,
 			},
 			() =>
 				renderToReadableStream(rscPayload, {
@@ -214,7 +229,7 @@ async function createPayload(
 				}),
 		)
 
-		return { stream, status, ppr }
+		return { stream, status, ppr, nonce: effectiveNonce }
 	} catch (err) {
 		logger.error('[rsc:render]', err)
 
@@ -240,6 +255,7 @@ async function createPayload(
 					req,
 					prerender: prerender ? 'full' : null,
 					cache: {},
+					nonce: effectiveNonce,
 				},
 				() =>
 					renderToReadableStream(
@@ -276,6 +292,7 @@ async function createPayload(
 			),
 			status: 500,
 			ppr: false,
+			nonce: effectiveNonce,
 		}
 	}
 }
@@ -297,6 +314,37 @@ export function createHandler(
 	const SOLAS_ASSETS_URL_ROOT = `/${Config.ASSETS_DIR}`
 
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
+
+	const headerCache = new WeakMap<Request, Promise<HeaderEntries>>()
+	const warned = new Set<string>()
+
+	function warnOnce(key: string, message: string) {
+		if (warned.has(key)) return
+
+		warned.add(key)
+		logger.warn('[csp]', message)
+	}
+
+	/**
+	 * Resolve the configured response headers once per request. The nonce
+	 * extracted from a configured CSP and the headers applied to the response
+	 * must come from the same evaluation.
+	 */
+	function resolveHeaders(req: Request): Promise<HeaderEntries> {
+		const headers = config.headers
+
+		if (!headers) return Promise.resolve({})
+		if (typeof headers !== 'function') return Promise.resolve(headers)
+
+		let pending = headerCache.get(req)
+
+		if (!pending) {
+			pending = Promise.resolve().then(() => headers(req))
+			headerCache.set(req, pending)
+		}
+
+		return pending
+	}
 
 	/**
 	 * Create the HTTP response for a single incoming request. Runs actions when needed,
@@ -321,10 +369,35 @@ export function createHandler(
 			})
 		}
 
+		const configuredHeaders = await resolveHeaders(req)
+		const requestCsp = req.headers.get('content-security-policy')
+		const configuredCsp = getHeader(configuredHeaders, 'content-security-policy')
+		const nonce = resolveNonce(requestCsp, configuredCsp)
+
+		if (config.headers && typeof config.headers !== 'function' && nonce) {
+			warnOnce(
+				'static-nonce',
+				'the configured headers use a static nonce; generate a nonce per request with the function form',
+			)
+		}
+
+		if (requestCsp && configuredCsp) {
+			const requestNonce = extractNonce(requestCsp)
+			const configuredNonce = extractNonce(configuredCsp)
+
+			if (requestNonce && configuredNonce && requestNonce !== configuredNonce) {
+				warnOnce(
+					'nonce-conflict',
+					'the request CSP nonce differs from the configured headers CSP; using the request nonce',
+				)
+			}
+		}
+
 		const {
 			stream: rscStream,
 			status,
 			ppr,
+			nonce: effectiveNonce,
 		} = await createPayload(
 			req,
 			manifest,
@@ -333,6 +406,7 @@ export function createHandler(
 			opts.returnValue,
 			opts.formState,
 			opts.temporaryReferences,
+			nonce,
 		)
 
 		const stream = await rscStream
@@ -352,6 +426,13 @@ export function createHandler(
 		const pathname = new URL(req.url).pathname
 		const lookupPath = normaliseTrailingSlash(pathname, prerenderPathMode)
 		const runtimePpr = !import.meta.env.DEV && ppr
+
+		if (ppr && nonce) {
+			warnOnce(
+				`ppr:${pathname}`,
+				`${pathname} is partially prerendered; CSP nonces require dynamic rendering. Use hashes or SRI for the static shell.`,
+			)
+		}
 
 		async function tryErrorRecovery(err: unknown) {
 			if (isRedirect(err)) {
@@ -380,6 +461,7 @@ export function createHandler(
 					opts.returnValue,
 					opts.formState,
 					opts.temporaryReferences,
+					nonce,
 				)
 
 				const retriedStream = await retriedRscStream
@@ -456,7 +538,7 @@ export function createHandler(
 					// the cached prelude already carries the static payload, only needs to
 					// stream the html completions for postponed boundaries
 					const resumeStream = await mod.resume(stream, postponedState, {
-						nonce: undefined,
+						nonce: effectiveNonce,
 						injectPayload: false,
 					})
 
@@ -477,6 +559,7 @@ export function createHandler(
 
 			const htmlStream = await mod.ssr(stream, {
 				formState: opts.formState,
+				nonce: effectiveNonce,
 				ppr: runtimePpr,
 			})
 
@@ -495,6 +578,7 @@ export function createHandler(
 			if (recovered) {
 				const retriedHtmlStream = await mod.ssr(recovered.retriedStream, {
 					formState: opts.formState,
+					nonce: effectiveNonce,
 					ppr: false,
 				})
 
@@ -531,6 +615,17 @@ export function createHandler(
 
 		if (runtimeManifest.artifacts[lookupPath]?.mode !== 'full') return null
 
+		const requestCsp = req.headers.get('content-security-policy')
+		const configuredCsp = getHeader(await resolveHeaders(req), 'content-security-policy')
+		const nonce = resolveNonce(requestCsp, configuredCsp)
+
+		if (nonce) {
+			warnOnce(
+				`full:${lookupPath}`,
+				`${lookupPath} is fully prerendered; CSP nonces require dynamic rendering. Use hashes or SRI.`,
+			)
+		}
+
 		const res = await HttpRouter.serveStatic(
 			assets,
 			{
@@ -565,11 +660,21 @@ export function createHandler(
 	async function withHeaders(res: Response, req: Request) {
 		if (!config.headers) return res
 
-		const entries =
-			typeof config.headers === 'function' ? await config.headers(req) : config.headers
+		const entries = await resolveHeaders(req)
+		const requestCsp = req.headers.get('content-security-policy')
 		const headers = new Headers(res.headers)
 
-		for (const [key, value] of Object.entries(entries)) headers.set(key, value)
+		for (const [key, value] of Object.entries(entries)) {
+			if (requestCsp && key.toLowerCase() === 'content-security-policy') {
+				warnOnce(
+					'csp-conflict',
+					'ignoring the configured Content-Security-Policy because the request already has one',
+				)
+				continue
+			}
+
+			headers.set(key, value)
+		}
 
 		return new Response(res.body, {
 			status: res.status,

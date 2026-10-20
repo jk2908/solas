@@ -13,4 +13,5 @@ export const RequestContext = Context.create<{
 	req: SolasRequest
 	prerender: 'ppr' | 'full' | null
 	cache: RequestCache
+	nonce?: string
 }>('request')

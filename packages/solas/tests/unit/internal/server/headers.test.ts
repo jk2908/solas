@@ -17,10 +17,10 @@ const { dynamic } = await import('../../../../src/internal/server/dynamic.js')
 const { RequestContext } = await import('../../../../src/internal/env/request-context.js')
 const { headers } = await import('../../../../src/internal/server/headers.js')
 
-function setupContext(req: Request, cache: RequestCache = {}) {
+function setupContext(req: Request, cache: RequestCache = {}, nonce?: string) {
 	vi.mocked(dynamic).mockResolvedValue(undefined)
 	const ctx = mockRequestContext(req, cache)
-	vi.mocked(RequestContext.use).mockReturnValue(ctx)
+	vi.mocked(RequestContext.use).mockReturnValue({ ...ctx, nonce })
 }
 
 describe('headers', () => {
@@ -69,5 +69,21 @@ describe('headers', () => {
 
 		await headers()
 		expect(dynamic).toHaveBeenCalledOnce()
+	})
+
+	it('exposes the effective nonce as x-nonce', async () => {
+		setupContext(new Request('http://localhost'), {}, 'abc123')
+
+		expect((await headers()).get('x-nonce')).toBe('abc123')
+	})
+
+	it('removes a stale x-nonce when there is no effective nonce', async () => {
+		setupContext(
+			new Request('http://localhost', {
+				headers: { 'x-nonce': 'stale' },
+			}),
+		)
+
+		expect((await headers()).has('x-nonce')).toBe(false)
 	})
 })

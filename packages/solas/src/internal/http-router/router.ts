@@ -17,6 +17,19 @@ import {
 
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 
+/**
+ * Copy Solas request metadata onto a request a middleware passes to `next()`.
+ * The route match was resolved before middleware ran, so the metadata must
+ * survive a request replacement.
+ */
+function withRequestMeta(request: Request, source: SolasRequest): SolasRequest {
+	if (request === source) return source
+
+	return Object.assign(request, {
+		[Config.REQUEST_META_KEY]: source[Config.REQUEST_META_KEY],
+	}) as SolasRequest
+}
+
 export namespace HttpRouter {
 	export type Params = Record<string, string | string[]>
 
@@ -29,7 +42,7 @@ export namespace HttpRouter {
 
 	export type Middleware = (
 		req: SolasRequest,
-		next: () => Promise<Response>,
+		next: (request?: Request) => Promise<Response>,
 	) => Response | Promise<Response>
 
 	export type Token = {
@@ -339,7 +352,7 @@ export class HttpRouter {
 			return this.#run(
 				stack,
 				request,
-				() =>
+				request =>
 					matched.route.handler?.(request) ?? new Response('Not found', { status: 404 }),
 			)
 		} catch (err) {
@@ -365,33 +378,33 @@ export class HttpRouter {
 	#run(
 		stack: HttpRouter.Middleware[],
 		req: SolasRequest,
-		next: () => Promise<Response> | Response,
+		next: (request: SolasRequest) => Promise<Response> | Response,
 	) {
 		// build the middleware chain from the inside out
-		let run = () => Promise.resolve(next())
+		let run = (request: SolasRequest) => Promise.resolve(next(request))
 
 		// wrap each middleware around the current chain
 		for (let i = stack.length - 1; i >= 0; i -= 1) {
 			const handler = stack[i]
 			const prev = run
 
-			run = () => {
+			run = (request: SolasRequest) => {
 				let called = false
 
 				return Promise.resolve(
-					handler(req, () => {
+					handler(request, (replacement?: Request) => {
 						// next() can only be used once per middleware call
 						if (called) throw new Error('next() called more than once')
 						called = true
 
-						return prev()
+						return prev(withRequestMeta(replacement ?? request, request))
 					}),
 				)
 			}
 		}
 
 		// start the middleware chain
-		return run()
+		return run(req)
 	}
 
 	/**

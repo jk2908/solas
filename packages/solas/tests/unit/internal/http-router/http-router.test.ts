@@ -8,6 +8,7 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 	loadServerAction: vi.fn(),
 }))
 
+import * as Config from '../../../../src/config.js'
 import {
 	nodeAssets,
 	type AssetRef,
@@ -339,6 +340,62 @@ describe('HttpRouter', () => {
 			const res = await router.fetch(http('/test'))
 			expect(res.status).toBe(403)
 			expect(await res.text()).toBe('blocked')
+		})
+
+		it('passes a replacement request through next()', async () => {
+			let seen: string | null = null
+
+			const router = createRouter()
+				.use(async (req, next) => {
+					const headers = new Headers(req.headers)
+					headers.set('x-test', 'replaced')
+					return next(new Request(req, { headers }))
+				})
+				.use(async (req, next) => {
+					seen = req.headers.get('x-test')
+					return next()
+				})
+				.add('/test', 'GET', async req => {
+					return new Response(req.headers.get('x-test') ?? 'missing')
+				})
+
+			const res = await router.fetch(http('/test'))
+
+			expect(seen).toBe('replaced')
+			expect(await res.text()).toBe('replaced')
+		})
+
+		it('preserves request metadata when a middleware replaces the request', async () => {
+			const router = createRouter()
+				.use(async (req, next) => {
+					const headers = new Headers(req.headers)
+					headers.set('x-test', 'replaced')
+					return next(new Request(req, { headers }))
+				})
+				.add('/test', 'GET', async req => {
+					const meta = req[Config.REQUEST_META_KEY]
+					return new Response(meta?.match ? 'meta' : 'missing')
+				})
+
+			const res = await router.fetch(http('/test'))
+
+			expect(await res.text()).toBe('meta')
+		})
+
+		it('preserves the request body when a middleware replaces the request', async () => {
+			const router = createRouter()
+				.use(async (req, next) => {
+					const headers = new Headers(req.headers)
+					headers.set('x-test', 'replaced')
+					return next(new Request(req, { headers }))
+				})
+				.add('/test', 'POST', async req => new Response(await req.text()))
+
+			const res = await router.fetch(
+				new Request('http://localhost/test', { method: 'POST', body: 'hello' }),
+			)
+
+			expect(await res.text()).toBe('hello')
 		})
 
 		it('throws on double next() call', async () => {

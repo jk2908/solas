@@ -71,7 +71,7 @@ Use these filename conventions:
 - `+layout.tsx`: shared layout for a route branch.
 - `+page.tsx`: page component for a route.
 - `+endpoint.ts`: request handler. Can be placed in any folder and responds to all HTTP methods for its route path.
-- `+middleware.ts`: middleware that runs for the current route branch and is inherited by child routes. Parent and child middleware stack together.
+- `+middleware.ts`: middleware that runs for the current route branch and is inherited by child routes. Parent and child middleware stack together. Call `next()` to continue, or `next(request)` to pass a replacement request with different headers downstream.
 - `+loading.tsx`: loading fallback inherited by child routes.
 - `+401.tsx`: boundary for unauthorised responses in the current route branch and its children.
 - `+403.tsx`: boundary for forbidden responses in the current route branch and its children.
@@ -478,17 +478,7 @@ solas({
 })
 ```
 
-Pass a function to vary the headers per request, for example a per-request CSP nonce:
-
-```ts
-solas({
-	headers: req => ({
-		'Content-Security-Policy': `default-src 'self'; script-src 'nonce-${nonce(req)}'`,
-	}),
-})
-```
-
-The function can be async. Configured headers win over any header Solas sets.
+Pass a function to vary the headers per request. The function can be async. Configured headers win over any header Solas sets, except that a `Content-Security-Policy` on the request takes precedence over a configured one. See [Security > CSP](#csp) for the nonce pattern.
 
 ### `sitemap`
 
@@ -813,6 +803,89 @@ If you run Vite through Bun, use the Bun-backed commands instead:
 - `vite preview` serves the built app for local verification.
 
 ## Security
+
+### CSP
+
+Solas supports nonce-based Content Security Policy for dynamically rendered HTML. A nonce is read from the effective `Content-Security-Policy` header, applied to the scripts Solas generates, and exposed to server components as `x-nonce`.
+
+#### Middleware
+
+Use middleware to generate a nonce per request, set the CSP on the request and response, and pass a replacement request to `next()`:
+
+```ts
+// app/+middleware.ts
+export function middleware(req: Request, next: (request?: Request) => Promise<Response>) {
+	const nonce = crypto.randomUUID()
+	const csp = [
+		"default-src 'self'",
+		`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+		`style-src 'self' 'nonce-${nonce}'`,
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'none'",
+	].join('; ')
+
+	const headers = new Headers(req.headers)
+	headers.set('x-nonce', nonce)
+	headers.set('Content-Security-Policy', csp)
+
+	return next(new Request(req, { headers })).then(res => {
+		res.headers.set('Content-Security-Policy', csp)
+		return res
+	})
+}
+```
+
+`next(request)` replaces the request for downstream middleware and the handler. It is intended for header changes; routing has already happened.
+
+Read the nonce in a server component:
+
+```tsx
+import { headers } from '@jk2908/solas/server'
+
+const nonce = (await headers()).get('x-nonce')
+```
+
+`'strict-dynamic'` lets the nonced bootstrap script load the app bundles, so you do not need to list every script URL. In development, React uses `eval` for richer error stacks, so add `'unsafe-eval'` to `script-src` in development.
+
+Use the same nonce on any inline styles you render yourself:
+
+```tsx
+const nonce = (await headers()).get('x-nonce')
+
+return <style nonce={nonce}>{`body { margin: 0 }`}</style>
+```
+
+#### Configured headers
+
+If you do not use middleware, generate the nonce in the `headers` function. Solas evaluates it before rendering, extracts the nonce, and reuses the same headers on the response:
+
+```ts
+solas({
+	headers: () => {
+		const nonce = crypto.randomUUID()
+
+		return {
+			'Content-Security-Policy': `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+		}
+	},
+})
+```
+
+The function must be self-contained because it is serialised into the generated runtime config. Solas still exposes the effective nonce as `x-nonce` in `headers()`.
+
+#### Upstream proxy
+
+If a proxy or CDN sets `Content-Security-Policy` on the request, Solas uses that nonce. The proxy must also set the header on the response. A request CSP takes precedence over a configured `headers` CSP, even when the request CSP has no nonce.
+
+#### Dynamic rendering only
+
+Nonces require `prerender: false`. Fully prerendered and PPR routes are generated without a request, so their static HTML cannot carry a per-request nonce. Solas warns if a nonce CSP reaches a full or PPR response.
+
+For static routes, use CSP hashes or Subresource Integrity instead. Nonces are not compatible with shared caching either: a per-request nonce makes the document unique.
+
+Nonces are per document. If you render new inline styles during client navigation, keep them in external CSS or use the document nonce.
 
 ### CSRF
 
