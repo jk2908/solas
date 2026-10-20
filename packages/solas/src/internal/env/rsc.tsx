@@ -5,13 +5,7 @@ import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 import { Logger } from '../../utils/logger.js'
 
-import type {
-	HeaderEntries,
-	ImportMap,
-	Manifest,
-	RuntimeConfig,
-	SolasRequest,
-} from '../../types.js'
+import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
 import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
@@ -37,6 +31,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { resolveNonce } from '../server/csp.js'
+import { createHeaderResolver } from '../server/header-resolver.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -120,8 +115,8 @@ async function createPayload(
 		),
 	)
 
-	// Nonces require a dynamic response. Full and PPR routes are static, and
-	// build-time prerender requests have no request nonce.
+	// nonces require a dynamic response. Full and PPR routes are static, and
+	// build-time prerender requests have no request nonce
 	const effectiveNonce = prerender || match?.prerender ? undefined : nonce
 
 	// if there's no match then no user supplied error boundary
@@ -162,9 +157,9 @@ async function createPayload(
 		return {
 			// this path is a safety fallback when a prerender request
 			// hits an unmatched route. In build prerender we force
-			// mode to 'full' so the 404/error shell resolves
+			// mode to `full` so the 404/error shell resolves
 			// immediately. In normal request-time rendering
-			// we keep mode as null (obvi)
+			// we keep mode as null
 			stream: RequestContext.write(
 				{
 					req,
@@ -315,7 +310,7 @@ export function createHandler(
 
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
 
-	const headerCache = new WeakMap<Request, Promise<HeaderEntries>>()
+	const resolveHeaders = createHeaderResolver(config.headers)
 	const warned = new Set<string>()
 
 	function warnOnce(key: string, message: string) {
@@ -323,27 +318,6 @@ export function createHandler(
 
 		warned.add(key)
 		logger.warn('[csp]', message)
-	}
-
-	/**
-	 * Resolve the configured response headers once per request. The nonce
-	 * extracted from a configured CSP and the headers applied to the response
-	 * must come from the same evaluation.
-	 */
-	function resolveHeaders(req: Request): Promise<HeaderEntries> {
-		const headers = config.headers
-
-		if (!headers) return Promise.resolve({})
-		if (typeof headers !== 'function') return Promise.resolve(headers)
-
-		let pending = headerCache.get(req)
-
-		if (!pending) {
-			pending = Promise.resolve().then(() => headers(req))
-			headerCache.set(req, pending)
-		}
-
-		return pending
 	}
 
 	/**
@@ -370,10 +344,12 @@ export function createHandler(
 		}
 
 		const configuredHeaders = await resolveHeaders(req)
+
 		const clientNonce =
 			isRscRequest(req) || req[Config.REQUEST_META_KEY].action
 				? req.headers.get('x-solas-nonce')
 				: null
+
 		const nonce = resolveNonce(
 			req.headers.get('content-security-policy'),
 			configuredHeaders,
@@ -599,7 +575,6 @@ export function createHandler(
 		if (routedPath == null) return null
 
 		const lookupPath = normaliseTrailingSlash(routedPath, prerenderPathMode)
-
 		if (runtimeManifest.artifacts[lookupPath]?.mode !== 'full') return null
 
 		const nonce = resolveNonce(
