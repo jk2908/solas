@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- The README separates build adapters from runtime helpers, so the Node runtime is no longer presented as an adapter.
+
 ## 0.15.0
 
 ### Features

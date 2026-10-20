@@ -566,7 +566,11 @@ export default defineConfig({
 })
 ```
 
-## Cloudflare
+## Adapters
+
+Adapters run at build time. Pass one to `solas({ adapter })`; it configures the build output for a platform.
+
+### Cloudflare
 
 Solas ships a Cloudflare adapter that runs the RSC server as a Worker and serves prerender artifacts and client assets through the Cloudflare assets binding.
 
@@ -608,7 +612,7 @@ export default defineConfig({
 
 > `cloudflare.config.ts` is an open beta and must be loaded with Node 22.18+ (Bun is not supported), so the Cloudflare build and deploy commands run under Node. See the [`cf` documentation](https://developers.cloudflare.com/cf/) for the format and the `cf dev` / `cf build` / `cf deploy` commands.
 
-### Bindings
+#### Bindings
 
 Bindings are declared in `cloudflare.config.ts` and read with the standard Cloudflare global. The adapter does not manage them:
 
@@ -654,17 +658,38 @@ The adapter:
 
 `htmlHandling: none` stops the asset layer serving a prerendered document at its route path. That matters because the asset layer ignores `Accept`, so an RSC navigation (`Accept: text/x-component`) to a fully-prerendered route would otherwise receive HTML and fail to parse. Routing documents through the Worker lets Solas serve the prerender for `text/html` and render RSC otherwise, while non-HTML assets (JS, CSS, fonts, images) are still served straight from the asset layer.
 
-Because workers have no filesystem, the Worker reads its own output through the `ASSETS` binding. Reads use logical namespaces rather than filesystem paths: `client` maps onto asset-root URLs, and `static` (prerenders) and `artifact` (manifest, ppr) map onto the artifact prefix. During the build-time prerender pass the Worker is invoked without bindings, so the Node asset store is used and reads/writes artifacts on disk.
+`cloudflare()` forwards its `cloudflare` option to `@cloudflare/vite-plugin`.
 
-`cloudflare()` forwards its `cloudflare` option to `@cloudflare/vite-plugin`. To build a Worker manually, `createWorker` composes the entry behaviour, and `createCloudflareAssets` builds the store directly:
+### Static
+
+The static adapter sets `prerender: 'full'` so every route is rendered to HTML at build time, then assembles a directory any static host can serve. There is no server.
 
 ```ts
-import { createCloudflareAssets } from '@jk2908/solas/runtime/cloudflare'
+// vite.config.ts
+import { defineConfig } from 'vite'
 
-const assets = createCloudflareAssets(env)
+import solas from '@jk2908/solas'
+import staticAdapter from '@jk2908/solas/adapters/static'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [solas({ adapter: staticAdapter() }), react()],
+})
 ```
 
-## Node
+`vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), its RSC payload as `<route>.rsc.txt`, plus `sitemap.xml` and `robots.txt`. Serve that directory with anything — `npx serve build`, GitHub Pages, Netlify, an S3 bucket, nginx.
+
+Client-side navigation works with no server: the browser router fetches each route's `<route>.rsc.txt` payload instead of asking a server for `text/x-component`.
+
+Because it forces full prerendering, routes that need a server are not a fit: per-route PPR or SSR opt-ins and dynamic routes without `params()`.
+
+Server actions and runtime endpoints also need a server, so the build warns when the graph contains any (a `'use server'` module or a `+endpoint` file).
+
+## Runtime helpers
+
+Runtime helpers run at request time. They live under `@jk2908/solas/runtime/*` and are never passed to `solas({ adapter })`.
+
+### Node
 
 `vite dev` and `vite preview` already run the built handler in Node (via `@vitejs/plugin-rsc`'s default server handler), so nothing extra is needed locally. For a production Node server, use `@jk2908/solas/runtime/node`:
 
@@ -689,8 +714,6 @@ Set `NODE_ENV=production` before starting. React reads it when the built handler
 `serve()` loads the built RSC entry (`dist/rsc/index.js` by default) and forwards requests to its fetch handler, which already serves prerendered routes, client assets, and RSC/SSR responses. Options: `port` (defaults to `PORT` or `3000`), `host`, `outDir`, and `entry`. Run from the project root so the handler can resolve `dist`.
 
 Set `precompress: true` in the Solas config to emit brotli variants of client and prerendered assets at build time. `serve()` negotiates them when the client sends `accept-encoding: br` and falls back to the original file otherwise. Dynamic HTML and RSC responses are streamed per request and are not precompressed, so compress those at a proxy or CDN if you need it.
-
-`serve` is a runtime helper, not a build adapter: it starts an HTTP server and returns it, so it belongs in `server.ts`. Do not pass it to `solas({ adapter })`; that option expects an `Adapter` with `name` and `plugins`, such as `cloudflare()` or the static adapter.
 
 For TLS, mount the handler on your own `https` server:
 
@@ -741,32 +764,19 @@ Deno.serve(request => handler.fetch(request))
 
 The handler reads `dist` through `node:fs`, which Bun and Deno (2.x, via Node compat) provide. Run from the project root. Bun can also run `@jk2908/solas/runtime/node` as-is, since it implements `node:http`.
 
-## Static
+### Cloudflare runtime
 
-The static adapter sets `prerender: 'full'` so every route is rendered to HTML at build time, then assembles a directory any static host can serve. There is no server.
+Because workers have no filesystem, the Worker reads its own output through the `ASSETS` binding. Reads use logical namespaces rather than filesystem paths: `client` maps onto asset-root URLs, and `static` (prerenders) and `artifact` (manifest, ppr) map onto the artifact prefix. During the build-time prerender pass the Worker is invoked without bindings, so the Node asset store is used and reads/writes artifacts on disk.
+
+To build a Worker manually, `createWorker` composes the entry behaviour, and `createCloudflareAssets` builds the store directly:
 
 ```ts
-// vite.config.ts
-import { defineConfig } from 'vite'
+import { createCloudflareAssets } from '@jk2908/solas/runtime/cloudflare'
 
-import solas from '@jk2908/solas'
-import staticAdapter from '@jk2908/solas/adapters/static'
-import react from '@vitejs/plugin-react'
-
-export default defineConfig({
-	plugins: [solas({ adapter: staticAdapter() }), react()],
-})
+const assets = createCloudflareAssets(env)
 ```
 
-`vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), its RSC payload as `<route>.rsc.txt`, plus `sitemap.xml` and `robots.txt`. Serve that directory with anything — `npx serve build`, GitHub Pages, Netlify, an S3 bucket, nginx.
-
-Client-side navigation works with no server: the browser router fetches each route's `<route>.rsc.txt` payload instead of asking a server for `text/x-component`.
-
-Because it forces full prerendering, routes that need a server are not a fit: per-route PPR or SSR opt-ins and dynamic routes without `params()`.
-
-Server actions and runtime endpoints also need a server, so the build warns when the graph contains any (a `'use server'` module or a `+endpoint` file).
-
-## Runtime
+### Asset store
 
 At request time Solas reads its output through an `Assets` interface (`exists`/`readText`/`readBuffer`/`mimeType`) injected into `createHandler`, defaulting to the Node standard library (which Bun runs natively). References are logical (`{ namespace, path }`), where the namespaces are `client` (Vite client output), `static` (full prerenders), and `artifact` (runtime manifest and ppr files). Platforms without a filesystem provide their own store; `@jk2908/solas/runtime/cloudflare` builds one around the `ASSETS` binding via `createWorker`. Build-time reads and writes use `node:fs` directly and are not abstracted.
 
