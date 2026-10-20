@@ -1,12 +1,17 @@
 import { mkdtemp, writeFile } from 'node:fs/promises'
 import http from 'node:http'
+import http2 from 'node:http2'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
 
 import { describe, it, expect, afterEach } from 'vitest'
 
-import { serve } from '../../../src/runtime/node.js'
+import {
+	createHttp2RequestListener,
+	createHttpRequestListener,
+	serve,
+} from '../../../src/runtime/node.js'
 
 async function writeEntry(source: string) {
 	const dir = await mkdtemp(path.join(os.tmpdir(), 'solas-node-'))
@@ -15,7 +20,7 @@ async function writeEntry(source: string) {
 	return entry
 }
 
-function getPort(server: http.Server) {
+function getPort(server: net.Server) {
 	const address = server.address()
 
 	if (typeof address !== 'object' || address === null) {
@@ -78,6 +83,49 @@ describe('serve', () => {
 
 		const res = await fetch(`http://127.0.0.1:${port}/hello`)
 		expect(await res.text()).toBe('ok:/hello')
+	})
+
+	it('can be mounted on a caller-owned server', async () => {
+		const mounted = http.createServer(
+			createHttpRequestListener({ fetch: () => new Response('mounted') }),
+		)
+
+		await new Promise<void>(resolve => mounted.listen(0, '127.0.0.1', resolve))
+
+		try {
+			const res = await fetch(`http://127.0.0.1:${getPort(mounted)}/mounted`)
+			expect(await res.text()).toBe('mounted')
+		} finally {
+			await new Promise<void>(resolve => mounted.close(() => resolve()))
+		}
+	})
+
+	it('can be mounted on an HTTP/2 compatibility server', async () => {
+		const mounted = http2.createServer(
+			createHttp2RequestListener({ fetch: () => new Response('h2') }),
+		)
+
+		await new Promise<void>(resolve => mounted.listen(0, '127.0.0.1', resolve))
+
+		const client = http2.connect(`http://127.0.0.1:${getPort(mounted)}`)
+
+		try {
+			const body = await new Promise<string>((resolve, reject) => {
+				const req = client.request({ ':path': '/' })
+				let text = ''
+
+				req.setEncoding('utf8')
+				req.on('data', chunk => (text += chunk))
+				req.on('end', () => resolve(text))
+				req.on('error', reject)
+				req.end()
+			})
+
+			expect(body).toBe('h2')
+		} finally {
+			client.close()
+			await new Promise<void>(resolve => mounted.close(() => resolve()))
+		}
 	})
 
 	it('streams the request body to the handler', async () => {

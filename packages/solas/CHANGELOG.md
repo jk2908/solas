@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- `@jk2908/solas/runtime/node` exports `createHttpRequestListener` for caller-owned `http` and `https` servers and `createHttp2RequestListener` for `http2` compatibility servers, with an exported `Http2RequestListener` type. HTTP/2 pseudo-headers are filtered out of the forwarded fetch `Request`, and `:authority` is used when there is no `host` header.
+
+### Changed
+
+- Internal asset-store and MIME helpers moved from `internal/runtimes` to `internal/assets.ts` and `internal/mime.ts`. The public `runtime/*` entries are unchanged.
+
 ## 0.14.0
 
 ### Breaking

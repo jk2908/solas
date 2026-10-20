@@ -679,14 +679,49 @@ await serve()
 {
 	"scripts": {
 		"build": "vite build",
-		"start": "node server.ts"
+		"start": "NODE_ENV=production node server.ts"
 	}
 }
 ```
 
+Set `NODE_ENV=production` before starting. React reads it when the built handler loads; without it the server renders development payloads, which include debug data and are noticeably larger.
+
 `serve()` loads the built RSC entry (`dist/rsc/index.js` by default) and forwards requests to its fetch handler, which already serves prerendered routes, client assets, and RSC/SSR responses. Options: `port` (defaults to `PORT` or `3000`), `host`, `outDir`, and `entry`. Run from the project root so the handler can resolve `dist`.
 
+Set `precompress: true` in the Solas config to emit brotli variants of client and prerendered assets at build time. `serve()` negotiates them when the client sends `accept-encoding: br` and falls back to the original file otherwise. Dynamic HTML and RSC responses are streamed per request and are not precompressed, so compress those at a proxy or CDN if you need it.
+
 `serve` is a runtime helper, not a build adapter: it starts an HTTP server and returns it, so it belongs in `server.ts`. Do not pass it to `solas({ adapter })`; that option expects an `Adapter` with `name` and `plugins`, such as `cloudflare()` or the static adapter.
+
+For TLS, mount the handler on your own `https` server:
+
+```ts
+import { createServer } from 'node:https'
+
+import { createHttpRequestListener } from '@jk2908/solas/runtime/node'
+
+import handler from './dist/rsc/index.js'
+
+createServer({ key, cert }, createHttpRequestListener(handler)).listen(443)
+```
+
+For HTTP/2, use `createHttp2RequestListener` with the compatibility API. Browsers only negotiate HTTP/2 over TLS, and `allowHTTP1` keeps clients that do not speak it working:
+
+```ts
+import http2 from 'node:http2'
+
+import { createHttp2RequestListener } from '@jk2908/solas/runtime/node'
+
+import handler from './dist/rsc/index.js'
+
+http2
+	.createSecureServer(
+		{ key, cert, allowHTTP1: true },
+		createHttp2RequestListener(handler),
+	)
+	.listen(443)
+```
+
+`serve()` itself is HTTP/1.1. TLS and HTTP/2 termination still belong at your proxy or CDN when you have one; these listeners are for deployments that terminate at Node.
 
 Bun and Deno do not need the helper. Their native servers pass the handler a `Request` directly and expect a `Response`, so the Node-specific HTTP-to-Fetch bridging (streams, `duplex`, backpressure) is not needed:
 

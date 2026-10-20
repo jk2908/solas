@@ -1,3 +1,5 @@
+import type { Http2ServerRequest, Http2ServerResponse } from 'node:http2'
+
 import http from 'node:http'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -28,9 +30,64 @@ export type ServeOptions = {
 
 export type Server = http.Server & AsyncDisposable
 
-type FetchHandler = {
+export type FetchHandler = {
 	fetch: (request: Request) => Response | Promise<Response>
 }
+
+/**
+ * The parts of an HTTP/1 or HTTP/2 compatibility request the bridge reads.
+ */
+type NodeRequest = {
+	url?: string
+	method?: string
+	headers: http.IncomingHttpHeaders
+	on(event: 'data', listener: (chunk: Uint8Array) => void): unknown
+	on(event: 'end', listener: () => void): unknown
+	on(event: 'error', listener: (error: Error) => void): unknown
+	destroy(): void
+}
+
+/**
+ * The parts of an HTTP/1 or HTTP/2 compatibility response the bridge writes.
+ *
+ * `flushHeaders` exists on the HTTP/2 compatibility object at runtime but is
+ * not declared by its types, so it is optional here.
+ */
+type NodeResponse = {
+	req: { method?: string }
+	headersSent: boolean
+	statusCode: number
+	destroyed: boolean
+	writableEnded: boolean
+	writeHead(statusCode: number, headers?: http.OutgoingHttpHeaders): unknown
+	setHeader(name: string, value: string): void
+	flushHeaders?(): void
+	write(chunk: Uint8Array): boolean
+	end(callback?: () => void): unknown
+	end(chunk: string | Uint8Array, callback?: () => void): unknown
+	once(event: 'close', listener: () => void): unknown
+	on(event: 'drain' | 'close', listener: () => void): unknown
+	off(event: 'drain' | 'close', listener: () => void): unknown
+	destroy(): void
+}
+
+/**
+ * A request listener for an `http2` compatibility server.
+ */
+export type Http2RequestListener = (
+	req: Http2ServerRequest,
+	res: Http2ServerResponse,
+) => void
+
+// The structural contract above is intentionally smaller than the Node types.
+// These aliases fail the build if either server implementation stops satisfying
+// it, so the manual types cannot silently drift from what the bridge uses.
+type AssertAssignable<Base, T extends Base> = T
+
+type _HttpRequest = AssertAssignable<NodeRequest, http.IncomingMessage>
+type _HttpResponse = AssertAssignable<NodeResponse, http.ServerResponse>
+type _Http2Request = AssertAssignable<NodeRequest, Http2ServerRequest>
+type _Http2Response = AssertAssignable<NodeResponse, Http2ServerResponse>
 
 function isFetchHandler(value: unknown): value is FetchHandler {
 	return (
@@ -41,7 +98,7 @@ function isFetchHandler(value: unknown): value is FetchHandler {
 	)
 }
 
-async function loadHandler(entry: string): Promise<FetchHandler> {
+async function loadHandler(entry: string) {
 	const mod: unknown = await import(pathToFileURL(entry).href)
 	const handler =
 		typeof mod === 'object' && mod !== null && 'default' in mod ? mod.default : undefined
@@ -57,7 +114,7 @@ async function loadHandler(entry: string): Promise<FetchHandler> {
  * Adapt a Node readable stream (an incoming request body) to a web
  * `ReadableStream` for the fetch `Request`.
  */
-function nodeToWeb(req: http.IncomingMessage) {
+function nodeToWeb(req: NodeRequest) {
 	return new ReadableStream<Uint8Array>({
 		start(controller) {
 			req.on('data', chunk => controller.enqueue(chunk))
@@ -76,7 +133,7 @@ function nodeToWeb(req: http.IncomingMessage) {
  */
 async function webToNode<T extends Uint8Array>(
 	stream: ReadableStream<T>,
-	res: http.ServerResponse,
+	res: NodeResponse,
 ) {
 	const reader = stream.getReader()
 	let closed = false
@@ -133,11 +190,18 @@ async function webToNode<T extends Uint8Array>(
 /**
  * Convert a Node request into a fetch `Request`, streaming the body when present.
  */
-function toRequest(req: http.IncomingMessage, signal?: AbortSignal): Request {
-	const url = new URL(req.url ?? '/', `http://${req.headers.host ?? 'localhost'}`)
+function toRequest(req: NodeRequest, signal?: AbortSignal): Request {
+	// HTTP/2's compatibility API also exposes pseudo-headers such as `:path` and
+	// `:authority`. Fetch `Headers` rejects names starting with `:`, and the
+	// authority replaces the HTTP/1 `host` header, so normalise both here
+	const authority = req.headers[':authority']
+	const host = req.headers.host ?? (Array.isArray(authority) ? authority[0] : authority)
+	const url = new URL(req.url ?? '/', `http://${host ?? 'localhost'}`)
 	const headers = new Headers()
 
 	for (const [key, value] of Object.entries(req.headers)) {
+		if (key.startsWith(':')) continue
+
 		if (Array.isArray(value)) {
 			for (const item of value) headers.append(key, item)
 		} else if (value !== undefined) {
@@ -163,7 +227,7 @@ function toRequest(req: http.IncomingMessage, signal?: AbortSignal): Request {
 /**
  * Write a fetch `Response` back to the Node response, streaming the body.
  */
-async function sendResponse(res: http.ServerResponse, response: Response) {
+async function sendResponse(res: NodeResponse, response: Response) {
 	const headers: Record<string, string | string[]> = {}
 
 	response.headers.forEach((value, key) => {
@@ -184,10 +248,89 @@ async function sendResponse(res: http.ServerResponse, response: Response) {
 
 	// send headers now so a delayed first chunk (SSE, slow streams) does not
 	// leave the client waiting with no response
-	res.flushHeaders()
+	res.flushHeaders?.()
 
 	await webToNode(response.body, res)
 	if (!res.destroyed) res.end()
+}
+
+/**
+ * Handle one Node request by forwarding it to the fetch handler.
+ */
+async function handleRequest(req: NodeRequest, res: NodeResponse, handler: FetchHandler) {
+	const abort = new AbortController()
+
+	// `close` before the response has finished means the client went away;
+	// surface that through `req.signal` so long-lived work can stop
+	function onClose() {
+		if (!res.writableEnded) abort.abort(new Error('client disconnected'))
+	}
+
+	res.once('close', onClose)
+
+	try {
+		const response = await handler.fetch(toRequest(req, abort.signal))
+
+		await sendResponse(res, response)
+	} catch (err) {
+		console.error('[solas] request failed', err)
+
+		if (res.headersSent) {
+			res.destroy()
+			return
+		}
+
+		res.statusCode = 500
+		res.setHeader('content-type', 'text/plain; charset=utf-8')
+		res.end('Internal Server Error')
+	} finally {
+		res.off('close', onClose)
+	}
+}
+
+/**
+ * Create a request listener for a built fetch handler on an `http` or `https`
+ * server.
+ *
+ * `serve` uses this internally. Exporting it lets you terminate TLS yourself:
+ *
+ * ```ts
+ * import { createServer } from 'node:https'
+ * import { createHttpRequestListener } from '@jk2908/solas/runtime/node'
+ * import handler from './dist/rsc/index.js'
+ *
+ * createServer({ key, cert }, createHttpRequestListener(handler)).listen(443)
+ * ```
+ */
+function createHttpRequestListener(handler: FetchHandler): http.RequestListener {
+	return (req, res) => {
+		void handleRequest(req, res, handler)
+	}
+}
+
+/**
+ * Create a request listener for a built fetch handler on an `http2`
+ * compatibility server.
+ *
+ * Browsers only negotiate HTTP/2 over TLS, so use
+ * `http2.createSecureServer({ allowHTTP1: true }, listener)`. `allowHTTP1`
+ * keeps clients that do not speak HTTP/2 working:
+ *
+ * ```ts
+ * import http2 from 'node:http2'
+ * import { createHttp2RequestListener } from '@jk2908/solas/runtime/node'
+ * import handler from './dist/rsc/index.js'
+ *
+ * http2.createSecureServer(
+ * 	{ key, cert, allowHTTP1: true },
+ * 	createHttp2RequestListener(handler),
+ * ).listen(443)
+ * ```
+ */
+function createHttp2RequestListener(handler: FetchHandler): Http2RequestListener {
+	return (req, res) => {
+		void handleRequest(req, res, handler)
+	}
 }
 
 /**
@@ -199,7 +342,9 @@ async function sendResponse(res: http.ServerResponse, response: Response) {
  * handler can resolve `dist`. The returned server is `AsyncDisposable`, so it
  * can be released with `await using`.
  *
- * Deno and Bun do not need this helper: use `Deno.serve(handler.fetch)` or
+ * For TLS or HTTP/2, mount `createHttpRequestListener(handler)` or
+ * `createHttp2RequestListener(handler)` on your own server instead. Deno and Bun
+ * do not need this helper: use `Deno.serve(handler.fetch)` or
  * `Bun.serve({ fetch: handler.fetch })` directly.
  */
 async function serve(options: ServeOptions = {}) {
@@ -209,37 +354,7 @@ async function serve(options: ServeOptions = {}) {
 	const host = options.host ?? '0.0.0.0'
 
 	const handler = await loadHandler(entry)
-
-	const server = http.createServer(async (req, res) => {
-		const abort = new AbortController()
-
-		// `close` before the response has finished means the client went away;
-		// surface that through `req.signal` so long-lived work can stop
-		function onClose() {
-			if (!res.writableEnded) abort.abort(new Error('client disconnected'))
-		}
-
-		res.once('close', onClose)
-
-		try {
-			const response = await handler.fetch(toRequest(req, abort.signal))
-
-			await sendResponse(res, response)
-		} catch (err) {
-			console.error('[solas] request failed', err)
-
-			if (res.headersSent) {
-				res.destroy()
-				return
-			}
-
-			res.statusCode = 500
-			res.setHeader('content-type', 'text/plain; charset=utf-8')
-			res.end('Internal Server Error')
-		} finally {
-			res.off('close', onClose)
-		}
-	})
+	const server = http.createServer(createHttpRequestListener(handler))
 
 	await new Promise<void>(resolve => server.listen(port, host, resolve))
 	options.onListen?.({ port, host })
@@ -253,4 +368,4 @@ async function serve(options: ServeOptions = {}) {
 	})
 }
 
-export { serve }
+export { createHttp2RequestListener, createHttpRequestListener, serve }
