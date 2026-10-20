@@ -3,6 +3,7 @@ import { createContext, useCallback, useEffect, useMemo, useRef } from 'react'
 
 import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
+import { getDocumentNonce } from '../../utils/document.js'
 import { Logger } from '../../utils/logger.js'
 
 import type { RscPayload } from '../env/rsc.js'
@@ -61,7 +62,7 @@ function performNavigationFetch(path: string, init?: RequestInit) {
 	const headers = new Headers(init?.headers)
 	headers.set('accept', 'text/x-component')
 
-	const nonce = BrowserRouter.getDocumentNonce()
+	const nonce = getDocumentNonce()
 	if (nonce) headers.set('x-solas-nonce', nonce)
 
 	return fetch(path, { ...init, headers })

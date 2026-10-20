@@ -9,9 +9,10 @@ import {
 	setServerCallback,
 } from '@vitejs/plugin-rsc/browser'
 
+import { getDocumentNonce } from '../../utils/document.js'
+
 import type { RscPayload } from './rsc.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
-import { getDocumentNonce } from '../browser-router/shared.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
