@@ -40,7 +40,7 @@ export async function headers(): Promise<ReadonlyMap<string, string>> {
 export function createHeaderResolver(input: HeadersInput | undefined) {
 	const cache = new WeakMap<Request, Promise<HeaderEntries>>()
 
-	return function resolveHeaders(req: Request): Promise<HeaderEntries> {
+	return (req: Request): Promise<HeaderEntries> => {
 		if (!input) return Promise.resolve({})
 		if (typeof input !== 'function') return Promise.resolve(input)
 
