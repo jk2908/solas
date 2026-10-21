@@ -9,6 +9,16 @@ export default defineConfig({
 		// the static adapter sets `prerender: 'full'` on its own
 		solas({
 			adapter: staticAdapter(),
+			csp: {
+				directives: {
+					'default-src': ['self'],
+					'script-src': ['self'],
+					'style-src': ['self'],
+					'img-src': ['self', 'data:'],
+					'object-src': ['none'],
+					'base-uri': ['self'],
+				},
+			},
 		}),
 		react(),
 	],

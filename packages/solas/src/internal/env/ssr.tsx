@@ -62,6 +62,8 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 	if (ppr) {
 		const { prelude } = await reactPrerender(<A payloadPromise={payloadPromise} />, {
 			bootstrapScriptContent,
+			// @ts-expect-error React 19 accepts the object form; @types/react-dom declares only string
+			nonce: nonce ? { script: nonce, style: nonce } : undefined,
 			onError(err) {
 				const digest = getKnownDigest(err)
 

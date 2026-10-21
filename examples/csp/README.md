@@ -54,5 +54,12 @@ same kind of tag, so its style needs the same `nonce` prop.
 If you do not need strict style nonces, keep the nonce for scripts and use
 `style-src 'self' 'unsafe-inline'`; then CSS-in-JS needs no nonce plumbing.
 
-Full prerenders, PPR shells, and the static adapter cannot use per-request
-nonces. Use hashes or Subresource Integrity for those.
+Full prerenders served by Solas receive automatic hashes for their inline scripts
+and styles, so a nonce CSP can still work when those routes are cached. For full
+hash-only responses, use `script-src 'self'` rather than `'strict-dynamic'`,
+because browsers do not carry hash trust into a dynamic `import()`.
+
+PPR receives hashes for its cached shell and a request nonce for its dynamic
+holes, so it can keep `'strict-dynamic'`. The static adapter does not receive
+automatic hashes yet; use hashes or Subresource Integrity for that, or keep the
+route dynamic.

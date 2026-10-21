@@ -92,6 +92,34 @@ describe('Solas', () => {
 				expect(Config.validate({ precompress: true })).toHaveProperty('precompress', true)
 			})
 
+			it('accepts a structured CSP config', () => {
+				const csp = {
+					directives: {
+						'default-src': ['self'],
+						'script-src': ['self'],
+					},
+				}
+
+				expect(Config.validate({ csp })).toHaveProperty('csp', csp)
+			})
+
+			it('rejects invalid CSP directives', () => {
+				expect(() =>
+					Config.validate({
+						csp: { directives: { 'script-src': 'self' } },
+					}),
+				).toThrow('csp.directives.script-src must be an array of strings')
+			})
+
+			it('rejects a CSP config and a raw CSP header together', () => {
+				expect(() =>
+					Config.validate({
+						csp: { directives: { 'default-src': ['self'] } },
+						headers: { 'Content-Security-Policy': "default-src 'self'" },
+					}),
+				).toThrow('csp cannot be combined with a Content-Security-Policy header')
+			})
+
 			it('rejects invalid trailingSlash', () => {
 				expect(() => Config.validate({ trailingSlash: 'sometimes' })).toThrow()
 			})

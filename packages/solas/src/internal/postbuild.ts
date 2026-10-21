@@ -4,9 +4,10 @@ import path from 'node:path'
 import * as Compress from '../utils/compress.js'
 import { Logger } from '../utils/logger.js'
 
-import type { BuildManifest } from '../types.js'
+import type { BuildManifest, CspConfig } from '../types.js'
 import * as Config from '../config.js'
 import * as Manifest from '../manifest.js'
+import { collectCspHashes } from './csp-hash.js'
 import * as Prerender from './prerender.js'
 
 const logger = new Logger()
@@ -39,7 +40,7 @@ export function setPrerenderImport(wrap: (next: PrerenderImport) => PrerenderImp
 	prerenderImport = wrap
 }
 
-export async function postbuild(cwd: string = process.cwd()) {
+export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
 
 	let manifest: BuildManifest
@@ -118,6 +119,8 @@ export async function postbuild(cwd: string = process.cwd()) {
 
 			const artifact = result.artifact
 			const artifactDir = Prerender.getArtifactPath(outDir, route)
+			const csp = collectCspHashes(artifact.html)
+			const cspHashes = csp.script.length > 0 || csp.style.length > 0 ? { csp } : {}
 
 			await enqueueWrite(async () => {
 				try {
@@ -154,6 +157,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 								artifact.postponed !== undefined
 									? ['metadata', 'prelude', 'postponed']
 									: ['metadata', 'prelude'],
+							...cspHashes,
 						}
 
 						logger.info('[prerender]', `${route} (ppr)`)
@@ -185,6 +189,7 @@ export async function postbuild(cwd: string = process.cwd()) {
 					artfifactManifest[route] = {
 						mode: artifact.mode,
 						files: ['html'],
+						...cspHashes,
 					}
 
 					logger.info(`[prerender]: ${route} (full)`)
@@ -253,6 +258,8 @@ export async function postbuild(cwd: string = process.cwd()) {
 	const runtimeManifest = {
 		artifacts: artfifactManifest,
 		publicFiles: [...manifest.publicFiles, ...generatedPublicFiles],
+		csp,
+		trailingSlash: manifest.trailingSlash,
 	}
 
 	await fs.writeFile(Manifest.getManifestPath(outDir), JSON.stringify(runtimeManifest))

@@ -1,4 +1,7 @@
+import { isRecord, isStringArray } from './utils/validation.js'
+
 import type { Assets } from './internal/assets.js'
+import type { CspConfig } from './types.js'
 import * as Config from './config.js'
 import { nodeAssets } from './internal/assets.js'
 import * as Prerender from './internal/prerender.js'
@@ -6,6 +9,8 @@ import * as Prerender from './internal/prerender.js'
 export type Manifest = {
 	artifacts: Prerender.ArtifactManifest
 	publicFiles: ReadonlySet<string>
+	csp?: CspConfig
+	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 }
 
 export function getManifestPath(outDir: string) {
@@ -35,42 +40,97 @@ export async function loadManifest(assets: Assets = nodeAssets) {
 		if (!isRecord(artifacts)) return null
 		if (publicFiles !== undefined && !Array.isArray(publicFiles)) return null
 
-		for (const entry of Object.values(artifacts)) {
+		let trailingSlash: Manifest['trailingSlash']
+		const rawTrailingSlash = value.trailingSlash
+
+		if (rawTrailingSlash !== undefined) {
+			if (
+				rawTrailingSlash === 'always' ||
+				rawTrailingSlash === 'never' ||
+				rawTrailingSlash === 'ignore'
+			) {
+				trailingSlash = rawTrailingSlash
+			} else {
+				return null
+			}
+		}
+
+		let cspConfig: CspConfig | undefined
+
+		if (value.csp !== undefined) {
+			if (!isRecord(value.csp)) return null
+			if (!isRecord(value.csp.directives)) return null
+
+			const directives: Record<string, string[]> = {}
+
+			for (const [name, values] of Object.entries(value.csp.directives)) {
+				if (!isStringArray(values)) return null
+
+				directives[name] = values
+			}
+
+			cspConfig = { directives }
+		}
+
+		const parsedArtifacts: Prerender.ArtifactManifest = {}
+
+		for (const [route, entry] of Object.entries(artifacts)) {
 			if (!isRecord(entry)) return null
 
-			const { mode, files } = entry
+			const { mode, files, csp } = entry
 
 			if (mode !== 'full' && mode !== 'ppr') return null
+
+			const artifact: Prerender.Artifact = { mode }
 
 			if (files !== undefined) {
 				if (!Array.isArray(files)) return null
 
+				const parsedFiles: Prerender.File[] = []
+
 				for (const file of files) {
-					if (
-						file !== 'html' &&
-						file !== 'prelude' &&
-						file !== 'postponed' &&
-						file !== 'metadata'
-					) {
-						return null
-					}
+					if (!isArtifactFile(file)) return null
+
+					parsedFiles.push(file)
 				}
+
+				artifact.files = parsedFiles
 			}
+
+			if (csp !== undefined) {
+				if (!isRecord(csp)) return null
+				if (!isStringArray(csp.script) || !isStringArray(csp.style)) return null
+
+				artifact.csp = { script: csp.script, style: csp.style }
+			}
+
+			parsedArtifacts[route] = artifact
 		}
 
-		for (const entry of publicFiles ?? []) {
-			if (typeof entry !== 'string' || !entry.startsWith('/')) return null
+		const parsedPublicFiles = new Set<string>()
+
+		for (const file of publicFiles ?? []) {
+			if (typeof file !== 'string' || !file.startsWith('/')) return null
+
+			parsedPublicFiles.add(file)
 		}
 
 		return {
-			artifacts: artifacts as Manifest['artifacts'],
-			publicFiles: new Set((publicFiles as string[] | undefined) ?? []),
+			artifacts: parsedArtifacts,
+			publicFiles: parsedPublicFiles,
+			csp: cspConfig,
+			trailingSlash,
 		}
 	} catch {
 		return null
 	}
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
+function isArtifactFile(value: unknown): value is Prerender.File {
+	return (
+		value === 'html' ||
+		value === 'prelude' ||
+		value === 'postponed' ||
+		value === 'metadata'
+	)
 }

@@ -301,6 +301,32 @@ describe('Prerender', () => {
 				expect(result).toContain('resume data')
 			})
 
+			it('adds the request nonce to the bootstrap script', async () => {
+				const resumeStream = new ReadableStream<Uint8Array>({
+					start(controller) {
+						controller.close()
+					},
+				})
+
+				const stream = composePreludeAndResume(
+					'<html><body><script id="_R_">import("/app.js")</script></body></html>',
+					resumeStream,
+					'nonce-value',
+				)
+
+				const reader = stream.getReader()
+				const chunks: Uint8Array[] = []
+
+				while (true) {
+					const { done, value } = await reader.read()
+					if (done) break
+					if (value) chunks.push(value)
+				}
+
+				const result = chunks.map(c => new TextDecoder().decode(c)).join('')
+				expect(result).toContain('<script id="_R_" nonce="nonce-value">')
+			})
+
 			it('strips leading close tags from resume stream', async () => {
 				const resumeStream = new ReadableStream<Uint8Array>({
 					start(controller) {

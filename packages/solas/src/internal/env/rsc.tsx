@@ -30,7 +30,7 @@ import * as Prerender from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
-import { resolveNonce } from '../server/csp.js'
+import { addCspHashes, buildCsp, resolveNonce } from '../server/csp.js'
 import { createHeaderResolver } from '../server/headers.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
@@ -115,9 +115,10 @@ async function createPayload(
 		),
 	)
 
-	// nonces require a dynamic response. Full and PPR routes are static, and
-	// build-time prerender requests have no request nonce
-	const effectiveNonce = prerender || match?.prerender ? undefined : nonce
+	// build-time prerender requests have no request nonce, and full routes are
+	// served from static HTML. PPR responses are dynamic: the cached prelude uses
+	// hashes, while the resumed holes need the request nonce.
+	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
 
 	// if there's no match then no user supplied error boundary
 	// has been found, and we should server render a default
@@ -311,6 +312,14 @@ export function createHandler(
 	const prerenderPathMode = config.trailingSlash === 'always' ? 'always' : 'never'
 
 	const resolveHeaders = createHeaderResolver(config.headers)
+	const responseNonce = new WeakMap<Request, string>()
+	const clientStyleHashes = [
+		...new Set(
+			Object.values(runtimeManifest?.artifacts ?? {}).flatMap(
+				artifact => artifact.csp?.style ?? [],
+			),
+		),
+	]
 
 	/**
 	 * Create the HTTP response for a single incoming request. Runs actions when needed,
@@ -335,6 +344,7 @@ export function createHandler(
 			})
 		}
 
+		const requestCsp = req.headers.get('content-security-policy')
 		const configuredHeaders = await resolveHeaders(req)
 
 		const clientNonce =
@@ -342,11 +352,16 @@ export function createHandler(
 				? req.headers.get('x-solas-nonce')
 				: null
 
-		const nonce = resolveNonce(
-			req.headers.get('content-security-policy'),
-			configuredHeaders,
-			clientNonce,
-		)
+		const generatedNonce =
+			config.csp && !requestCsp ? clientNonce || crypto.randomUUID() : undefined
+
+		if (config.csp && generatedNonce) {
+			responseNonce.set(req, generatedNonce)
+		}
+
+		const nonce = requestCsp
+			? resolveNonce(requestCsp, configuredHeaders, clientNonce)
+			: (generatedNonce ?? resolveNonce(null, configuredHeaders, clientNonce))
 
 		const {
 			stream: rscStream,
@@ -491,7 +506,7 @@ export function createHandler(
 					})
 
 					const body = prelude
-						? Prerender.composePreludeAndResume(prelude, resumeStream)
+						? Prerender.composePreludeAndResume(prelude, resumeStream, effectiveNonce)
 						: resumeStream
 
 					return new Response(body, {
@@ -590,21 +605,78 @@ export function createHandler(
 	)
 
 	/**
-	 * Add the configured `headers` to a response. Clones the response so
-	 * immutable ones (redirects, cached assets) can still be augmented.
+	 * Hash sources for a prerendered document. The route's own scripts are
+	 * immutable, while the union of prerendered styles also covers style tags a
+	 * client navigation can insert from another route.
+	 */
+	function getCspHashes(req: Request, res: Response) {
+		if (!runtimeManifest) return
+
+		const contentType = res.headers.get('content-type')
+
+		if (!contentType?.toLowerCase().startsWith('text/html')) return
+
+		const routedPath = stripBasePath(new URL(req.url).pathname, BASE_PATH)
+
+		if (routedPath == null) return
+
+		const lookupPath = normaliseTrailingSlash(routedPath, prerenderPathMode)
+		const artifact = runtimeManifest.artifacts[lookupPath]
+
+		if (!artifact?.csp) return
+
+		return {
+			script: artifact.csp.script,
+			style: [...new Set([...artifact.csp.style, ...clientStyleHashes])],
+		}
+	}
+
+	/**
+	 * Add the configured `headers` and any prerender CSP hashes to a response.
+	 * Clones the response so immutable ones (redirects, cached assets) can still
+	 * be augmented.
 	 */
 	async function withHeaders(res: Response, req: Request) {
-		if (!config.headers) return res
-
-		const entries = await resolveHeaders(req)
-		const requestCsp = req.headers.get('content-security-policy')
 		const headers = new Headers(res.headers)
+		let changed = false
 
-		for (const [key, value] of Object.entries(entries)) {
-			if (requestCsp && key.toLowerCase() === 'content-security-policy') continue
+		if (config.headers) {
+			const entries = await resolveHeaders(req)
+			const requestCsp = req.headers.get('content-security-policy')
 
-			headers.set(key, value)
+			for (const [key, value] of Object.entries(entries)) {
+				if (requestCsp && key.toLowerCase() === 'content-security-policy') continue
+
+				headers.set(key, value)
+				changed = true
+			}
 		}
+
+		const hashes = getCspHashes(req, res)
+		const isHtml = res.headers.get('content-type')?.toLowerCase().startsWith('text/html')
+		const nonce = responseNonce.get(req)
+
+		if (config.csp && !req.headers.has('content-security-policy') && isHtml) {
+			const built = buildCsp(config.csp.directives, nonce, hashes)
+
+			if (built) {
+				headers.set('content-security-policy', built)
+				changed = true
+			}
+		}
+
+		const csp = headers.get('content-security-policy')
+
+		if (hashes && csp) {
+			const updated = addCspHashes(csp, hashes)
+
+			if (updated !== csp) {
+				headers.set('content-security-policy', updated)
+				changed = true
+			}
+		}
+
+		if (!changed) return res
 
 		return new Response(res.body, {
 			status: res.status,

@@ -1,3 +1,5 @@
+import { isRecord, isStringArray } from './utils/validation.js'
+
 import type { PluginConfig } from './types.js'
 
 export const NAME = 'Solas'
@@ -21,6 +23,7 @@ export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
 const CONFIG_KEYS = new Set([
 	'adapter',
+	'csp',
 	'headers',
 	'logger',
 	'metadata',
@@ -99,6 +102,38 @@ export function validate(input: unknown, envUrl?: string) {
 	if ('headers' in input && input.headers !== undefined) {
 		if (typeof input.headers !== 'function' && !isRecord(input.headers)) {
 			errors.push('headers must be an object or a function that returns one')
+		}
+	}
+
+	if ('csp' in input && input.csp !== undefined) {
+		const csp = input.csp
+
+		if (!isRecord(csp)) {
+			errors.push('csp must be an object')
+		} else {
+			for (const key of Object.keys(csp)) {
+				if (key !== 'directives') {
+					errors.push(`Unknown csp key: ${key}`)
+				}
+			}
+
+			if (!isRecord(csp.directives)) {
+				errors.push('csp.directives must be an object of string arrays')
+			} else {
+				for (const [name, values] of Object.entries(csp.directives)) {
+					if (!isStringArray(values)) {
+						errors.push(`csp.directives.${name} must be an array of strings`)
+					}
+				}
+			}
+		}
+
+		if (isRecord(input.headers)) {
+			for (const key of Object.keys(input.headers)) {
+				if (key.toLowerCase() === 'content-security-policy') {
+					errors.push('csp cannot be combined with a Content-Security-Policy header')
+				}
+			}
 		}
 	}
 
@@ -198,8 +233,4 @@ export function validate(input: unknown, envUrl?: string) {
 	}
 
 	return input as PluginConfig
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-	return typeof value === 'object' && value !== null && !Array.isArray(value)
 }

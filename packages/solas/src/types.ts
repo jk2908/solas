@@ -24,6 +24,20 @@ export type HeadersInput =
 	| ((req: Request) => HeaderEntries | Promise<HeaderEntries>)
 
 /**
+ * CSP directives. Keywords such as `self` and `none` may be written without
+ * their surrounding quotes.
+ */
+export type CspDirectives = Record<string, readonly string[]>
+
+/**
+ * Structured CSP configuration. Solas uses nonces for dynamic responses,
+ * hashes for prerendered responses, and both for PPR.
+ */
+export type CspConfig = {
+	directives: CspDirectives
+}
+
+/**
  * A platform deployment adapter. Solas registers `plugins` alongside its own,
  * so adapters are configured here instead of being spread into the Vite plugins
  * array.
@@ -45,6 +59,7 @@ type PluginConfigBase = {
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 	trustedOrigins?: readonly string[]
 	headers?: HeadersInput
+	csp?: CspConfig
 	adapter?: Adapter
 	readonly logger?: {
 		level?: LogLevel

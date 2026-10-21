@@ -806,50 +806,26 @@ If you run Vite through Bun, use the Bun-backed commands instead:
 
 ### CSP
 
-Solas supports nonce-based Content Security Policy for dynamically rendered HTML. A nonce is read from the effective `Content-Security-Policy` header, applied to the scripts Solas generates, and exposed to server components as `x-nonce`.
-
-#### Middleware
-
-Use middleware to generate a nonce per request, set the CSP on the request and response, and pass a replacement request to `next()`:
+Use the `csp` config to generate a policy:
 
 ```ts
-// app/+middleware.ts
-export function middleware(req: Request, next: (request?: Request) => Promise<Response>) {
-	const nonce = crypto.randomUUID()
-	const csp = [
-		"default-src 'self'",
-		`script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-		`style-src 'self' 'nonce-${nonce}'`,
-		"object-src 'none'",
-		"base-uri 'self'",
-		"form-action 'self'",
-		"frame-ancestors 'none'",
-	].join('; ')
-
-	const headers = new Headers(req.headers)
-	headers.set('x-nonce', nonce)
-	headers.set('Content-Security-Policy', csp)
-
-	return next(new Request(req, { headers })).then(res => {
-		res.headers.set('Content-Security-Policy', csp)
-		return res
-	})
-}
+solas({
+	csp: {
+		directives: {
+			'default-src': ['self'],
+			'script-src': ['self'],
+			'style-src': ['self'],
+			'img-src': ['self', 'data:'],
+			'object-src': ['none'],
+			'base-uri': ['self'],
+		},
+	},
+})
 ```
 
-`next(request)` replaces the request for downstream middleware and the handler. It is intended for header changes; routing has already happened.
+CSP keywords such as `self` and `none` can be written without their surrounding quotes. Solas adds a per-request nonce to dynamic responses, build-time hashes to full prerenders, and both to PPR. It also keeps client navigations aligned with the document policy.
 
-Read the nonce in a server component:
-
-```tsx
-import { headers } from '@jk2908/solas/server'
-
-const nonce = (await headers()).get('x-nonce')
-```
-
-`'strict-dynamic'` lets the nonced bootstrap script load the app bundles, so you do not need to list every script URL. In development, React uses `eval` for richer error stacks, so add `'unsafe-eval'` to `script-src` in development.
-
-Use the same nonce on any inline styles you render yourself:
+Read the nonce in a server component for any inline `<style>` or `<script>` you render:
 
 ```tsx
 const nonce = (await headers()).get('x-nonce')
@@ -857,68 +833,15 @@ const nonce = (await headers()).get('x-nonce')
 return <style nonce={nonce}>{`body { margin: 0 }`}</style>
 ```
 
-If you use `@jk2908/cxx`, pass the nonce to the style tag it returns:
+Hoistable `<style href precedence>` tags, including `@jk2908/cxx`, need the same nonce prop. Add `'unsafe-eval'` in development for React's error stacks.
 
-```tsx
-const nonce = (await headers()).get('x-nonce')
+Full hash-only pages should use `script-src 'self'` rather than `'strict-dynamic'`. Browsers do not propagate hash trust from the bootstrap to its dynamic `import()`. Dynamic and PPR responses can use `'strict-dynamic'` because their bootstrap has a nonce.
 
-return (
-	<style href={href} precedence="medium" nonce={nonce}>
-		{css}
-	</style>
-)
-```
+To use a completely custom policy, set CSP in middleware or a `headers` function. A CSP on the request wins. When `csp` is configured, do not also set CSP in the `headers` object.
 
-React 19 treats `<style href precedence>` as a hoistable resource. It drops the rules unless the tag carries the same nonce the renderer was given. Solas passes the nonce to React as both a script and a style nonce, so the tag only needs the matching `nonce` prop.
+With the static adapter, the generated policy is written as a `<meta http-equiv="Content-Security-Policy">` tag in each prerendered page. `frame-ancestors`, `report-uri`, and `sandbox` are ignored in meta; use host-level headers if you need them.
 
-#### Client navigation
-
-Nonces belong to the document, not to each request. Solas reads the hidden `.nonce` property from a nonced framework script or style in the document and sends it as `x-solas-nonce` on RSC navigations, prefetches, and server actions. The server renders those payloads with that nonce instead of generating a new one.
-
-The nonce is deliberately not copied into a normal attribute or a meta tag. Browsers hide the nonce content attribute after parsing to stop CSS from reading it; use the `.nonce` property instead.
-
-That keeps new inline styles and scripts inserted during client navigation aligned with the CSP the browser is already enforcing. It happens automatically; you only need to pass the nonce to your own tags.
-
-#### Configured headers
-
-If you do not use middleware, generate the nonce in the `headers` function. Solas evaluates it before rendering, extracts the nonce, and reuses the same headers on the response:
-
-```ts
-solas({
-	headers: () => {
-		const nonce = crypto.randomUUID()
-
-		return {
-			'Content-Security-Policy': `default-src 'self'; script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
-		}
-	},
-})
-```
-
-The function must be self-contained because it is serialised into the generated runtime config. Solas still exposes the effective nonce as `x-nonce` in `headers()`.
-
-#### Upstream proxy
-
-If a proxy or CDN sets `Content-Security-Policy` on the request, Solas uses that nonce. The proxy must also set the header on the response. A request CSP takes precedence over a configured `headers` CSP, even when the request CSP has no nonce.
-
-#### Dynamic rendering only
-
-Nonces require `prerender: false`. Fully prerendered and PPR routes are generated without a request, so their static HTML cannot carry a per-request nonce. Solas does not apply a nonce to those responses, and it does not log a warning.
-
-If you configure a nonce CSP globally, make sure every route that serves inline scripts is dynamic, or give static and PPR routes a hash-based or relaxed CSP. Otherwise those routes will fail in the browser with CSP violations.
-
-For static routes, use CSP hashes or Subresource Integrity instead. Nonces are not compatible with shared caching either: a per-request nonce makes the document unique.
-
-Nonces are per document, and Solas keeps the document nonce for client navigations. Inline styles and scripts you render still need the nonce explicitly.
-
-If strict style nonces are more work than you need, keep the nonce for scripts and allow inline styles instead:
-
-```http
-script-src 'self' 'nonce-...' 'strict-dynamic';
-style-src 'self' 'unsafe-inline';
-```
-
-That keeps script execution strict while letting a CSS-in-JS library inject styles without nonce plumbing.
+Hashes cover inline `<script>` and `<style>` elements, not `style` attributes. If full static pages can insert inline styles during client navigation, keep `style-src 'unsafe-inline'` for those pages.
 
 ### CSRF
 

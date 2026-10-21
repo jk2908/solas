@@ -463,7 +463,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 		buildApp: {
 			order: 'post' as const,
 			async handler() {
-				await postbuild(resolvedViteConfig?.root ?? process.cwd())
+				await postbuild(resolvedViteConfig?.root ?? process.cwd(), config.csp)
 			},
 		},
 	}
