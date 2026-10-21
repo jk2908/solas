@@ -1,15 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-	addCspHashes,
-	buildCsp,
-	resolveNonce,
-} from '../../../../src/internal/server/csp.js'
+import { Csp } from '../../../src/internal/csp.js'
 
-describe('resolveNonce', () => {
+describe('Csp.resolveNonce', () => {
 	it('prefers the client document nonce', () => {
 		expect(
-			resolveNonce(
+			Csp.resolveNonce(
 				"script-src 'self'",
 				{ 'content-security-policy': "script-src 'nonce-configured'" },
 				'client',
@@ -19,7 +15,7 @@ describe('resolveNonce', () => {
 
 	it('uses the request CSP', () => {
 		expect(
-			resolveNonce("script-src 'nonce-request'", {
+			Csp.resolveNonce("script-src 'nonce-request'", {
 				'content-security-policy': "script-src 'nonce-configured'",
 			}),
 		).toBe('request')
@@ -27,7 +23,7 @@ describe('resolveNonce', () => {
 
 	it('treats a request CSP without a nonce as authoritative', () => {
 		expect(
-			resolveNonce("script-src 'self'", {
+			Csp.resolveNonce("script-src 'self'", {
 				'Content-Security-Policy': "script-src 'nonce-configured'",
 			}),
 		).toBeUndefined()
@@ -35,20 +31,22 @@ describe('resolveNonce', () => {
 
 	it('falls back to configured headers', () => {
 		expect(
-			resolveNonce(null, { 'Content-Security-Policy': "script-src 'nonce-configured'" }),
+			Csp.resolveNonce(null, {
+				'Content-Security-Policy': "script-src 'nonce-configured'",
+			}),
 		).toBe('configured')
 	})
 
 	it('ignores an empty nonce', () => {
-		expect(resolveNonce("script-src 'nonce-'", {})).toBeUndefined()
+		expect(Csp.resolveNonce("script-src 'nonce-'", {})).toBeUndefined()
 	})
 
 	it('returns undefined when there is no CSP', () => {
-		expect(resolveNonce(null, {})).toBeUndefined()
+		expect(Csp.resolveNonce(null, {})).toBeUndefined()
 	})
 })
 
-describe('addCspHashes', () => {
+describe('Csp.addHashes', () => {
 	const hashes = {
 		script: ["'sha256-script'"],
 		style: ["'sha256-style'"],
@@ -56,7 +54,7 @@ describe('addCspHashes', () => {
 
 	it('adds hashes to script-src and style-src', () => {
 		expect(
-			addCspHashes("default-src 'self'; script-src 'self'; style-src 'self'", hashes),
+			Csp.addHashes("default-src 'self'; script-src 'self'; style-src 'self'", hashes),
 		).toBe(
 			"default-src 'self'; script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style'",
 		)
@@ -64,7 +62,7 @@ describe('addCspHashes', () => {
 
 	it('prefers the element directives when they are present', () => {
 		expect(
-			addCspHashes(
+			Csp.addHashes(
 				"script-src 'self'; script-src-elem 'self'; style-src 'self'; style-src-elem 'self'",
 				hashes,
 			),
@@ -74,32 +72,32 @@ describe('addCspHashes', () => {
 	})
 
 	it('falls back to default-src when there is no specific directive', () => {
-		expect(addCspHashes("default-src 'self'", hashes)).toBe(
+		expect(Csp.addHashes("default-src 'self'", hashes)).toBe(
 			"default-src 'self' 'sha256-script' 'sha256-style'",
 		)
 	})
 
 	it('does not duplicate an existing hash', () => {
 		expect(
-			addCspHashes("script-src 'self' 'sha256-script'; style-src 'self'", hashes),
+			Csp.addHashes("script-src 'self' 'sha256-script'; style-src 'self'", hashes),
 		).toBe("script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style'")
 	})
 
 	it('does not tighten an unsafe-inline policy', () => {
 		const csp = "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
 
-		expect(addCspHashes(csp, hashes)).toBe(csp)
+		expect(Csp.addHashes(csp, hashes)).toBe(csp)
 	})
 
 	it('does not add hashes to a none policy', () => {
 		const csp = "script-src 'none'; style-src 'none'"
 
-		expect(addCspHashes(csp, hashes)).toBe(csp)
+		expect(Csp.addHashes(csp, hashes)).toBe(csp)
 	})
 
 	it('leaves other directives intact', () => {
 		expect(
-			addCspHashes("default-src 'self'; object-src 'none'; script-src 'self'", {
+			Csp.addHashes("default-src 'self'; object-src 'none'; script-src 'self'", {
 				script: ["'sha256-script'"],
 				style: [],
 			}),
@@ -107,7 +105,7 @@ describe('addCspHashes', () => {
 	})
 })
 
-describe('buildCsp', () => {
+describe('Csp.build', () => {
 	const directives = {
 		'default-src': ['self'],
 		'script-src': ['self'],
@@ -115,14 +113,14 @@ describe('buildCsp', () => {
 	}
 
 	it('adds a nonce to script and style directives', () => {
-		expect(buildCsp(directives, 'abc')).toBe(
+		expect(Csp.build(directives, 'abc')).toBe(
 			"default-src 'self'; script-src 'self' 'nonce-abc'; style-src 'self' 'nonce-abc'",
 		)
 	})
 
 	it('adds hashes after the nonce', () => {
 		expect(
-			buildCsp(directives, 'abc', {
+			Csp.build(directives, 'abc', {
 				script: ["'sha256-script'"],
 				style: ["'sha256-style'"],
 			}),
@@ -132,26 +130,26 @@ describe('buildCsp', () => {
 	})
 
 	it('falls back to default-src for a nonce', () => {
-		expect(buildCsp({ 'default-src': ['self'] }, 'abc')).toBe(
+		expect(Csp.build({ 'default-src': ['self'] }, 'abc')).toBe(
 			"default-src 'self' 'nonce-abc'",
 		)
 	})
 
 	it('accepts keywords with or without quotes', () => {
-		expect(buildCsp({ 'script-src': ["'self'", 'none'] })).toBe(
+		expect(Csp.build({ 'script-src': ["'self'", 'none'] })).toBe(
 			"script-src 'self' 'none'",
 		)
 	})
 
 	it('leaves hosts and schemes unquoted', () => {
-		expect(buildCsp({ 'img-src': ['self', 'data:', 'https://cdn.example.com'] })).toBe(
+		expect(Csp.build({ 'img-src': ['self', 'data:', 'https://cdn.example.com'] })).toBe(
 			"img-src 'self' data: https://cdn.example.com",
 		)
 	})
 
 	it('prefers element directives for a nonce', () => {
 		expect(
-			buildCsp(
+			Csp.build(
 				{
 					'script-src': ['self'],
 					'script-src-elem': ['self'],
@@ -167,7 +165,10 @@ describe('buildCsp', () => {
 
 	it('does not add a nonce to unsafe-inline', () => {
 		expect(
-			buildCsp({ 'script-src': ['self', 'unsafe-inline'], 'style-src': ['self'] }, 'abc'),
+			Csp.build(
+				{ 'script-src': ['self', 'unsafe-inline'], 'style-src': ['self'] },
+				'abc',
+			),
 		).toBe("script-src 'self' 'unsafe-inline'; style-src 'self' 'nonce-abc'")
 	})
 })

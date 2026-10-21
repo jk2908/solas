@@ -5,9 +5,9 @@ import type { Plugin, PluginOption } from 'vite'
 
 import type { Adapter } from '../types.js'
 import * as Config from '../config.js'
+import { Csp } from '../internal/csp.js'
 import { Features, guards } from '../internal/guards.js'
 import { staticRoutePath } from '../internal/prerender.js'
-import { buildCsp } from '../internal/server/csp.js'
 import { loadManifest } from '../manifest.js'
 
 export type SolasStaticOptions = {
@@ -94,14 +94,14 @@ function adapter(options: SolasStaticOptions = {}) {
 							return
 						}
 
-						const policy = buildCsp(csp.directives, undefined, {
+						const policy = Csp.build(csp.directives, undefined, {
 							script: artifact.csp?.script ?? [],
 							style: [...new Set([...(artifact.csp?.style ?? []), ...styleHashes])],
 						})
 
 						if (!policy) return
 
-						await fs.writeFile(file, injectCspMeta(html, policy))
+						await fs.writeFile(file, Csp.injectMeta(html, policy))
 					}),
 				)
 			},
@@ -120,31 +120,6 @@ async function exists(filePath: string) {
 	} catch {
 		return false
 	}
-}
-
-function injectCspMeta(html: string, csp: string) {
-	if (/<meta\b[^>]*http-equiv=["']?content-security-policy/i.test(html)) {
-		return html
-	}
-
-	const head = /<head\b[^>]*>/i.exec(html)
-
-	if (!head) return html
-
-	const headEnd = head.index + head[0].length
-	const charset = /<meta\b[^>]*charset=[^>]*>/i.exec(html.slice(headEnd))
-	const tag = `<meta http-equiv="Content-Security-Policy" content="${escapeAttribute(csp)}">`
-	const at = charset ? headEnd + charset.index + charset[0].length : headEnd
-
-	return html.slice(0, at) + tag + html.slice(at)
-}
-
-function escapeAttribute(value: string) {
-	return value
-		.replace(/&/g, '&amp;')
-		.replace(/"/g, '&quot;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
 }
 
 export { adapter as default }

@@ -11,6 +11,7 @@ import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
 import { nodeAssets } from '../assets.js'
+import { Csp } from '../csp.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
 import {
@@ -30,7 +31,6 @@ import * as Prerender from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
-import { addCspHashes, buildCsp, resolveNonce } from '../server/csp.js'
 import { createHeaderResolver } from '../server/headers.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
@@ -360,8 +360,8 @@ export function createHandler(
 		}
 
 		const nonce = requestCsp
-			? resolveNonce(requestCsp, configuredHeaders, clientNonce)
-			: (generatedNonce ?? resolveNonce(null, configuredHeaders, clientNonce))
+			? Csp.resolveNonce(requestCsp, configuredHeaders, clientNonce)
+			: (generatedNonce ?? Csp.resolveNonce(null, configuredHeaders, clientNonce))
 
 		const {
 			stream: rscStream,
@@ -657,7 +657,7 @@ export function createHandler(
 		const nonce = responseNonce.get(req)
 
 		if (config.csp && !req.headers.has('content-security-policy') && isHtml) {
-			const built = buildCsp(config.csp.directives, nonce, hashes)
+			const built = Csp.build(config.csp.directives, nonce, hashes)
 
 			if (built) {
 				headers.set('content-security-policy', built)
@@ -668,7 +668,7 @@ export function createHandler(
 		const csp = headers.get('content-security-policy')
 
 		if (hashes && csp) {
-			const updated = addCspHashes(csp, hashes)
+			const updated = Csp.addHashes(csp, hashes)
 
 			if (updated !== csp) {
 				headers.set('content-security-policy', updated)
