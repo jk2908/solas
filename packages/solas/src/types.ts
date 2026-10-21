@@ -1,5 +1,3 @@
-type BunRequest = Request & { params?: Record<string, string | string[]> }
-
 import type { PluginOption } from 'vite'
 
 import { ExportReader } from './utils/export-reader.js'
@@ -145,7 +143,7 @@ export type MapEntry = {
 	'500s'?: readonly (DynamicImport | null)[]
 	loaders?: readonly (DynamicImport | null)[]
 	middlewares?: readonly (HttpRouter.Middleware | null)[]
-	endpoint?: (req?: BunRequest) => unknown
+	endpoint?: (req?: Request) => unknown
 }
 
 export type ImportMap = Record<string, MapEntry>
