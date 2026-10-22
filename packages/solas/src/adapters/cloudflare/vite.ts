@@ -221,7 +221,6 @@ export function adapter(options: SolasCloudflareOptions = {}) {
 		plugins,
 		postbuild(config) {
 			const rscOutDir = config.environments.rsc?.build.outDir
-
 			if (!rscOutDir) return
 
 			const entry = path.resolve(cwd, rscOutDir, 'index.js')
