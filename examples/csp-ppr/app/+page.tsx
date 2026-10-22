@@ -1,12 +1,13 @@
 import { Suspense } from 'react'
 
-import { dynamic } from '@jk2908/solas/server'
+import { dynamic, headers } from '@jk2908/solas/server'
 
 export const prerender = 'ppr'
 
 export default function Page() {
 	return (
 		<main>
+			<style>{`main { background-color: rgb(4, 5, 6); }`}</style>
 			<h1>PPR CSP</h1>
 			<Suspense fallback={<p>Loading...</p>}>
 				<Streamed />
@@ -16,7 +17,15 @@ export default function Page() {
 }
 
 async function Streamed() {
+	const nonce = (await headers()).get('x-nonce')
+
 	await dynamic()
 
-	return <p>Rendered at {Date.now()}</p>
+	return (
+		<>
+			<style nonce={nonce}>{`main p { color: rgb(7, 8, 9); }`}</style>
+			<script nonce={nonce}>{`document.documentElement.dataset.pprCsp = 'ok'`}</script>
+			<p>Rendered at {Date.now()}</p>
+		</>
+	)
 }
