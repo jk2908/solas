@@ -7,7 +7,7 @@ import { Logger } from '../utils/logger.js'
 import type { BuildManifest, CspConfig } from '../types.js'
 import * as Config from '../config.js'
 import * as Manifest from '../manifest.js'
-import { collectCspHashes } from './collect-csp-hashes.js'
+import { hashInlineAssets } from './hash-inline-assets.js'
 import * as Prerender from './prerender.js'
 
 const logger = new Logger()
@@ -119,7 +119,7 @@ export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 
 			const artifact = result.artifact
 			const artifactDir = Prerender.getArtifactPath(outDir, route)
-			const csp = collectCspHashes(artifact.html)
+			const csp = hashInlineAssets(artifact.html)
 			const cspHashes = csp.script.length > 0 || csp.style.length > 0 ? { csp } : {}
 
 			await enqueueWrite(async () => {

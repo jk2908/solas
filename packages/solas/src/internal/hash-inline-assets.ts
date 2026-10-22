@@ -11,7 +11,7 @@ const NAME_CHAR = /[a-zA-Z0-9:_-]/
  * The document must be complete: hashes are over the text the browser actually
  * parses, including any escaping already applied to inline scripts.
  */
-export function collectCspHashes(html: string): CspHashes {
+export function hashInlineAssets(html: string): CspHashes {
 	const scripts = new Set<string>()
 	const styles = new Set<string>()
 	const lower = html.toLowerCase()
