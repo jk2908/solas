@@ -1,4 +1,4 @@
-import type { PluginOption } from 'vite'
+import type { PluginOption, ResolvedConfig } from 'vite'
 
 import { ExportReader } from './utils/export-reader.js'
 
@@ -6,6 +6,7 @@ import type * as BrowserRouter from './internal/browser-router/shared.js'
 import type { HttpRouter } from './internal/http-router/router.js'
 import type { Metadata } from './internal/metadata.js'
 import type { HttpException } from './internal/navigation/http-exception.js'
+import type { AdapterPostbuildOptions } from './internal/postbuild.js'
 import * as Config from './config.js'
 import * as Build from './internal/build.js'
 
@@ -50,6 +51,9 @@ export type Adapter = {
 	 * option. A static host has no server, so it needs `'full'`.
 	 */
 	prerender?: Route.PrerenderMode | false
+	postbuild?: (
+		config: ResolvedConfig,
+	) => AdapterPostbuildOptions | Promise<AdapterPostbuildOptions>
 }
 
 type PluginConfigBase = {

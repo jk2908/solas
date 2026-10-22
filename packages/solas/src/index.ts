@@ -463,7 +463,14 @@ function solas(c?: PluginConfig): PluginOption[] {
 		buildApp: {
 			order: 'post' as const,
 			async handler() {
-				await postbuild(resolvedViteConfig?.root ?? process.cwd(), config.csp)
+				if (!resolvedViteConfig) throw new Error('Vite config not resolved yet')
+
+				const adapterOptions = await config.adapter?.postbuild?.(resolvedViteConfig)
+
+				await postbuild(resolvedViteConfig.root, {
+					csp: config.csp,
+					...adapterOptions,
+				})
 			},
 		},
 	}

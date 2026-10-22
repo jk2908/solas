@@ -14,35 +14,25 @@ import * as Prerender from './prerender.js'
 const logger = new Logger()
 const CSP_HEADER_SIZE_LIMIT = 8 * 1024
 
-/**
- * Overrides the RSC bundle that postbuild imports to prerender routes. Defaults
- * to `dist/rsc/index.js`; platform adapters that relocate the server bundle (for
- * example Cloudflare, whose Worker bundle lives under `.cloudflare`) set this.
- */
-let rscEntryOverride: string | undefined
-
-export function setRscEntry(entry: string) {
-	rscEntryOverride = entry
-}
-
 type App = Parameters<typeof Prerender.run>[0]
 
 /** Imports the server bundle `postbuild` prerenders with. */
 export type PrerenderImport = () => Promise<{ default: App }>
 
-let prerenderImport: ((next: PrerenderImport) => PrerenderImport) | undefined
-
-/**
- * Set a wrapper for the import `postbuild` makes to prerender. It receives the
- * plain import and returns one that sets up and tears down platform-specific
- * module resolution around it, for example shimming a runtime module that Node
- * cannot resolve (such as `cloudflare:workers`).
- */
-export function setPrerenderImport(wrap: (next: PrerenderImport) => PrerenderImport) {
-	prerenderImport = wrap
+export type AdapterPostbuildOptions = {
+	rscEntry?: string
+	import?: (next: PrerenderImport) => PrerenderImport
 }
 
-export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
+export type PostbuildOptions = AdapterPostbuildOptions & {
+	csp?: CspConfig
+}
+
+export async function postbuild(
+	cwd: string = process.cwd(),
+	options: PostbuildOptions = {},
+) {
+	const { csp, rscEntry, import: wrapImport } = options
 	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
 
 	let manifest: BuildManifest
@@ -79,12 +69,9 @@ export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 			`prerendering ${manifest.prerenderRoutes.length} routes (concurrency: ${concurrency})...`,
 		)
 
-		const rscEntry = rscEntryOverride ?? path.join(rscDir, 'index.js')
-		rscEntryOverride = undefined
-
-		const base: PrerenderImport = () => import(/* @vite-ignore */ rscEntry)
-		const load = prerenderImport ? prerenderImport(base) : base
-		prerenderImport = undefined
+		const entry = rscEntry ?? path.join(rscDir, 'index.js')
+		const base: PrerenderImport = () => import(/* @vite-ignore */ entry)
+		const load = wrapImport ? wrapImport(base) : base
 
 		const { default: app } = await load()
 

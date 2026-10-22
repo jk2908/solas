@@ -8,7 +8,6 @@ import { cloudflare as cloudflareVitePlugin } from '@cloudflare/vite-plugin'
 import type { Adapter } from '../../types.js'
 import * as Config from '../../config.js'
 import { writeCloudflareEntry } from '../../internal/codegen/environments.js'
-import { setPrerenderImport, setRscEntry } from '../../internal/postbuild.js'
 import { NAMESPACE_PREFIX } from '../../runtime/cloudflare/assets.js'
 import { withBindingsShim } from './bindings.js'
 
@@ -179,20 +178,6 @@ export function adapter(options: SolasCloudflareOptions = {}) {
 	const adapter: Plugin = {
 		name: 'solas-cloudflare',
 		enforce: 'post',
-		configResolved(config) {
-			// the Cloudflare plugin points the `rsc` environment's build output at
-			// the Worker bundle during its `config` hook, so by now we know where
-			// Solas's prerender step should import the Worker from
-			const rscOutDir = config.environments.rsc?.build.outDir
-
-			if (rscOutDir) {
-				setRscEntry(path.resolve(cwd, rscOutDir, 'index.js'))
-			}
-
-			// the Worker bundle imports `cloudflare:workers`, which only exists in
-			// workerd, so shim it around the Node import
-			setPrerenderImport(withBindingsShim)
-		},
 		configEnvironment(name, environment) {
 			// Pre-bundle the Worker environments so workerd never has to re-optimize
 			// dependencies in the middle of a request. Scanning the app directory
@@ -231,5 +216,16 @@ export function adapter(options: SolasCloudflareOptions = {}) {
 
 	const plugins: PluginOption[] = [adapter, ...cfPlugins]
 
-	return { name: 'cloudflare', plugins } satisfies Adapter
+	return {
+		name: 'cloudflare',
+		plugins,
+		postbuild(config) {
+			const rscOutDir = config.environments.rsc?.build.outDir
+
+			return {
+				...(rscOutDir ? { rscEntry: path.resolve(cwd, rscOutDir, 'index.js') } : {}),
+				import: withBindingsShim,
+			}
+		},
+	} satisfies Adapter
 }
