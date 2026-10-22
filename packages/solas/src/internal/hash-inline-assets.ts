@@ -1,7 +1,5 @@
 import { createHash } from 'node:crypto'
 
-import type { CspHashes } from './csp.js'
-
 const NAME_CHAR = /[a-zA-Z0-9:_-]/
 
 /**
@@ -11,7 +9,7 @@ const NAME_CHAR = /[a-zA-Z0-9:_-]/
  * The document must be complete: hashes are over the text the browser actually
  * parses, including any escaping already applied to inline scripts.
  */
-export function hashInlineAssets(html: string): CspHashes {
+export function hashInlineAssets(html: string) {
 	const scripts = new Set<string>()
 	const styles = new Set<string>()
 	const lower = html.toLowerCase()
@@ -33,7 +31,7 @@ export function hashInlineAssets(html: string): CspHashes {
 		}
 
 		if (html[open + 1] === '!' || html[open + 1] === '?') {
-			const end = findTagEnd(html, open + 2)
+			const end = getTagEnd(html, open + 2)
 
 			if (end === -1) break
 
@@ -54,19 +52,19 @@ export function hashInlineAssets(html: string): CspHashes {
 		while (nameEnd < html.length && NAME_CHAR.test(html[nameEnd])) nameEnd++
 
 		const name = lower.slice(nameStart, nameEnd)
-		const tagEnd = findTagEnd(html, nameEnd)
+		const tagEnd = getTagEnd(html, nameEnd)
 
 		if (tagEnd === -1) break
 
 		if (!closing && (name === 'script' || name === 'style')) {
-			const end = findRawTextEnd(lower, tagEnd + 1, name)
+			const end = getRawTextEnd(lower, tagEnd + 1, name)
 
 			if (!end) break
 
 			const content = html.slice(tagEnd + 1, end.start)
 
 			if (content) {
-				const source = digest(content.replace(/\r\n?/g, '\n'))
+				const source = `'sha256-${createHash('sha256').update(content.replace(/\r\n?/g, '\n')).digest('base64')}'`
 				const hashes = name === 'script' ? scripts : styles
 
 				hashes.add(source)
@@ -85,14 +83,10 @@ export function hashInlineAssets(html: string): CspHashes {
 	}
 }
 
-function digest(value: string) {
-	return `'sha256-${createHash('sha256').update(value).digest('base64')}'`
-}
-
 /**
  * Find the closing `>` of a tag while ignoring brackets inside quoted values.
  */
-function findTagEnd(html: string, start: number) {
+function getTagEnd(html: string, start: number) {
 	let quote: string | undefined
 
 	for (let index = start; index < html.length; index++) {
@@ -118,7 +112,7 @@ function findTagEnd(html: string, start: number) {
  * Find the end tag for a raw text element. Script and style bodies are not
  * parsed as HTML, so the first valid `</script` or `</style` wins.
  */
-function findRawTextEnd(lower: string, start: number, name: 'script' | 'style') {
+function getRawTextEnd(lower: string, start: number, name: 'script' | 'style') {
 	const needle = `</${name}`
 	let index = lower.indexOf(needle, start)
 
@@ -126,13 +120,11 @@ function findRawTextEnd(lower: string, start: number, name: 'script' | 'style') 
 		const next = lower[index + needle.length]
 
 		if (next === undefined || next === '>' || next === '/' || /\s/.test(next)) {
-			const end = findTagEnd(lower, index + needle.length)
+			const end = getTagEnd(lower, index + needle.length)
 
 			if (end !== -1) return { start: index, end: end + 1 }
 		}
 
 		index = lower.indexOf(needle, index + needle.length)
 	}
-
-	return undefined
 }
