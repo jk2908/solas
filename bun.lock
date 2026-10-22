@@ -65,6 +65,57 @@
         "vite": "^8.3.3",
       },
     },
+    "examples/csp-dynamic": {
+      "name": "solas-example-csp-dynamic",
+      "dependencies": {
+        "@jk2908/solas": "workspace:*",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+        "react-server-dom-webpack": "^19.2.4",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.2.22",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.1.2",
+        "typescript": "^5.9.3",
+        "vite": "^8.3.3",
+      },
+    },
+    "examples/csp-ppr": {
+      "name": "solas-example-csp-ppr",
+      "dependencies": {
+        "@jk2908/solas": "workspace:*",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+        "react-server-dom-webpack": "^19.2.4",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.2.22",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.1.2",
+        "typescript": "^5.9.3",
+        "vite": "^8.3.3",
+      },
+    },
+    "examples/csp-static": {
+      "name": "solas-example-csp-static",
+      "dependencies": {
+        "@jk2908/solas": "workspace:*",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4",
+        "react-server-dom-webpack": "^19.2.4",
+      },
+      "devDependencies": {
+        "@types/bun": "^1.2.22",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^6.1.2",
+        "typescript": "^5.9.3",
+        "vite": "^8.3.3",
+      },
+    },
     "examples/load": {
       "name": "solas-example-load",
       "dependencies": {
@@ -724,6 +775,12 @@
     "solas-example-cloudflare": ["solas-example-cloudflare@workspace:examples/cloudflare"],
 
     "solas-example-csp": ["solas-example-csp@workspace:examples/csp"],
+
+    "solas-example-csp-dynamic": ["solas-example-csp-dynamic@workspace:examples/csp-dynamic"],
+
+    "solas-example-csp-ppr": ["solas-example-csp-ppr@workspace:examples/csp-ppr"],
+
+    "solas-example-csp-static": ["solas-example-csp-static@workspace:examples/csp-static"],
 
     "solas-example-load": ["solas-example-load@workspace:examples/load"],
 
