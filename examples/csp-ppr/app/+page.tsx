@@ -2,6 +2,10 @@ import { Suspense } from 'react'
 
 import { dynamic, headers } from '@jk2908/solas/server'
 
+export const metadata = {
+	title: 'PPR CSP',
+}
+
 export const prerender = 'ppr'
 
 export default function Page() {
@@ -9,6 +13,7 @@ export default function Page() {
 		<main>
 			<style>{`main { background-color: rgb(4, 5, 6); }`}</style>
 			<h1>PPR CSP</h1>
+
 			<Suspense fallback={<p>Loading...</p>}>
 				<Streamed />
 			</Suspense>
@@ -23,7 +28,7 @@ async function Streamed() {
 
 	return (
 		<>
-			<style nonce={nonce}>{`main p { color: rgb(7, 8, 9); }`}</style>
+			<style nonce={nonce}>{`main p { background-color: red; }`}</style>
 			<script nonce={nonce}>{`document.documentElement.dataset.pprCsp = 'ok'`}</script>
 			<p>Rendered at {Date.now()}</p>
 		</>

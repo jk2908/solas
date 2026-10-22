@@ -1,5 +1,9 @@
 import { headers } from '@jk2908/solas/server'
 
+export const metadata = {
+	title: 'Dynamic CSP',
+}
+
 export const prerender = false
 
 export default async function Page() {

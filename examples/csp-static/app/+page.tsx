@@ -1,5 +1,9 @@
 import { Link } from '@jk2908/solas/router'
 
+export const metadata = {
+	title: 'Static CSP',
+}
+
 export default function Page() {
 	return (
 		<main>
