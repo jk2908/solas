@@ -47,10 +47,9 @@
         "vite": "^8.3.3",
       },
     },
-    "examples/csp": {
-      "name": "solas-example-csp",
+    "examples/csp-dynamic": {
+      "name": "solas-example-csp-dynamic",
       "dependencies": {
-        "@jk2908/cxx": "^0.3.7",
         "@jk2908/solas": "workspace:*",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
@@ -65,9 +64,10 @@
         "vite": "^8.3.3",
       },
     },
-    "examples/csp-dynamic": {
-      "name": "solas-example-csp-dynamic",
+    "examples/csp-middleware": {
+      "name": "solas-example-csp-middleware",
       "dependencies": {
+        "@jk2908/cxx": "^0.3.7",
         "@jk2908/solas": "workspace:*",
         "react": "^19.2.4",
         "react-dom": "^19.2.4",
@@ -774,9 +774,9 @@
 
     "solas-example-cloudflare": ["solas-example-cloudflare@workspace:examples/cloudflare"],
 
-    "solas-example-csp": ["solas-example-csp@workspace:examples/csp"],
-
     "solas-example-csp-dynamic": ["solas-example-csp-dynamic@workspace:examples/csp-dynamic"],
+
+    "solas-example-csp-middleware": ["solas-example-csp-middleware@workspace:examples/csp-middleware"],
 
     "solas-example-csp-ppr": ["solas-example-csp-ppr@workspace:examples/csp-ppr"],
 

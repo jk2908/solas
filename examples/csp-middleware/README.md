@@ -1,6 +1,6 @@
-# Solas CSP example
+# Solas middleware CSP example
 
-A small app that enforces a nonce-based Content Security Policy in production.
+A small app that uses middleware to enforce a nonce-based Content Security Policy in production.
 
 The CSP is generated in `app/+middleware.ts`:
 
@@ -54,12 +54,4 @@ same kind of tag, so its style needs the same `nonce` prop.
 If you do not need strict style nonces, keep the nonce for scripts and use
 `style-src 'self' 'unsafe-inline'`; then CSS-in-JS needs no nonce plumbing.
 
-Full prerenders served by Solas receive automatic hashes for their inline scripts
-and styles, so a nonce CSP can still work when those routes are cached. For full
-hash-only responses, use `script-src 'self'` rather than `'strict-dynamic'`,
-because browsers do not carry hash trust into a dynamic `import()`.
-
-PPR receives hashes for its cached shell and a request nonce for its dynamic
-holes, so it can keep `'strict-dynamic'`. The static adapter does not receive
-automatic hashes yet; use hashes or Subresource Integrity for that, or keep the
-route dynamic.
+For the declarative `csp` config examples, see `../csp-dynamic`, `../csp-ppr`, and `../csp-static`.

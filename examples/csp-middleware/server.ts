@@ -4,6 +4,6 @@ await serve({
 	onListen({ port, host }) {
 		const displayHost = host === '0.0.0.0' ? '127.0.0.1' : host
 
-		console.log(`Solas CSP example listening on http://${displayHost}:${port}`)
+		console.log(`Solas CSP middleware example listening on http://${displayHost}:${port}`)
 	},
 })
