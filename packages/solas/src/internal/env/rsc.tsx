@@ -11,7 +11,7 @@ import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
 import { nodeAssets } from '../assets.js'
-import { addHashes, buildPolicy, resolveNonce } from '../csp.js'
+import { addHashesToPolicy, buildPolicy, resolveNonce } from '../csp.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
 import {
@@ -668,7 +668,7 @@ export function createHandler(
 		const csp = headers.get('content-security-policy')
 
 		if (hashes && csp) {
-			const updated = addHashes(csp, hashes)
+			const updated = addHashesToPolicy(csp, hashes)
 
 			if (updated !== csp) {
 				headers.set('content-security-policy', updated)

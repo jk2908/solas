@@ -64,6 +64,7 @@ export function buildPolicy(
 			if (token.length >= 2 && token.startsWith("'") && token.endsWith("'")) {
 				return token
 			}
+
 			if (KEYWORDS.has(token.toLowerCase())) return `'${token.toLowerCase()}'`
 			if (/^(sha256|sha384|sha512|nonce)-/.test(token)) return `'${token}'`
 
@@ -74,13 +75,13 @@ export function buildPolicy(
 	if (nonce) {
 		const token = `'nonce-${nonce}'`
 
-		addNonce(parsed, ['script-src-elem', 'script-src', 'default-src'], token)
-		addNonce(parsed, ['style-src-elem', 'style-src', 'default-src'], token)
+		addNonceToDirective(parsed, ['script-src-elem', 'script-src', 'default-src'], token)
+		addNonceToDirective(parsed, ['style-src-elem', 'style-src', 'default-src'], token)
 	}
 
 	const policy = parsed.map(formatDirective).join('; ')
 
-	return hashes ? addHashes(policy, hashes) : policy
+	return hashes ? addHashesToPolicy(policy, hashes) : policy
 }
 
 /**
@@ -88,19 +89,19 @@ export function buildPolicy(
  * A policy that already allows everything through `'unsafe-inline'` or
  * `'none'` is left alone, so adding a hash cannot silently tighten it.
  */
-export function addHashes(policy: string, hashes: CspHashes) {
+export function addHashesToPolicy(policy: string, hashes: CspHashes) {
 	const directives = policy
 		.split(';')
 		.map(part => part.trim())
 		.filter(Boolean)
 		.map(parseDirective)
 
-	add('script')
-	add('style')
+	addHashesToDirective('script')
+	addHashesToDirective('style')
 
 	return directives.map(formatDirective).join('; ')
 
-	function add(kind: 'script' | 'style') {
+	function addHashesToDirective(kind: 'script' | 'style') {
 		const values = hashes[kind]
 
 		if (values.length === 0) return
@@ -132,7 +133,7 @@ export function addHashes(policy: string, hashes: CspHashes) {
 /**
  * Add the request nonce to the PPR bootstrap script.
  */
-export function addBootstrapNonce(html: string, nonce: string) {
+export function addNonceToBootstrap(html: string, nonce: string) {
 	const match = /<script\b[^>]*\bid="_R_"[^>]*>/i.exec(html)
 
 	if (!match || /\bnonce\s*=/i.test(match[0])) return html
@@ -145,7 +146,7 @@ export function addBootstrapNonce(html: string, nonce: string) {
 /**
  * Add a CSP meta tag to a static document.
  */
-export function injectMeta(html: string, policy: string) {
+export function injectMetaTag(html: string, policy: string) {
 	if (/<meta\b[^>]*http-equiv=["']?content-security-policy/i.test(html)) {
 		return html
 	}
@@ -166,7 +167,7 @@ function extractNonce(csp: string | null | undefined) {
 	return csp?.match(/'nonce-([^']+)'/)?.[1] || undefined
 }
 
-function addNonce(directives: Directive[], names: string[], token: string) {
+function addNonceToDirective(directives: Directive[], names: string[], token: string) {
 	const directive = names
 		.map(name => directives.find(candidate => candidate.name === name))
 		.find(Boolean)

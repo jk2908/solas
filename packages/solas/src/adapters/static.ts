@@ -5,7 +5,7 @@ import type { Plugin, PluginOption } from 'vite'
 
 import type { Adapter } from '../types.js'
 import * as Config from '../config.js'
-import { buildPolicy, injectMeta } from '../internal/csp.js'
+import { buildPolicy, injectMetaTag } from '../internal/csp.js'
 import { Features, guards } from '../internal/guards.js'
 import { staticRoutePath } from '../internal/prerender.js'
 import { loadManifest } from '../manifest.js'
@@ -103,7 +103,7 @@ function adapter(options: SolasStaticOptions = {}) {
 
 						if (!policy) return
 
-						await fs.writeFile(file, injectMeta(html, policy))
+						await fs.writeFile(file, injectMetaTag(html, policy))
 					}),
 				)
 			},

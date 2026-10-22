@@ -11,7 +11,7 @@ import type { CspHashes } from './csp.js'
 import * as Config from '../config.js'
 import * as Solas from '../solas.js'
 import { nodeAssets } from './assets.js'
-import { addBootstrapNonce } from './csp.js'
+import { addNonceToBootstrap } from './csp.js'
 import { toPathPattern } from './http-router/utils.js'
 
 const logger = new Logger()
@@ -262,7 +262,7 @@ export function composePreludeAndResume(
 			// the shell's scripts are hash-authorised, but the bootstrap also needs
 			// the request nonce so its dynamic import can load the module graph and
 			// so client code can read the document nonce later
-			controller.enqueue(encoder.encode(nonce ? addBootstrapNonce(head, nonce) : head))
+			controller.enqueue(encoder.encode(nonce ? addNonceToBootstrap(head, nonce) : head))
 
 			// resumeStream is the html React emits when it resumes postponed work for this page. Its
 			// first chunk begins with an extra `</body></html>` pair, then continues with the

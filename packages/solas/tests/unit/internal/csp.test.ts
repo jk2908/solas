@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest'
 
-import { addHashes, buildPolicy, resolveNonce } from '../../../src/internal/csp.js'
+import {
+	addHashesToPolicy,
+	buildPolicy,
+	resolveNonce,
+} from '../../../src/internal/csp.js'
 
 describe('resolveNonce', () => {
 	it('prefers the client document nonce', () => {
@@ -46,7 +50,7 @@ describe('resolveNonce', () => {
 	})
 })
 
-describe('addHashes', () => {
+describe('addHashesToPolicy', () => {
 	const hashes = {
 		script: ["'sha256-script'"],
 		style: ["'sha256-style'"],
@@ -54,7 +58,10 @@ describe('addHashes', () => {
 
 	it('adds hashes to script-src and style-src', () => {
 		expect(
-			addHashes("default-src 'self'; script-src 'self'; style-src 'self'", hashes),
+			addHashesToPolicy(
+				"default-src 'self'; script-src 'self'; style-src 'self'",
+				hashes,
+			),
 		).toBe(
 			"default-src 'self'; script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style'",
 		)
@@ -62,7 +69,7 @@ describe('addHashes', () => {
 
 	it('prefers the element directives when they are present', () => {
 		expect(
-			addHashes(
+			addHashesToPolicy(
 				"script-src 'self'; script-src-elem 'self'; style-src 'self'; style-src-elem 'self'",
 				hashes,
 			),
@@ -72,32 +79,32 @@ describe('addHashes', () => {
 	})
 
 	it('falls back to default-src when there is no specific directive', () => {
-		expect(addHashes("default-src 'self'", hashes)).toBe(
+		expect(addHashesToPolicy("default-src 'self'", hashes)).toBe(
 			"default-src 'self' 'sha256-script' 'sha256-style'",
 		)
 	})
 
 	it('does not duplicate an existing hash', () => {
-		expect(addHashes("script-src 'self' 'sha256-script'; style-src 'self'", hashes)).toBe(
-			"script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style'",
-		)
+		expect(
+			addHashesToPolicy("script-src 'self' 'sha256-script'; style-src 'self'", hashes),
+		).toBe("script-src 'self' 'sha256-script'; style-src 'self' 'sha256-style'")
 	})
 
 	it('does not tighten an unsafe-inline policy', () => {
 		const csp = "script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'"
 
-		expect(addHashes(csp, hashes)).toBe(csp)
+		expect(addHashesToPolicy(csp, hashes)).toBe(csp)
 	})
 
 	it('does not add hashes to a none policy', () => {
 		const csp = "script-src 'none'; style-src 'none'"
 
-		expect(addHashes(csp, hashes)).toBe(csp)
+		expect(addHashesToPolicy(csp, hashes)).toBe(csp)
 	})
 
 	it('leaves other directives intact', () => {
 		expect(
-			addHashes("default-src 'self'; object-src 'none'; script-src 'self'", {
+			addHashesToPolicy("default-src 'self'; object-src 'none'; script-src 'self'", {
 				script: ["'sha256-script'"],
 				style: [],
 			}),
