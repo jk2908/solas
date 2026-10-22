@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { CspHash } from '../../../src/internal/csp-hash.js'
+import { collectCspHashes } from '../../../src/internal/collect-csp-hashes.js'
 
-describe('CspHash.collect', () => {
+describe('collectCspHashes', () => {
 	it('hashes inline scripts and styles', () => {
 		expect(
-			CspHash.collect(
+			collectCspHashes(
 				'<script>console.log("hi")</script><style>body { color: red }</style>',
 			),
 		).toEqual({
@@ -16,14 +16,14 @@ describe('CspHash.collect', () => {
 
 	it('ignores comments and unrelated tags', () => {
 		expect(
-			CspHash.collect(
+			collectCspHashes(
 				'<!-- <script>bad()</script> --><div data-x="<script>bad()</script>"></div>',
 			),
 		).toEqual({ script: [], style: [] })
 	})
 
 	it('handles uppercase tags and attributes containing >', () => {
-		expect(CspHash.collect('<SCRIPT data-x=">">console.log("hi")</SCRIPT>')).toEqual({
+		expect(collectCspHashes('<SCRIPT data-x=">">console.log("hi")</SCRIPT>')).toEqual({
 			script: ["'sha256-TMFma7PHrBUjZEUKY/MwBLuX3/HrQe2+A1FmjMS7ppA='"],
 			style: [],
 		})
@@ -31,7 +31,7 @@ describe('CspHash.collect', () => {
 
 	it('deduplicates identical bodies', () => {
 		expect(
-			CspHash.collect(
+			collectCspHashes(
 				'<script>console.log("hi")</script><script>console.log("hi")</script>',
 			),
 		).toEqual({
@@ -41,20 +41,20 @@ describe('CspHash.collect', () => {
 	})
 
 	it('normalises line endings before hashing', () => {
-		expect(CspHash.collect('<script>a\r\nb</script>')).toEqual(
-			CspHash.collect('<script>a\nb</script>'),
+		expect(collectCspHashes('<script>a\r\nb</script>')).toEqual(
+			collectCspHashes('<script>a\nb</script>'),
 		)
 	})
 
 	it('does not treat a literal < in text as a tag', () => {
-		expect(CspHash.collect('<p>1 < 2</p><script>console.log("hi")</script>')).toEqual({
+		expect(collectCspHashes('<p>1 < 2</p><script>console.log("hi")</script>')).toEqual({
 			script: ["'sha256-TMFma7PHrBUjZEUKY/MwBLuX3/HrQe2+A1FmjMS7ppA='"],
 			style: [],
 		})
 	})
 
 	it('does not hash an unterminated raw text element', () => {
-		expect(CspHash.collect('<script>console.log("hi")')).toEqual({
+		expect(collectCspHashes('<script>console.log("hi")')).toEqual({
 			script: [],
 			style: [],
 		})

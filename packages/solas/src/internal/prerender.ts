@@ -7,10 +7,11 @@ import { Logger } from '../utils/logger.js'
 
 import type { BuildContext } from '../types.js'
 import type { AssetRef, Assets } from './assets.js'
+import type { CspHashes } from './csp.js'
 import * as Config from '../config.js'
 import * as Solas from '../solas.js'
 import { nodeAssets } from './assets.js'
-import { Csp } from './csp.js'
+import { addBootstrapNonce } from './csp.js'
 import { toPathPattern } from './http-router/utils.js'
 
 const logger = new Logger()
@@ -34,7 +35,7 @@ export type Metadata = Pick<Value, 'schema' | 'route' | 'createdAt' | 'mode'>
 export type Artifact = {
 	mode: Mode
 	files?: readonly File[]
-	csp?: Csp.Hashes
+	csp?: CspHashes
 }
 
 export type ArtifactManifest = Record<string, Artifact>
@@ -261,9 +262,7 @@ export function composePreludeAndResume(
 			// the shell's scripts are hash-authorised, but the bootstrap also needs
 			// the request nonce so its dynamic import can load the module graph and
 			// so client code can read the document nonce later
-			controller.enqueue(
-				encoder.encode(nonce ? Csp.addNonceToBootstrap(head, nonce) : head),
-			)
+			controller.enqueue(encoder.encode(nonce ? addBootstrapNonce(head, nonce) : head))
 
 			// resumeStream is the html React emits when it resumes postponed work for this page. Its
 			// first chunk begins with an extra `</body></html>` pair, then continues with the
