@@ -837,9 +837,13 @@ Hoistable `<style href precedence>` tags, including `@jk2908/cxx`, need the same
 
 Full hash-only pages should use `script-src 'self'` rather than `'strict-dynamic'`. Browsers do not propagate hash trust from the bootstrap to its dynamic `import()`. Dynamic and PPR responses can use `'strict-dynamic'` because their bootstrap has a nonce.
 
-To use a completely custom policy, set CSP in middleware or a `headers` function. A CSP on the request wins. When `csp` is configured, do not also set CSP in the `headers` object.
+To use a completely custom policy, set CSP in middleware or a `headers` function. A CSP on the request wins. When `csp` is configured, it owns the generated HTML policy; a CSP returned from a `headers` function is not used for HTML. Use one source.
 
 With the static adapter, the generated policy is written as a `<meta http-equiv="Content-Security-Policy">` tag in each prerendered page. `frame-ancestors`, `report-uri`, and `sandbox` are ignored in meta; use host-level headers if you need them.
+
+Solas expects one effective CSP policy. If middleware or a proxy sets multiple policies, combine them into a single header before Solas sees the response. The Fetch API merges multiple headers, and Solas cannot safely add hashes to that merged value.
+
+The build warns when the generated CSP header for a route exceeds 8 KB because of the prerendered style hash union. Reduce hash-bearing prerendered styles or raise the server header limit in that case.
 
 Hashes cover inline `<script>` and `<style>` elements, not `style` attributes. If full static pages can insert inline styles during client navigation, keep `style-src 'unsafe-inline'` for those pages.
 

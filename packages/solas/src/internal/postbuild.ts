@@ -7,10 +7,12 @@ import { Logger } from '../utils/logger.js'
 import type { BuildManifest, CspConfig } from '../types.js'
 import * as Config from '../config.js'
 import * as Manifest from '../manifest.js'
+import { buildPolicy } from './csp.js'
 import { hashInlineAssets } from './hash-inline-assets.js'
 import * as Prerender from './prerender.js'
 
 const logger = new Logger()
+const CSP_HEADER_SIZE_LIMIT = 8 * 1024
 
 /**
  * Overrides the RSC bundle that postbuild imports to prerender routes. Defaults
@@ -119,8 +121,9 @@ export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 
 			const artifact = result.artifact
 			const artifactDir = Prerender.getArtifactPath(outDir, route)
+
 			const csp = hashInlineAssets(artifact.html)
-			const cspHashes = csp.script.length > 0 || csp.style.length > 0 ? { csp } : {}
+			const hashes = csp.script.length > 0 || csp.style.length > 0 ? { csp } : {}
 
 			await enqueueWrite(async () => {
 				try {
@@ -157,7 +160,7 @@ export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 								artifact.postponed !== undefined
 									? ['metadata', 'prelude', 'postponed']
 									: ['metadata', 'prelude'],
-							...cspHashes,
+							...hashes,
 						}
 
 						logger.info('[prerender]', `${route} (ppr)`)
@@ -189,7 +192,7 @@ export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 					artfifactManifest[route] = {
 						mode: artifact.mode,
 						files: ['html'],
-						...cspHashes,
+						...hashes,
 					}
 
 					logger.info(`[prerender]: ${route} (full)`)
@@ -202,6 +205,38 @@ export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 		}
 
 		await Promise.all(pendingWrites)
+	}
+
+	if (csp) {
+		const styleHashes = [
+			...new Set(
+				Object.values(artfifactManifest).flatMap(artifact => artifact.csp?.style ?? []),
+			),
+		]
+		let largestRoute = ''
+		let largestSize = 0
+
+		for (const [route, artifact] of Object.entries(artfifactManifest)) {
+			const policy = buildPolicy(csp.directives, {
+				nonce: artifact.mode === 'ppr' ? 'x'.repeat(36) : undefined,
+				hashes: {
+					script: artifact.csp?.script ?? [],
+					style: styleHashes,
+				},
+			})
+
+			if (policy.length > largestSize) {
+				largestRoute = route
+				largestSize = policy.length
+			}
+		}
+
+		if (largestSize > CSP_HEADER_SIZE_LIMIT) {
+			logger.warn(
+				'[csp]',
+				`Generated CSP header for ${largestRoute} is about ${largestSize} bytes, above the ${CSP_HEADER_SIZE_LIMIT}-byte default. Reduce prerendered style hashes or raise the server header limit.`,
+			)
+		}
 	}
 
 	await fs.mkdir(artifactRoot, { recursive: true })
