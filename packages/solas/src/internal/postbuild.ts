@@ -234,7 +234,7 @@ export async function postbuild(cwd: string = process.cwd(), csp?: CspConfig) {
 		if (largestSize > CSP_HEADER_SIZE_LIMIT) {
 			logger.warn(
 				'[csp]',
-				`Generated CSP header for ${largestRoute} is about ${largestSize} bytes, above the ${CSP_HEADER_SIZE_LIMIT}-byte default. Reduce prerendered style hashes or raise the server header limit.`,
+				`Generated CSP header for ${largestRoute} is about ${largestSize} bytes. ${CSP_HEADER_SIZE_LIMIT} bytes is a conservative warning threshold; check the response-header limit of your server or proxy. Reduce prerendered style hashes or raise that limit if needed.`,
 			)
 		}
 	}
