@@ -96,38 +96,10 @@ export function addHashesToPolicy(policy: string, hashes: CspHashes) {
 		.filter(Boolean)
 		.map(parseDirective)
 
-	addHashesToDirective('script')
-	addHashesToDirective('style')
+	addHashesToDirective(directives, 'script', hashes)
+	addHashesToDirective(directives, 'style', hashes)
 
 	return directives.map(formatDirective).join('; ')
-
-	function addHashesToDirective(kind: 'script' | 'style') {
-		const values = hashes[kind]
-
-		if (values.length === 0) return
-
-		const names =
-			kind === 'script'
-				? ['script-src-elem', 'script-src', 'default-src']
-				: ['style-src-elem', 'style-src', 'default-src']
-		const directive = names
-			.map(name => directives.find(candidate => candidate.name === name))
-			.find(Boolean)
-
-		if (!directive) return
-		if (
-			directive.tokens.some(
-				token =>
-					token.toLowerCase() === "'unsafe-inline'" || token.toLowerCase() === "'none'",
-			)
-		) {
-			return
-		}
-
-		for (const value of values) {
-			if (!directive.tokens.includes(value)) directive.tokens.push(value)
-		}
-	}
 }
 
 /**
@@ -183,6 +155,38 @@ function addNonceToDirective(directives: Directive[], names: string[], token: st
 	}
 
 	if (!directive.tokens.includes(token)) directive.tokens.push(token)
+}
+
+function addHashesToDirective(
+	directives: Directive[],
+	kind: 'script' | 'style',
+	hashes: CspHashes,
+) {
+	const values = hashes[kind]
+
+	if (values.length === 0) return
+
+	const names =
+		kind === 'script'
+			? ['script-src-elem', 'script-src', 'default-src']
+			: ['style-src-elem', 'style-src', 'default-src']
+	const directive = names
+		.map(name => directives.find(candidate => candidate.name === name))
+		.find(Boolean)
+
+	if (!directive) return
+	if (
+		directive.tokens.some(
+			token =>
+				token.toLowerCase() === "'unsafe-inline'" || token.toLowerCase() === "'none'",
+		)
+	) {
+		return
+	}
+
+	for (const value of values) {
+		if (!directive.tokens.includes(value)) directive.tokens.push(value)
+	}
 }
 
 function parseDirective(value: string): Directive {
