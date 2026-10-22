@@ -222,10 +222,11 @@ export function adapter(options: SolasCloudflareOptions = {}) {
 		postbuild(config) {
 			const rscOutDir = config.environments.rsc?.build.outDir
 
-			return {
-				...(rscOutDir ? { rscEntry: path.resolve(cwd, rscOutDir, 'index.js') } : {}),
-				import: withBindingsShim,
-			}
+			if (!rscOutDir) return
+
+			const entry = path.resolve(cwd, rscOutDir, 'index.js')
+
+			return withBindingsShim(() => import(/* @vite-ignore */ entry))
 		},
 	} satisfies Adapter
 }

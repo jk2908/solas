@@ -19,20 +19,16 @@ type App = Parameters<typeof Prerender.run>[0]
 /** Imports the server bundle `postbuild` prerenders with. */
 export type PrerenderImport = () => Promise<{ default: App }>
 
-export type AdapterPostbuildOptions = {
-	rscEntry?: string
-	import?: (next: PrerenderImport) => PrerenderImport
-}
-
-export type PostbuildOptions = AdapterPostbuildOptions & {
+export type PostbuildOptions = {
 	csp?: CspConfig
+	load?: PrerenderImport
 }
 
 export async function postbuild(
 	cwd: string = process.cwd(),
 	options: PostbuildOptions = {},
 ) {
-	const { csp, rscEntry, import: wrapImport } = options
+	const { csp, load: customLoad } = options
 	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
 
 	let manifest: BuildManifest
@@ -69,9 +65,8 @@ export async function postbuild(
 			`prerendering ${manifest.prerenderRoutes.length} routes (concurrency: ${concurrency})...`,
 		)
 
-		const entry = rscEntry ?? path.join(rscDir, 'index.js')
-		const base: PrerenderImport = () => import(/* @vite-ignore */ entry)
-		const load = wrapImport ? wrapImport(base) : base
+		const entry = path.join(rscDir, 'index.js')
+		const load = customLoad ?? (() => import(/* @vite-ignore */ entry))
 
 		const { default: app } = await load()
 
