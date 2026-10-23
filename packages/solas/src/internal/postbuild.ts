@@ -27,8 +27,8 @@ export type PostbuildOptions = {
 }
 
 /**
- * Prerender full and PPR routes after Vite finishes, write their static and PPR
- * artifacts, collect inline CSP hashes, and write the runtime manifest.
+ * Prerender `full` and `ppr` routes, write their artifacts, collect inline CSP
+ * hashes, and write the runtime manifest.
  *
  * Uses `dist/rsc/index.js` unless an adapter supplies a custom loader. Warns
  * when a generated CSP header exceeds 8 KB, then precompresses output when
