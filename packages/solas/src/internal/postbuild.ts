@@ -16,7 +16,9 @@ const CSP_HEADER_SIZE_LIMIT = 8 * 1024
 
 type App = Parameters<typeof Prerender.run>[0]
 
-/** Imports the server bundle `postbuild` prerenders with. */
+/**
+ * Imports the server bundle `postbuild` prerenders with.
+ */
 export type PrerenderImport = () => Promise<{ default: App }>
 
 export type PostbuildOptions = {
@@ -25,25 +27,12 @@ export type PostbuildOptions = {
 }
 
 /**
- * Generate the runnable output from a completed Vite build.
+ * Prerender full and PPR routes after Vite finishes, write their static and PPR
+ * artifacts, collect inline CSP hashes, and write the runtime manifest.
  *
- * Reads the build manifest produced earlier in the build, removes stale
- * prerender and static output, then prerenders every route that opted into
- * `full` or `ppr` mode. For each artifact this:
- *
- * - renders the final HTML through the application's RSC bundle
- * - hashes inline scripts and styles for CSP
- * - writes full routes into `dist/static` and PPR routes into `dist/.solas`
- * - emits the static adapter's `rsc.txt` payload next to each full page
- *
- * After prerendering, it writes the runtime manifest containing artifact
- * metadata, public files, the CSP config, and the trailing-slash mode. It also
- * warns when the generated CSP header for a route exceeds the conservative
- * 8 KB threshold, then precompresses output when enabled.
- *
- * The application bundle is imported from `dist/rsc/index.js` unless an adapter
- * supplies a custom `load` function, which lets platforms such as Cloudflare
- * establish their own module resolution before importing the bundle.
+ * Uses `dist/rsc/index.js` unless an adapter supplies a custom loader. Warns
+ * when a generated CSP header exceeds 8 KB, then precompresses output when
+ * enabled.
  *
  * @param cwd - Project root. Defaults to the current working directory.
  * @param options - Optional CSP config and custom prerender loader.
