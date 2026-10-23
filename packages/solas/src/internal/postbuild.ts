@@ -30,12 +30,8 @@ export type PostbuildOptions = {
  * Prerender `full` and `ppr` routes, write their artifacts, collect inline CSP
  * hashes, and write the runtime manifest.
  *
- * Uses `dist/rsc/index.js` unless an adapter supplies a custom loader. Warns
- * when a generated CSP header exceeds 8 KB, then precompresses output when
- * enabled.
- *
  * @param cwd - Project root. Defaults to the current working directory.
- * @param options - Optional CSP config and custom prerender loader.
+ * @param options - Optional CSP config and RSC bundle loader.
  */
 export async function postbuild(
 	cwd: string = process.cwd(),
