@@ -154,7 +154,7 @@
     },
     "packages/solas": {
       "name": "@jk2908/solas",
-      "version": "0.15.1",
+      "version": "0.16.0",
       "dependencies": {
         "@vitejs/plugin-rsc": "^0.5.36",
         "oxc-parser": "^0.134.0",
