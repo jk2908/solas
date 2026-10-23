@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Breaking
+
+- Raised `engines.node` to `^22.23.4 || >=24.22.1`. Node 20 is end of life and does not receive the fix for CVE-2026-111497, a Brotli decoder flaw in Node that allows memory disclosure or code execution when a process decodes attacker-controlled Brotli data. Solas never decodes Brotli itself, but apps on `@jk2908/solas/runtime/node` should run a patched Node, particularly when they fetch responses an attacker can influence, since Node's `fetch` decodes `content-encoding: br` automatically.
+
 ### Features
 
 - Middleware can pass a replacement request to `next(request)`, so it can add headers for downstream middleware and rendering.

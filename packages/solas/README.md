@@ -6,7 +6,7 @@ Solas is experimental and under active development, so expect rough edges.
 
 ## Install
 
-Solas requires **Vite 8** (which uses Rolldown as the bundler).
+Solas requires **Vite 8** (which uses Rolldown as the bundler) and **Node.js 22.23.4, 24.22.1 or newer** when using the Node runtime. Node 20 is end of life, and these are the first releases with the fix for [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases), a Brotli decoder flaw in Node. Solas does not decode Brotli, but your app might, including through `fetch`, which decodes `content-encoding: br` for you.
 
 ```sh
 npm install @jk2908/solas react react-dom react-server-dom-webpack vite@^8
