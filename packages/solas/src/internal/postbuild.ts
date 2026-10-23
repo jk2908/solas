@@ -199,6 +199,26 @@ export async function postbuild(
 	}
 
 	if (csp) {
+		const scriptSources = ['script-src-elem', 'script-src', 'default-src']
+			.map(
+				name =>
+					Object.entries(csp.directives).find(([key]) => key.toLowerCase() === name)?.[1],
+			)
+			.find(Boolean)
+		const hasStrictDynamic = scriptSources?.some(
+			value => value.trim().toLowerCase().replace(/^'|'$/g, '') === 'strict-dynamic',
+		)
+		const hasFullPrerender = Object.values(artfifactManifest).some(
+			artifact => artifact.mode === 'full',
+		)
+
+		if (hasFullPrerender && hasStrictDynamic) {
+			logger.warn(
+				'[csp]',
+				`'strict-dynamic' is set, but this build has full prerendered routes. Full pages use hashed bootstrap scripts, which cannot load their dynamic imports under 'strict-dynamic'. Use 'self' for those routes or make them dynamic or PPR.`,
+			)
+		}
+
 		const styleHashes = [
 			...new Set(
 				Object.values(artfifactManifest).flatMap(artifact => artifact.csp?.style ?? []),
