@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.1
+
+### Fixes
+
+- The build warns when `script-src` uses `'strict-dynamic'` and the build contains full prerendered routes. Their hashed bootstrap cannot load its dynamic import under `'strict-dynamic'`, so those routes need `'self'`, dynamic rendering, or PPR.
+
 ## 0.16.0
 
 ### Breaking
