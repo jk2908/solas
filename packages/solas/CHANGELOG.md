@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.2
+
+### Changed
+
+- The README covers setup and the public API only. Internal architecture notes, the Node security advisory aside, and redundant examples are removed.
+
 ## 0.16.1
 
 ### Fixes

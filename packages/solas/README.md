@@ -6,7 +6,7 @@ Solas is experimental and under active development, so expect rough edges.
 
 ## Install
 
-Solas requires **Vite 8** (which uses Rolldown as the bundler) and **Node.js 22.23.4, 24.22.1 or newer** when using the Node runtime. Node 20 is end of life, and these are the first releases with the fix for [CVE-2026-111497](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases), a Brotli decoder flaw in Node. Solas does not decode Brotli, but your app might, including through `fetch`, which decodes `content-encoding: br` for you.
+Solas requires **Vite 8** (which uses Rolldown as the bundler).
 
 ```sh
 npm install @jk2908/solas react react-dom react-server-dom-webpack vite@^8
@@ -107,22 +107,9 @@ await router.go('/posts')
 await router.go('/p/:id', { params: { id: 'post-1' } })
 ```
 
-That gives you:
+That gives you autocomplete for known paths, required params for dynamic routes, and typed query and navigation options.
 
-- autocomplete for known route paths
-- required params for dynamic routes like `/p/:id`
-- rejected params for static routes that do not accept them
-- typed query and navigation options on `router.go(...)`
-
-If you already have a concrete path, you can pass that directly instead of using route params:
-
-```tsx
-;<Link href={`/p/${post.id}`} />
-
-await router.go(`/p/${post.id}`)
-```
-
-In that form the path is already resolved, so `params` are not used. Typed `Link` and `router.go(...)` only allow `params` when you pass a route pattern like `/p/:id`.
+Pass a concrete path when it is already resolved. In that form `params` are not used; typed `Link` and `router.go(...)` only accept `params` with a route pattern like `/p/:id`.
 
 If the target already contains a query string and you also pass `query`, Solas merges them. Existing query entries are kept unless you override the same key in `query`, and explicit `query` values win:
 
@@ -141,7 +128,7 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 <Link href="/p/:id" params={{ id: 'post-1' }}>Typed params</Link>
 ```
 
-`prefetch="none"` is the default. Solas does not automatically prefetch routes unless you opt in with `Link` or call `router.prefetch(...)` yourself.
+`prefetch="none"` is the default. Nothing is prefetched unless you opt in with `Link` or call `router.prefetch(...)`.
 
 Use `useRouter()` inside client components for programmatic navigation, prefetching, and refreshing the current route:
 
@@ -175,9 +162,7 @@ export function Controls() {
 
 ```tsx
 const finalPath = await router.go('/posts')
-```
 
-```tsx
 await router.refresh()
 ```
 
@@ -192,24 +177,7 @@ await router.go('/p/:id', {
 })
 ```
 
-Those same generated route types can also be reused outside navigation helpers when you want route params to stay typed in page exports:
-
-```tsx
-import type { Route, Solas } from '@jk2908/solas'
-
-export const metadata: Route.Metadata<Solas.Routes['/writing/:slug']> = ({ params }) => {
-	const post = allPosts?.find(p => p.__mdsrc.slug === params?.slug)
-
-	return {
-		title: post?.title ?? 'Post not found',
-	}
-}
-
-export const staticParams: Route.StaticParams<Solas.Routes['/writing/:slug']> = () =>
-	allPosts?.map(p => ({ slug: p.__mdsrc.slug })) ?? []
-```
-
-That keeps your route params aligned across links, imperative navigation, metadata, and static params.
+`Route.Metadata` and `Route.StaticParams` reuse those generated types in page exports.
 
 `router.refresh()` clears the cached RSC response for the current path and fetches a fresh payload, so it is most useful for routes that render request-time data. `router.isNavigating` exposes pending client-side navigation state.
 
@@ -526,7 +494,7 @@ sitemap: {
 }
 ```
 
-The sitemap is written to the build output directory as `sitemap.xml` after prerendering and before precompression, and served at `/sitemap.xml`. When enabled, Solas also writes a `robots.txt` (served at `/robots.txt`) that points at the sitemap, unless a `robots.txt` is provided in the public directory.
+The sitemap is written to the build output directory and served at `/sitemap.xml`. When enabled, Solas also writes a `robots.txt` (served at `/robots.txt`) that points at the sitemap, unless a `robots.txt` is provided in the public directory.
 
 ### `logger.level`
 
@@ -534,15 +502,7 @@ Use `logger.level` to control internal Solas logging.
 
 Default: `info`
 
-Valid values are `debug`, `info`, `warn`, `error`, and `fatal`.
-
-- `debug`: show everything
-- `info`: the default
-- `warn`: only warnings and errors
-- `error`: only errors
-- `fatal`: only fatal errors
-
-This is mainly useful when debugging framework behaviour such as routing and prerendering. It is for Solas internals, not your app's general-purpose logging, and it does not control top-level build and preview status output.
+Valid values are `debug`, `info`, `warn`, `error`, and `fatal`. This controls Solas's internal logging only, not your app's logging or the build and preview status output.
 
 ```ts
 export default defineConfig({
@@ -583,8 +543,6 @@ export default defineConfig({
 })
 ```
 
-The adapter is passed to `solas()` rather than added to the plugins array directly, so platform wiring stays in one place (the same shape as SvelteKit's `sveltekit({ adapter: adapter() })`).
-
 Give the Worker a name and a compatibility date that enables `nodejs_compat`:
 
 ```ts
@@ -600,7 +558,7 @@ export default defineConfig({
 })
 ```
 
-> `cloudflare.config.ts` is an open beta and must be loaded with Node 22.18+ (Bun is not supported), so the Cloudflare build and deploy commands run under Node. See the [`cf` documentation](https://developers.cloudflare.com/cf/) for the format and the `cf dev` / `cf build` / `cf deploy` commands.
+> `cloudflare.config.ts` is an open beta and requires Node 22.18+. The Cloudflare build and deploy commands run under Node, not Bun. See the [`cf` documentation](https://developers.cloudflare.com/cf/).
 
 #### Bindings
 
@@ -629,7 +587,7 @@ const value = await env.MY_KV.get('key')
 
 The Cloudflare Vite plugin emulates bindings in `cf dev` and `vite preview`, so there is nothing extra to configure locally.
 
-Bindings do not exist during the build-time prerender, where Solas imports the Worker in Node with `cloudflare:workers` shimmed. Reading one then warns and returns `undefined`, so guard it with a fallback or read it at request time.
+Bindings are unavailable during the build-time prerender; reading one warns and returns `undefined`, so read it at request time or guard it with a fallback.
 
 For types, the plugin writes `.cloudflare/types/index.d.ts` (bindings inferred from `cloudflare.config.ts`). Include it in `tsconfig.json` so `cloudflare:workers`'s `env` is typed:
 
@@ -638,15 +596,6 @@ For types, the plugin writes `.cloudflare/types/index.d.ts` (bindings inferred f
 	"include": ["app", ".solas/*", ".cloudflare/types"],
 }
 ```
-
-The adapter:
-
-- configures `@cloudflare/vite-plugin` to build the `rsc` environment as the Worker, and injects the generated entrypoint, the `ASSETS` binding, and `htmlHandling: none` / `notFoundHandling: none` into the Worker config
-- generates the Worker entry (a virtual module) that delegates to the typed `createWorker` helper
-- points Solas's prerender step at the Cloudflare Worker bundle
-- copies `dist/static` (full prerenders) and `dist/.solas` (runtime manifest + ppr artifacts) into the asset output under `/_solas-artifacts`
-
-`htmlHandling: none` stops the asset layer serving a prerendered document at its route path. That matters because the asset layer ignores `Accept`, so an RSC navigation (`Accept: text/x-component`) to a fully-prerendered route would otherwise receive HTML and fail to parse. Routing documents through the Worker lets Solas serve the prerender for `text/html` and render RSC otherwise, while non-HTML assets (JS, CSS, fonts, images) are still served straight from the asset layer.
 
 `cloudflare()` forwards its `cloudflare` option to `@cloudflare/vite-plugin`.
 
@@ -667,7 +616,7 @@ export default defineConfig({
 })
 ```
 
-`vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), its RSC payload as `<route>.rsc.txt`, plus `sitemap.xml` and `robots.txt`. Serve that directory with anything — `npx serve build`, GitHub Pages, Netlify, an S3 bucket, nginx.
+`vite build` writes the site to `build/` (override with `outDir`): the client assets, each route as `<route>.html` (or `<route>/index.html` under `trailingSlash: 'always'`), its RSC payload as `<route>.rsc.txt`, plus `sitemap.xml` and `robots.txt`. Serve that directory with any static host.
 
 Client-side navigation works with no server: the browser router fetches each route's `<route>.rsc.txt` payload instead of asking a server for `text/x-component`.
 
@@ -681,7 +630,7 @@ Runtime helpers run at request time. They live under `@jk2908/solas/runtime/*` a
 
 ### Node
 
-`vite dev` and `vite preview` already run the built handler in Node (via `@vitejs/plugin-rsc`'s default server handler), so nothing extra is needed locally. For a production Node server, use `@jk2908/solas/runtime/node`:
+`vite dev` and `vite preview` already run the built handler in Node, so nothing extra is needed locally. For a production Node server, use `@jk2908/solas/runtime/node`:
 
 ```ts
 // server.ts
@@ -699,9 +648,9 @@ await serve()
 }
 ```
 
-Set `NODE_ENV=production` before starting. React reads it when the built handler loads; without it the server renders development payloads, which include debug data and are noticeably larger.
+Set `NODE_ENV=production` before starting, or the server renders development payloads.
 
-`serve()` loads the built RSC entry (`dist/rsc/index.js` by default) and forwards requests to its fetch handler, which already serves prerendered routes, client assets, and RSC/SSR responses. Options: `port` (defaults to `PORT` or `3000`), `host`, `outDir`, and `entry`. Run from the project root so the handler can resolve `dist`.
+`serve()` loads the built RSC entry (`dist/rsc/index.js` by default). Options: `port` (defaults to `PORT` or `3000`), `host`, `outDir`, and `entry`. Run from the project root so the handler can resolve `dist`.
 
 Set `precompress: true` in the Solas config to emit brotli variants of client and prerendered assets at build time. `serve()` negotiates them when the client sends `accept-encoding: br` and falls back to the original file otherwise. Dynamic HTML and RSC responses are streamed per request and are not precompressed, so compress those at a proxy or CDN if you need it.
 
@@ -734,9 +683,9 @@ http2
 	.listen(443)
 ```
 
-`serve()` itself is HTTP/1.1. TLS and HTTP/2 termination still belong at your proxy or CDN when you have one; these listeners are for deployments that terminate at Node.
+`serve()` is HTTP/1.1; use these listeners when Node terminates TLS or HTTP/2 itself.
 
-Bun and Deno do not need the helper. Their native servers pass the handler a `Request` directly and expect a `Response`, so the Node-specific HTTP-to-Fetch bridging (streams, `duplex`, backpressure) is not needed:
+Bun and Deno can call the handler directly:
 
 ```ts
 // Bun
@@ -752,23 +701,15 @@ import handler from './dist/rsc/index.js'
 Deno.serve(request => handler.fetch(request))
 ```
 
-The handler reads `dist` through `node:fs`, which Bun and Deno (2.x, via Node compat) provide. Run from the project root. Bun can also run `@jk2908/solas/runtime/node` as-is, since it implements `node:http`.
-
 ### Cloudflare runtime
 
-Because workers have no filesystem, the Worker reads its own output through the `ASSETS` binding. Reads use logical namespaces rather than filesystem paths: `client` maps onto asset-root URLs, and `static` (prerenders) and `artifact` (manifest, ppr) map onto the artifact prefix. During the build-time prerender pass the Worker is invoked without bindings, so the Node asset store is used and reads/writes artifacts on disk.
-
-To build a Worker manually, `createWorker` composes the entry behaviour, and `createCloudflareAssets` builds the store directly:
+Workers have no filesystem, so they read Solas's output through the `ASSETS` binding. `createWorker` composes the Worker entry, and `createCloudflareAssets` builds the store:
 
 ```ts
 import { createCloudflareAssets } from '@jk2908/solas/runtime/cloudflare'
 
 const assets = createCloudflareAssets(env)
 ```
-
-### Asset store
-
-At request time Solas reads its output through an `Assets` interface (`exists`/`readText`/`readBuffer`/`mimeType`) injected into `createHandler`, defaulting to the Node standard library (which Bun runs natively). References are logical (`{ namespace, path }`), where the namespaces are `client` (Vite client output), `static` (full prerenders), and `artifact` (runtime manifest and ppr files). Platforms without a filesystem provide their own store; `@jk2908/solas/runtime/cloudflare` builds one around the `ASSETS` binding via `createWorker`. Build-time reads and writes use `node:fs` directly and are not abstracted.
 
 ## Scripts
 
