@@ -55,9 +55,18 @@ afterEach(() => {
 	rmSync(dir, { recursive: true, force: true })
 })
 
-async function runConfig(plugin: Plugin, viteConfig: UserConfig) {
-	const hook = plugin.config as (config: UserConfig) => void | Promise<void> | undefined
-	await hook?.(viteConfig)
+async function runConfig(
+	plugin: Plugin,
+	viteConfig: UserConfig,
+	env?: { command: 'build' | 'serve'; mode: string },
+) {
+	const hook = plugin.config as
+		| ((
+				config: UserConfig,
+				env?: { command: 'build' | 'serve'; mode: string },
+		  ) => void | Promise<void> | undefined)
+		| undefined
+	await hook?.(viteConfig, env)
 }
 
 function resolveServe(plugin: Plugin) {
@@ -130,6 +139,26 @@ describe('solas() plugin integration', () => {
 		expect(viteConfig.define?.['import.meta.env.VITE_APP_URL']).toBe(
 			JSON.stringify('https://option.example.com'),
 		)
+	})
+
+	it('minifies and pins NODE_ENV for production builds', async () => {
+		const plugin = getPlugin()
+		const viteConfig: UserConfig = { server: {} }
+
+		await runConfig(plugin, viteConfig, { command: 'build', mode: 'production' })
+
+		expect(viteConfig.define?.['process.env.NODE_ENV']).toBe('"production"')
+		expect(viteConfig.build?.minify).toBe(true)
+	})
+
+	it('leaves development output readable', async () => {
+		const plugin = getPlugin()
+		const viteConfig: UserConfig = { server: {} }
+
+		await runConfig(plugin, viteConfig, { command: 'serve', mode: 'development' })
+
+		expect(viteConfig.define?.['process.env.NODE_ENV']).toBeUndefined()
+		expect(viteConfig.build?.minify).toBeUndefined()
 	})
 
 	it('ignores build output but keeps generated route files watched', async () => {

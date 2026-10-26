@@ -443,10 +443,14 @@ export class HttpRouter {
 
 		// get mime type from original path, not compressed variant
 		const mimeType = assets.mimeType(asset.path)
+		const buffer = await assets.readBuffer(resolved)
 
-		const res = new Response(await assets.readBuffer(resolved), {
+		const res = new Response(buffer, {
 			headers: {
 				'Content-Type': headers['Content-Type'] ?? mimeType,
+				// a static file has a known size; sending it lets the client finish
+				// the response without waiting for a chunked terminator
+				'Content-Length': String(buffer.byteLength),
 			},
 		})
 

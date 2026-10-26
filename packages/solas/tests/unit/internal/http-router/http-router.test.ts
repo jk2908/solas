@@ -520,6 +520,7 @@ describe('HttpRouter', () => {
 			expect(res.status).toBe(200)
 			expect(res.headers.get('Content-Encoding')).toBe('br')
 			expect(res.headers.get('Vary')).toBe('Accept-Encoding')
+			expect(res.headers.get('Content-Length')).toBe('10')
 			expect(await res.text()).toBe('compressed')
 			expect(exists).toHaveBeenCalledTimes(1)
 		})
@@ -539,6 +540,7 @@ describe('HttpRouter', () => {
 
 			expect(res.status).toBe(200)
 			expect(res.headers.get('Content-Encoding')).toBeNull()
+			expect(res.headers.get('Content-Length')).toBe('5')
 			expect(await res.text()).toBe('plain')
 			expect(exists).toHaveBeenCalledTimes(2)
 		})

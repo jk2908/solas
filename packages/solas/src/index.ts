@@ -309,7 +309,10 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 	const plugin = {
 		name: Config.NAME,
-		async config(viteConfig: UserConfig) {
+		async config(
+			viteConfig: UserConfig,
+			env?: { command: 'build' | 'serve'; mode: string },
+		) {
 			const pkg = JSON.parse(
 				fsSync.readFileSync(new URL('../package.json', import.meta.url), 'utf-8'),
 			)
@@ -368,6 +371,13 @@ function solas(c?: PluginConfig): PluginOption[] {
 			viteConfig.define['import.meta.env.SOLAS_ADAPTER'] = JSON.stringify(
 				config.adapter?.name ?? '',
 			)
+
+			// production builds can drop the development React branches and ship
+			// minified server bundles; dev keeps readable output and HMR
+			if (env?.command === 'build') {
+				viteConfig.define['process.env.NODE_ENV'] = JSON.stringify(env.mode)
+				viteConfig.build.minify ??= true
+			}
 
 			viteConfig.optimizeDeps ??= {}
 			viteConfig.optimizeDeps.exclude = [

@@ -1,4 +1,11 @@
-import { StrictMode, Suspense, useCallback, useState, useTransition } from 'react'
+import {
+	StrictMode,
+	Suspense,
+	startTransition,
+	useCallback,
+	useState,
+	useTransition,
+} from 'react'
 import { hydrateRoot } from 'react-dom/client'
 
 import {
@@ -65,7 +72,10 @@ export async function browser() {
 	setServerCallback(async (id, args) => {
 		const url = new URL(window.location.href)
 		const temporaryReferences = createTemporaryReferenceSet()
-		const headers = new Headers({ 'x-rsc-action-id': id })
+		const headers = new Headers({
+			accept: 'text/x-component',
+			'x-rsc-action-id': id,
+		})
 		const nonce = getDocumentNonce()
 
 		if (nonce) headers.set('x-solas-nonce', nonce)
@@ -87,15 +97,19 @@ export async function browser() {
 		return data
 	})
 
-	hydrateRoot(
-		document,
-		<StrictMode>
-			<A />
-		</StrictMode>,
-		{
-			formState: payload.formState,
-		},
-	)
+	// hydrate as a transition so the browser can paint the server markup
+	// before React starts walking the tree
+	startTransition(() => {
+		hydrateRoot(
+			document,
+			<StrictMode>
+				<A />
+			</StrictMode>,
+			{
+				formState: payload.formState,
+			},
+		)
+	})
 
 	if (import.meta.hot) {
 		import.meta.hot.on?.('rsc:update', async () => {

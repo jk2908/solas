@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.16.3
+
+### Fixes
+
+- Server actions invoked from the browser now request the RSC representation (`accept: text/x-component`). The server previously answered with an HTML document, which surfaced as React's "Connection closed" error (#412) and left the UI un-updated even though the action ran.
+- Static responses carry `Content-Length`, so prerendered HTML, CSS and client assets are no longer sent chunked.
+
+### Changed
+
+- The client hydrates inside `startTransition`, so the browser can paint the server markup before React walks the tree.
+- Production builds pin `process.env.NODE_ENV` to the build mode and minify server bundles. This removes the development React branches and reduces the deployable output size.
+
 ## 0.16.2
 
 ### Changed
