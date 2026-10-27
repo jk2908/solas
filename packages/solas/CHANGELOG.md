@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.1
+
+### Fixes
+
+- Links no longer prefetch the route currently displayed. The comparison uses pathname and search, so the same path with a different query still prefetches.
+
 ## 0.17.0
 
 ### Breaking

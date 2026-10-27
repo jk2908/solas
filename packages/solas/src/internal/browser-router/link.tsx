@@ -18,25 +18,39 @@ type Props = BaseProps & BrowserRouter.LinkProps
 
 const HOVER_DELAY = 100
 
+function isCurrent(path: string) {
+	try {
+		const url = new URL(path, window.location.href)
+
+		return (
+			url.pathname === window.location.pathname && url.search === window.location.search
+		)
+	} catch {
+		return false
+	}
+}
+
 function guard(path: string, prefetcher: (path: string) => void) {
+	if (document.visibilityState === 'hidden') return
+
 	const connection = window.navigator.connection
 
-	if (document.visibilityState === 'hidden') return
 	if (connection?.saveData) return
 	if (['2g', 'slow-2g'].includes(connection?.effectiveType ?? '')) return
+	if (isCurrent(path)) return
 
 	prefetcher(path)
 }
 
 function getPrefetchStrategy(
 	prefetch: PrefetchMode | false,
-	hover: boolean,
-	hasObserver: boolean,
+	hoverable: boolean,
+	observable: boolean,
 ) {
 	if (prefetch !== 'auto') return prefetch
-	if (hover) return 'hover'
+	if (hoverable) return 'hover'
 
-	return hasObserver ? 'viewport' : 'intent'
+	return observable ? 'viewport' : 'intent'
 }
 
 /**

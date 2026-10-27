@@ -445,4 +445,50 @@ describe('Link', () => {
 		expect(ref.current).toBeInstanceOf(HTMLAnchorElement)
 		expect(ref.current?.getAttribute('href')).toBe('/about')
 	})
+
+	it('does not prefetch the current route', async () => {
+		const prefetch = vi.fn()
+		mockRouter({ prefetch })
+		const original = window.location.pathname + window.location.search
+
+		window.history.replaceState({}, '', '/?tab=1')
+
+		try {
+			const screen = await render(
+				<Link href="/" query={{ tab: '1' }} prefetch="hover">
+					CurrentLink
+				</Link>,
+			)
+
+			await screen.getByRole('link', { name: 'CurrentLink' }).hover()
+			await new Promise(resolve => setTimeout(resolve, 500))
+
+			expect(prefetch).not.toHaveBeenCalled()
+		} finally {
+			window.history.replaceState({}, '', original)
+		}
+	})
+
+	it('prefetches the same path with a different query', async () => {
+		const prefetch = vi.fn()
+		mockRouter({ prefetch })
+		const original = window.location.pathname + window.location.search
+
+		window.history.replaceState({}, '', '/?tab=1')
+
+		try {
+			const screen = await render(
+				<Link href="/" query={{ tab: '2' }} prefetch="hover">
+					OtherQueryLink
+				</Link>,
+			)
+
+			await screen.getByRole('link', { name: 'OtherQueryLink' }).hover()
+			await new Promise(resolve => setTimeout(resolve, 500))
+
+			expect(prefetch).toHaveBeenCalledWith('/?tab=2')
+		} finally {
+			window.history.replaceState({}, '', original)
+		}
+	})
 })
