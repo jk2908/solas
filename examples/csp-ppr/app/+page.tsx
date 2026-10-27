@@ -29,7 +29,7 @@ async function Streamed() {
 	return (
 		<>
 			<style nonce={nonce}>{`main p { background-color: red; }`}</style>
-			<script nonce={nonce}>{`document.documentElement.dataset.pprCsp = 'ok'`}</script>
+			<script nonce={nonce}>{`window.__pprCsp = 'ok'`}</script>
 			<p>Rendered at {Date.now()}</p>
 		</>
 	)

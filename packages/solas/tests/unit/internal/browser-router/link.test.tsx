@@ -1,3 +1,5 @@
+import { createRef } from 'react'
+
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render } from 'vitest-browser-react'
 
@@ -8,6 +10,8 @@ vi.mock('../../../../src/internal/browser-router/use-router.js', () => ({
 const { useRouter } =
 	await import('../../../../src/internal/browser-router/use-router.js')
 const { Link } = await import('../../../../src/internal/browser-router/link.js')
+const { PrefetchObserverProvider } =
+	await import('../../../../src/internal/browser-router/prefetch-observer.js')
 import type { BrowserRouter } from '../../../../src/internal/browser-router/shared.js'
 
 // some Link tests click a real <a> without letting the router absorb the
@@ -176,5 +180,269 @@ describe('Link', () => {
 		const link = screen.getByRole('link', { name: 'PrefLink' })
 		await expect.element(link).toHaveAttribute('target', '_blank')
 		await expect.element(link).toHaveAttribute('rel', 'noopener')
+	})
+
+	it('treats prefetch false as none', async () => {
+		const prefetch = vi.fn()
+		mockRouter({ prefetch })
+
+		const screen = await render(
+			<Link href="/about" prefetch={false}>
+				NoPrefetch
+			</Link>,
+		)
+		const link = screen.getByRole('link', { name: 'NoPrefetch' })
+
+		await link.hover()
+		await link.click()
+		await new Promise(resolve => setTimeout(resolve, 500))
+
+		expect(prefetch).not.toHaveBeenCalled()
+	})
+
+	it('prefetches on click for intent', async () => {
+		const prefetch = vi.fn()
+		mockRouter({ prefetch })
+
+		const screen = await render(
+			<Link href="/about" prefetch="intent">
+				IntentLink
+			</Link>,
+		)
+
+		await screen.getByRole('link', { name: 'IntentLink' }).click()
+
+		expect(prefetch).toHaveBeenCalledWith('/about')
+	})
+
+	it('prefetches after hovering for hover', async () => {
+		const prefetch = vi.fn()
+		mockRouter({ prefetch })
+
+		const screen = await render(
+			<Link href="/about" prefetch="hover">
+				HoverLink
+			</Link>,
+		)
+
+		await screen.getByRole('link', { name: 'HoverLink' }).hover()
+		await new Promise(resolve => setTimeout(resolve, 500))
+
+		expect(prefetch).toHaveBeenCalledWith('/about')
+	})
+
+	it('prefetches when a viewport link intersects', async () => {
+		const instances: MockIntersectionObserver[] = []
+
+		class MockIntersectionObserver {
+			readonly root = null
+			readonly rootMargin = ''
+			readonly thresholds = []
+			readonly observe = vi.fn()
+			readonly disconnect = vi.fn()
+			readonly takeRecords = vi.fn(() => [])
+			readonly unobserve = vi.fn()
+
+			constructor(
+				readonly callback: IntersectionObserverCallback,
+				readonly options?: IntersectionObserverInit,
+			) {
+				instances.push(this)
+			}
+
+			trigger() {
+				this.callback(
+					[
+						{
+							isIntersecting: true,
+							target: document.querySelector('a[href="/about"]')!,
+						} as IntersectionObserverEntry,
+					],
+					this as unknown as IntersectionObserver,
+				)
+			}
+		}
+
+		const original = globalThis.IntersectionObserver
+		// @ts-expect-error test double
+		globalThis.IntersectionObserver = MockIntersectionObserver
+
+		try {
+			const prefetch = vi.fn()
+			mockRouter({ prefetch })
+
+			await render(
+				<PrefetchObserverProvider>
+					<Link href="/about" prefetch="viewport">
+						ViewportLink
+					</Link>
+				</PrefetchObserverProvider>,
+			)
+
+			const observer = instances.at(-1)
+			expect(observer).toBeDefined()
+			expect(observer?.observe).toHaveBeenCalled()
+
+			observer?.trigger()
+
+			expect(prefetch).toHaveBeenCalledWith('/about')
+			expect(observer?.disconnect).toHaveBeenCalled()
+		} finally {
+			globalThis.IntersectionObserver = original
+		}
+	})
+
+	it('uses hover on hover-capable devices for auto', async () => {
+		const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({
+			matches: true,
+		} as MediaQueryList)
+
+		try {
+			const prefetch = vi.fn()
+			mockRouter({ prefetch })
+
+			const screen = await render(
+				<Link href="/about" prefetch="auto">
+					AutoHoverLink
+				</Link>,
+			)
+
+			await screen.getByRole('link', { name: 'AutoHoverLink' }).hover()
+			await new Promise(resolve => setTimeout(resolve, 500))
+
+			expect(prefetch).toHaveBeenCalledWith('/about')
+		} finally {
+			matchMedia.mockRestore()
+		}
+	})
+
+	it('uses viewport on devices without hover for auto', async () => {
+		const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({
+			matches: false,
+		} as MediaQueryList)
+		const instances: MockIntersectionObserver[] = []
+
+		class MockIntersectionObserver {
+			readonly root = null
+			readonly rootMargin = ''
+			readonly thresholds = []
+			readonly observe = vi.fn()
+			readonly disconnect = vi.fn()
+			readonly takeRecords = vi.fn(() => [])
+			readonly unobserve = vi.fn()
+
+			constructor(readonly callback: IntersectionObserverCallback) {
+				instances.push(this)
+			}
+
+			trigger() {
+				this.callback(
+					[
+						{
+							isIntersecting: true,
+							target: document.querySelector('a[href="/about"]')!,
+						} as IntersectionObserverEntry,
+					],
+					this as unknown as IntersectionObserver,
+				)
+			}
+		}
+
+		const original = globalThis.IntersectionObserver
+		// @ts-expect-error test double
+		globalThis.IntersectionObserver = MockIntersectionObserver
+
+		try {
+			const prefetch = vi.fn()
+			mockRouter({ prefetch })
+
+			await render(
+				<PrefetchObserverProvider>
+					<Link href="/about" prefetch="auto">
+						AutoViewportLink
+					</Link>
+				</PrefetchObserverProvider>,
+			)
+
+			instances.at(-1)?.trigger()
+
+			expect(prefetch).toHaveBeenCalledWith('/about')
+		} finally {
+			globalThis.IntersectionObserver = original
+			matchMedia.mockRestore()
+		}
+	})
+
+	it('shares one viewport observer across links in a provider', async () => {
+		const instances: MockIntersectionObserver[] = []
+
+		class MockIntersectionObserver {
+			readonly root = null
+			readonly rootMargin = ''
+			readonly thresholds = []
+			readonly observe = vi.fn()
+			readonly disconnect = vi.fn()
+			readonly takeRecords = vi.fn(() => [])
+			readonly unobserve = vi.fn()
+
+			constructor(readonly callback: IntersectionObserverCallback) {
+				instances.push(this)
+			}
+
+			trigger(targets: Element[]) {
+				this.callback(
+					targets.map(target => ({ isIntersecting: true, target })) as [
+						IntersectionObserverEntry,
+					],
+					this as unknown as IntersectionObserver,
+				)
+			}
+		}
+
+		const original = globalThis.IntersectionObserver
+		// @ts-expect-error test double
+		globalThis.IntersectionObserver = MockIntersectionObserver
+
+		try {
+			const prefetch = vi.fn()
+			mockRouter({ prefetch })
+
+			await render(
+				<PrefetchObserverProvider>
+					<Link href="/about" prefetch="viewport">
+						First
+					</Link>
+					<Link href="/test" prefetch="viewport">
+						Second
+					</Link>
+				</PrefetchObserverProvider>,
+			)
+
+			expect(instances).toHaveLength(1)
+
+			const observer = instances[0]
+			observer.trigger([
+				document.querySelector('a[href="/about"]')!,
+				document.querySelector('a[href="/test"]')!,
+			])
+
+			expect(prefetch).toHaveBeenCalledWith('/about')
+			expect(prefetch).toHaveBeenCalledWith('/test')
+		} finally {
+			globalThis.IntersectionObserver = original
+		}
+	})
+
+	it('forwards refs to the anchor', async () => {
+		const ref = createRef<HTMLAnchorElement>()
+
+		await render(
+			<Link href="/about" ref={ref}>
+				RefLink
+			</Link>,
+		)
+
+		expect(ref.current).toBeInstanceOf(HTMLAnchorElement)
+		expect(ref.current?.getAttribute('href')).toBe('/about')
 	})
 })

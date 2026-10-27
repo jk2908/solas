@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.17.0
+
+### Breaking
+
+- Removed `prefetch="none"`. Use `prefetch={false}` or omit the prop.
+
+### Features
+
+- `Link` supports `prefetch="viewport"` and `prefetch="auto"`. Viewport prefetches on intersection; auto uses hover on hover-capable devices and viewport elsewhere.
+- Viewport prefetching uses one shared `IntersectionObserver` per router root instead of one per link.
+- `prefetch={false}` is now the explicit off value.
+
+### Changed
+
+- `Link` prefetch modes are resolved once into a single strategy before event handling.
+- `Link` forwards refs with `useImperativeHandle` instead of merging callback refs manually.
+- Examples use React 19.3.1.
+
 ## 0.16.3
 
 ### Fixes

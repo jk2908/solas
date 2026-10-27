@@ -9,6 +9,7 @@ import { Logger } from '../../utils/logger.js'
 import type { RscPayload } from '../env/rsc.js'
 import * as Events from '../../events.js'
 import { BrowserRouterHistory } from './history.js'
+import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { ResponseCache } from './response-cache.js'
 import * as BrowserRouter from './shared.js'
 
@@ -381,5 +382,9 @@ export function BrowserRouterProvider({
 		[go, prefetch, refresh, isNavigating, url],
 	)
 
-	return <BrowserRouterContext value={value}>{children}</BrowserRouterContext>
+	return (
+		<PrefetchObserverProvider>
+			<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
+		</PrefetchObserverProvider>
+	)
 }
