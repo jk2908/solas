@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.17.2
+
+### Docs
+
+- Clarified CSP guidance and removed unrelated package references.
+
 ## 0.17.1
 
 ### Fixes

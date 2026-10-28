@@ -749,7 +749,7 @@ If you run Vite through Bun, use the Bun-backed commands instead:
 
 ### CSP
 
-Use the `csp` config to generate a policy:
+Generate a policy from `csp.directives`:
 
 ```ts
 solas({
@@ -766,9 +766,15 @@ solas({
 })
 ```
 
-CSP keywords such as `self` and `none` can be written without their surrounding quotes. Solas adds a per-request nonce to dynamic responses, build-time hashes to full prerenders, and both to PPR. It also keeps client navigations aligned with the document policy.
+Keywords such as `self` and `none` may omit their surrounding quotes. Solas adds the policy to HTML responses:
 
-Read the nonce in a server component for any inline `<style>` or `<script>` you render:
+- dynamic routes receive a per-request nonce
+- full prerenders receive build-time hashes
+- PPR receives both
+
+The policy belongs to the document and remains active during client navigation. Inline scripts and styles must therefore be present in the initial document, or carry the document nonce.
+
+Pass the request nonce to inline elements you render:
 
 ```tsx
 const nonce = (await headers()).get('x-nonce')
@@ -776,19 +782,17 @@ const nonce = (await headers()).get('x-nonce')
 return <style nonce={nonce}>{`body { margin: 0 }`}</style>
 ```
 
-Hoistable `<style href precedence>` tags, including `@jk2908/cxx`, need the same nonce prop. Add `'unsafe-eval'` in development for React's error stacks.
+The same applies to inline `<script>` elements. Add `'unsafe-eval'` in development for React error stacks.
 
-Full hash-only pages should use `script-src 'self'` rather than `'strict-dynamic'`. Browsers do not propagate hash trust from the bootstrap to its dynamic `import()`. Dynamic and PPR responses can use `'strict-dynamic'` because their bootstrap has a nonce.
+For fully hash-based pages, use `script-src 'self'` rather than `'strict-dynamic'`; browsers do not propagate hash trust to dynamic imports. Dynamic and PPR responses can use `'strict-dynamic'` because their bootstrap script has a nonce.
 
-To use a completely custom policy, set CSP in middleware or a `headers` function. A CSP on the request wins. When `csp` is configured, it owns the generated HTML policy; a CSP returned from a `headers` function is not used for HTML. Use one source.
+Use one source of policy. When `csp` is configured, it owns the generated HTML policy. A CSP supplied on the request takes precedence, and a CSP returned from a `headers` function is not used for HTML. If a proxy sets multiple policies, combine them before Solas receives the response.
 
-With the static adapter, the generated policy is written as a `<meta http-equiv="Content-Security-Policy">` tag in each prerendered page. `frame-ancestors`, `report-uri`, and `sandbox` are ignored in meta; use host-level headers if you need them.
+With the static adapter, the policy is written as a `<meta http-equiv="Content-Security-Policy">` tag in each prerendered page. `frame-ancestors`, `report-uri`, and `sandbox` are ignored in meta; set those at the host level.
 
-Solas expects one effective CSP policy. If middleware or a proxy sets multiple policies, combine them into a single header before Solas sees the response. The Fetch API merges multiple headers, and Solas cannot safely add hashes to that merged value.
+The build warns when a generated policy exceeds 8 KB because of inline style hashes.
 
-The build warns when the generated CSP header for a route exceeds 8 KB because of the prerendered style hash union. Reduce hash-bearing prerendered styles or raise the server header limit in that case.
-
-Hashes cover inline `<script>` and `<style>` elements, not `style` attributes. If full static pages can insert inline styles during client navigation, keep `style-src 'unsafe-inline'` for those pages.
+Hashes cover inline `<script>` and `<style>` elements, not `style` attributes. Inline styles inserted during client navigation are not covered by the original document's hashes.
 
 ### CSRF
 
