@@ -72,6 +72,7 @@ Use these filename conventions:
 - `+page.tsx`: page component for a route.
 - `+endpoint.ts`: request handler. Can be placed in any folder and responds to all HTTP methods for its route path.
 - `+middleware.ts`: middleware that runs for the current route branch and is inherited by child routes. Parent and child middleware stack together. Call `next()` to continue, or `next(request)` to pass a replacement request with different headers downstream.
+- Endpoints and middleware also accept the ESM extensions `.mts` and `.mjs`.
 - `+loading.tsx`: loading fallback inherited by child routes.
 - `+401.tsx`: boundary for unauthorised responses in the current route branch and its children.
 - `+403.tsx`: boundary for forbidden responses in the current route branch and its children.
@@ -88,6 +89,26 @@ If a route has both `+page.tsx` and `+endpoint.ts`, Solas selects the GET handle
 - other GET requests (for example `application/json`): run `+endpoint.ts` `GET`
 
 Non-GET methods (`POST`, `PUT`, `PATCH`, `DELETE`) always run `+endpoint.ts`.
+
+### Route Groups
+
+Wrap a directory name in parentheses to group routes without adding a URL segment:
+
+```text
+app/
+	+layout.tsx
+	(marketing)/
+		+layout.tsx
+		about/+page.tsx        -> /about
+		pricing/+page.tsx      -> /pricing
+	(app)/
+		+layout.tsx
+		dashboard/+page.tsx    -> /dashboard
+```
+
+Groups inherit `+layout`, `+loading`, `+401`, `+403`, `+404`, `+500` and `+middleware` like any other directory. A group never creates a route by itself, so it needs a `+page` or `+endpoint` at or below it. The root `app/+layout.tsx` is still required as the app shell.
+
+Group names must start with a letter or number and may contain letters, numbers, dots, underscores and hyphens. Two routes must not produce the same URL, or the same dynamic shape with different parameter names; the build fails with both file paths. A page and an endpoint may still share a URL, as before.
 
 ## Client Routing
 

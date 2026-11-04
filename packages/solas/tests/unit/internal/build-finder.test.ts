@@ -43,6 +43,15 @@ function dirent(name: string, isDir: boolean): Dirent {
 	} as Dirent
 }
 
+function mockTree(tree: Record<string, string[]>) {
+	mockReaddir.mockImplementation(async (dir: string) => {
+		return (tree[dir] ?? []).map(entry => {
+			const isDir = entry.endsWith('/')
+			return dirent(isDir ? entry.slice(0, -1) : entry, isDir)
+		}) as unknown as Dirent[]
+	})
+}
+
 function createBuildContext(overrides: Partial<BuildContext> = {}): BuildContext {
 	return {
 		command: 'build',
@@ -176,6 +185,162 @@ describe('Finder', () => {
 			expect(result.manifest['/api/data']).toBeDefined()
 		})
 
+		it('discovers grouped pages and endpoints at stripped routes', async () => {
+			const exportReader = Object.assign(new ExportReader(), {
+				literal: vi.fn().mockResolvedValue(undefined),
+				value: vi.fn().mockResolvedValue(undefined),
+				has: vi.fn().mockResolvedValue(false),
+				exports: vi.fn().mockResolvedValue(['GET']),
+			})
+
+			mockTree({
+				app: ['+layout.tsx', '(marketing)/'],
+				'app/(marketing)': ['+layout.tsx', 'blog/', 'api/'],
+				'app/(marketing)/blog': ['[slug]/'],
+				'app/(marketing)/blog/[slug]': ['+page.tsx'],
+				'app/(marketing)/api': ['+endpoint.ts'],
+			})
+
+			const finder = new Finder(createBuildContext({ exportReader }), {})
+			const result = await finder.run()
+
+			const page = result.manifest['/blog/:slug']
+			expect(page).toBeDefined()
+
+			if (page && !Array.isArray(page) && 'paths' in page) {
+				expect(page.__params).toEqual(['slug'])
+				expect(page.paths.layouts?.some(layout => layout?.includes('(marketing)'))).toBe(
+					true,
+				)
+			}
+
+			expect(result.manifest['/api']).toBeDefined()
+			expect(Array.isArray(result.manifest['/'])).toBe(false)
+		})
+
+		const conflictCases: {
+			name: string
+			tree: Record<string, string[]>
+			error: RegExp
+		}[] = [
+			{
+				name: 'two pages at the same URL',
+				tree: {
+					app: ['+layout.tsx', '(a)/', '(b)/'],
+					'app/(a)': ['about/'],
+					'app/(a)/about': ['+page.tsx'],
+					'app/(b)': ['about/'],
+					'app/(b)/about': ['+page.tsx'],
+				},
+				error: /Route conflict: \/about is declared by two pages/,
+			},
+			{
+				name: 'two endpoints for the same method',
+				tree: {
+					app: ['+layout.tsx', '(a)/', '(b)/'],
+					'app/(a)': ['users/'],
+					'app/(a)/users': ['+endpoint.ts'],
+					'app/(b)': ['users/'],
+					'app/(b)/users': ['+endpoint.ts'],
+				},
+				error: /Route conflict: GET \/users is declared by two endpoints/,
+			},
+			{
+				name: 'two routes with the same shape',
+				tree: {
+					app: ['+layout.tsx', '(a)/', '(b)/'],
+					'app/(a)': ['blog/'],
+					'app/(a)/blog': ['[id]/'],
+					'app/(a)/blog/[id]': ['+page.tsx'],
+					'app/(b)': ['blog/'],
+					'app/(b)/blog': ['[slug]/'],
+					'app/(b)/blog/[slug]': ['+page.tsx'],
+				},
+				error: /match the same URLs/,
+			},
+			{
+				name: 'an invalid group name',
+				tree: {
+					app: ['+layout.tsx', '(bad name)/'],
+					'app/(bad name)': ['about/'],
+					'app/(bad name)/about': ['+page.tsx'],
+				},
+				error: /Invalid route group "\(bad name\)"/,
+			},
+		]
+
+		it.each(conflictCases)('fails on $name', async ({ tree, error }) => {
+			const exportReader = Object.assign(new ExportReader(), {
+				literal: vi.fn().mockResolvedValue(undefined),
+				value: vi.fn().mockResolvedValue(undefined),
+				has: vi.fn().mockResolvedValue(false),
+				exports: vi.fn().mockResolvedValue(['GET']),
+			})
+
+			mockTree(tree)
+
+			const finder = new Finder(createBuildContext({ exportReader }), {})
+			await expect(finder.run()).rejects.toThrow(error)
+		})
+
+		it.each(['+endpoint.mts', '+endpoint.mjs'])(
+			'discovers %s endpoint files',
+			async file => {
+				const exportReader = Object.assign(new ExportReader(), {
+					literal: vi.fn().mockResolvedValue(undefined),
+					value: vi.fn().mockResolvedValue(undefined),
+					has: vi.fn().mockResolvedValue(false),
+					exports: vi.fn().mockResolvedValue(['GET']),
+				})
+
+				mockReaddir.mockImplementation(async (dir: string) => {
+					if (dir === 'app') {
+						return [
+							dirent('+layout.tsx', false),
+							dirent('api', true),
+						] as unknown as Dirent[]
+					}
+					if (dir === 'app/api') {
+						return [dirent(file, false)] as unknown as Dirent[]
+					}
+					return [] as unknown as Dirent[]
+				})
+
+				const finder = new Finder(createBuildContext({ exportReader }), {})
+				const result = await finder.run()
+
+				expect(result.manifest['/api']).toBeDefined()
+			},
+		)
+
+		it('ignores CommonJS endpoint files', async () => {
+			const exportReader = Object.assign(new ExportReader(), {
+				literal: vi.fn().mockResolvedValue(undefined),
+				value: vi.fn().mockResolvedValue(undefined),
+				has: vi.fn().mockResolvedValue(false),
+				exports: vi.fn().mockResolvedValue(['GET']),
+			})
+
+			mockReaddir.mockImplementation(async (dir: string) => {
+				if (dir === 'app') {
+					return [
+						dirent('+layout.tsx', false),
+						dirent('+page.tsx', false),
+						dirent('api', true),
+					] as unknown as Dirent[]
+				}
+				if (dir === 'app/api') {
+					return [dirent('+endpoint.cjs', false)] as unknown as Dirent[]
+				}
+				return [] as unknown as Dirent[]
+			})
+
+			const finder = new Finder(createBuildContext({ exportReader }), {})
+			const result = await finder.run()
+
+			expect(result.manifest['/api']).toBeUndefined()
+		})
+
 		it('discovers dynamic route params', async () => {
 			mockReaddir.mockImplementation(async (dir: string) => {
 				if (dir === 'app') {
@@ -259,6 +424,38 @@ describe('Finder', () => {
 				expect(entry.paths.middlewares?.[0]).toBeTruthy()
 			}
 		})
+
+		it.each(['+middleware.mts', '+middleware.mjs'])(
+			'discovers %s middleware files',
+			async file => {
+				const exportReader = Object.assign(new ExportReader(), {
+					literal: vi.fn().mockResolvedValue(undefined),
+					value: vi.fn().mockResolvedValue(undefined),
+					has: vi.fn().mockResolvedValue(true),
+					exports: vi.fn().mockResolvedValue([]),
+				})
+
+				mockReaddir.mockImplementation(async (dir: string) => {
+					if (dir === 'app') {
+						return [
+							dirent('+layout.tsx', false),
+							dirent(file, false),
+							dirent('+page.tsx', false),
+						] as unknown as Dirent[]
+					}
+					return [] as unknown as Dirent[]
+				})
+
+				const finder = new Finder(createBuildContext({ exportReader }), {})
+				const result = await finder.run()
+
+				const entry = result.manifest['/']
+				expect(entry).toBeDefined()
+				if (!Array.isArray(entry)) {
+					expect(entry.paths.middlewares?.[0]).toBeTruthy()
+				}
+			},
+		)
 
 		it('discovers loading files', async () => {
 			mockReaddir.mockImplementation(async (dir: string) => {

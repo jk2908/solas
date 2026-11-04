@@ -36,6 +36,39 @@ describe('Solas', () => {
 			expect(Config.TRAILING_SLASH_MODES).toEqual(['always', 'never', 'ignore'])
 		})
 
+		it('has expected route extensions', () => {
+			expect(Config.PAGE_EXTENSIONS).toEqual(['tsx', 'jsx'])
+			expect(Config.API_EXTENSIONS).toEqual(['ts', 'js', 'mts', 'mjs'])
+			expect(Config.ROUTE_EXTENSIONS).toEqual(['tsx', 'jsx', 'ts', 'js', 'mts', 'mjs'])
+		})
+
+		describe('route files', () => {
+			it('accepts every api extension for endpoints and middleware', () => {
+				for (const ext of Config.API_EXTENSIONS) {
+					expect(Config.ROUTE_FILE_RE.test(`/app/api/+endpoint.${ext}`)).toBe(true)
+					expect(Config.ROUTE_FILE_RE.test(`/app/+middleware.${ext}`)).toBe(true)
+					expect(Config.ENDPOINT_FILE_RE.test(`/app/api/+endpoint.${ext}`)).toBe(true)
+					expect(Config.ROUTE_EXTENSION_RE.test(`/app/api/+endpoint.${ext}`)).toBe(true)
+				}
+			})
+
+			it('accepts component extensions for pages and layouts', () => {
+				expect(Config.ROUTE_FILE_RE.test('/app/+page.tsx')).toBe(true)
+				expect(Config.ROUTE_FILE_RE.test('/app/+layout.jsx')).toBe(true)
+			})
+
+			it.each(['cts', 'cjs'])('rejects CommonJS %s routes', ext => {
+				expect(Config.ROUTE_FILE_RE.test(`/app/api/+endpoint.${ext}`)).toBe(false)
+				expect(Config.ENDPOINT_FILE_RE.test(`/app/api/+endpoint.${ext}`)).toBe(false)
+				expect(Config.ROUTE_EXTENSION_RE.test(`/app/api/+endpoint.${ext}`)).toBe(false)
+			})
+
+			it('does not treat ordinary modules as route files', () => {
+				expect(Config.ROUTE_FILE_RE.test('/app/api/helper.ts')).toBe(false)
+				expect(Config.ENDPOINT_FILE_RE.test('/app/api/+page.tsx')).toBe(false)
+			})
+		})
+
 		it('Config.$ is a symbol', () => {
 			expect(typeof Config.$).toBe('symbol')
 			expect(Config.$.toString()).toBe('Symbol(solas)')

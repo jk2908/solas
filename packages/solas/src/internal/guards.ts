@@ -4,6 +4,8 @@ import type { Plugin } from 'vite'
 
 import { Logger } from '../utils/logger.js'
 
+import { ENDPOINT_FILE_RE, ROUTE_EXTENSION_RE } from '../config.js'
+
 const logger = new Logger()
 
 /**
@@ -24,8 +26,8 @@ const LABEL: Record<number, string> = {
 	[Features.Endpoints]: 'a runtime endpoint',
 }
 
-const SOURCE = /\.(m?[jt]sx?)$/
-const ENDPOINT = /\+endpoint\.m?[jt]sx?$/
+const SOURCE = ROUTE_EXTENSION_RE
+const ENDPOINT = ENDPOINT_FILE_RE
 const USE_SERVER = /^\s*['"]use server['"]/m
 
 /**

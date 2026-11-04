@@ -21,6 +21,65 @@ export const PRERENDER_OPTIONS = [...PRERENDER_MODES, false] as const
 export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
 export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
+/**
+ * File extensions accepted for route modules.
+ *
+ * Components need JSX, so pages, layouts and boundaries only accept `.tsx` and
+ * `.jsx`. Endpoints and middleware are plain modules, so they also accept the
+ * ESM TypeScript and JavaScript extensions `.mts` and `.mjs`.
+ *
+ * `.cts` and `.cjs` are deliberately excluded: Vite's dev module runner treats
+ * them as ESM, so a CommonJS route module fails with `exports is not defined`.
+ */
+export const PAGE_EXTENSIONS = ['tsx', 'jsx'] as const
+export const API_EXTENSIONS = ['ts', 'js', 'mts', 'mjs'] as const
+
+export const ROUTE_EXTENSIONS = [...PAGE_EXTENSIONS, ...API_EXTENSIONS] as const
+
+const PAGE_PATTERN = PAGE_EXTENSIONS.join('|')
+const API_PATTERN = API_EXTENSIONS.join('|')
+const ROUTE_PATTERN = ROUTE_EXTENSIONS.join('|')
+
+/**
+ * Matches any route file the watcher should rebuild the graph for.
+ */
+export const ROUTE_FILE_RE = new RegExp(
+	`/\\+(layout|page|401|403|404|500|loading|middleware|endpoint)\\.(?:${ROUTE_PATTERN})$`,
+)
+
+/**
+ * Matches an endpoint route file.
+ */
+export const ENDPOINT_FILE_RE = new RegExp(`/\\+endpoint\\.(?:${API_PATTERN})$`)
+
+/**
+ * Matches the extension on a route module so it can be stripped from an
+ * import path.
+ */
+export const ROUTE_EXTENSION_RE = new RegExp(`\\.(?:${ROUTE_PATTERN})$`)
+
+/**
+ * Matches a page file suffix, including the separating slash.
+ */
+export const PAGE_SUFFIX_RE = new RegExp(`/\\+page\\.(?:${PAGE_PATTERN})$`)
+
+/**
+ * Matches an endpoint file suffix, including the separating slash.
+ */
+export const ENDPOINT_SUFFIX_RE = new RegExp(`/\\+endpoint\\.(?:${API_PATTERN})$`)
+
+/**
+ * A route group directory, for example `(marketing)`. Groups organise routes
+ * without adding a URL segment.
+ */
+export const ROUTE_GROUP_RE = /^\([A-Za-z0-9][A-Za-z0-9._-]*\)$/
+
+/**
+ * Any directory that looks like a route group, used to reject invalid group
+ * names instead of treating them as literal URL segments.
+ */
+export const ROUTE_GROUP_LIKE_RE = /^\([^()]*\)$/
+
 const CONFIG_KEYS = new Set([
 	'adapter',
 	'csp',

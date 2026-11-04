@@ -103,6 +103,26 @@ describe('Build', () => {
 			it('handles endpoint files with +endpoint.js', () => {
 				expect(Finder.toCanonicalRoute('app/api/data/+endpoint.js')).toBe('/api/data')
 			})
+
+			it('handles endpoint files with +endpoint.mts', () => {
+				expect(Finder.toCanonicalRoute('app/api/data/+endpoint.mts')).toBe('/api/data')
+			})
+
+			it('handles endpoint files with +endpoint.mjs', () => {
+				expect(Finder.toCanonicalRoute('app/api/data/+endpoint.mjs')).toBe('/api/data')
+			})
+
+			it.each([
+				['app/(marketing)/+page.tsx', '/'],
+				['app/(marketing)/about/+page.tsx', '/about'],
+				['app/blog/(comments)/[slug]/+page.tsx', '/blog/:slug'],
+			])('strips route groups in %s', (file, expected) => {
+				expect(Finder.toCanonicalRoute(file)).toBe(expected)
+			})
+
+			it('does not strip literal parentheses inside a segment', () => {
+				expect(Finder.toCanonicalRoute('app/foo(bar)/+page.tsx')).toBe('/foo(bar)')
+			})
 		})
 
 		describe('getImportPath', () => {
@@ -125,6 +145,12 @@ describe('Build', () => {
 				const cwd = process.cwd()
 				const result = Finder.getImportPath(`${cwd}/app/page/+page.tsx`)
 				expect(result).not.toMatch(/\.tsx$/)
+			})
+
+			it.each(['mts', 'mjs'])('strips the %s extension', ext => {
+				const cwd = process.cwd()
+				const result = Finder.getImportPath(`${cwd}/app/api/data/+endpoint.${ext}`)
+				expect(result).not.toMatch(new RegExp(`\\.${ext}$`))
 			})
 		})
 	})

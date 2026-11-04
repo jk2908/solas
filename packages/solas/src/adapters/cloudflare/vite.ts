@@ -194,7 +194,7 @@ export function adapter(options: SolasCloudflareOptions = {}) {
 			environment.optimizeDeps.entries = [
 				...new Set([
 					...(environment.optimizeDeps.entries ?? []),
-					`${Config.APP_DIR}/**/*.{tsx,ts,jsx,js}`,
+					`${Config.APP_DIR}/**/*.{${Config.ROUTE_EXTENSIONS.join(',')}}`,
 				]),
 			]
 		},

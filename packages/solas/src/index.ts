@@ -219,12 +219,6 @@ function solas(c?: PluginConfig): PluginOption[] {
 	// only route changes inside the app directory should trigger a rebuild
 	const inAppDir = (p: string) => toAbsoluteWatchPath(p).startsWith(WATCH_APP_ROOT)
 
-	// route graph rebuilds only care about framework route files, with endpoint
-	// edits needing special treatment because verb exports can change in-place
-	const routeFile =
-		/\/\+(layout|page|401|403|404|500|loading|middleware|endpoint)\.(t|j)sx?$/
-	const endpointFile = /\/\+endpoint\.(t|j)sx?$/
-
 	const rebuild = debounce((event: string, p: string) => {
 		const queue = () => {
 			void (async () => {
@@ -265,10 +259,10 @@ function solas(c?: PluginConfig): PluginOption[] {
 		}
 
 		// non-route files do not affect generated route artifacts
-		if (!routeFile.test(file)) return
+		if (!Config.ROUTE_FILE_RE.test(file)) return
 
 		// content changes only matter for route graph when endpoint verbs change
-		if (event === 'change' && !endpointFile.test(file)) return
+		if (event === 'change' && !Config.ENDPOINT_FILE_RE.test(file)) return
 
 		rebuildReason = `${event}: ${path.relative(WATCH_CWD, file)}`
 		queue()

@@ -54,6 +54,36 @@ export type ScanResult = {
 	endpoints: { file: string; middlewares: (string | null)[] }[]
 }
 
+type RouteOwner = {
+	route: string
+	file: string
+}
+
+type PreparedSegment = ScanResult['segments'][number] & {
+	route: string
+}
+
+class BuildError extends Error {
+	constructor(message: string) {
+		super(message)
+		this.name = 'BuildError'
+	}
+}
+
+class RouteConflictError extends BuildError {
+	constructor(message: string) {
+		super(message)
+		this.name = 'RouteConflictError'
+	}
+}
+
+class MissingMiddlewareExportError extends BuildError {
+	constructor(file: string) {
+		super(`Missing middleware export in ${file}`)
+		this.name = 'MissingMiddlewareExportError'
+	}
+}
+
 /**
  * Accumulated file paths inherited from parent directories during the recursive
  * scan. Each array slot corresponds to a nesting level; null means that
@@ -135,8 +165,8 @@ const logger = new Logger()
 
 // file extensions recognised for page components vs api endpoints
 const EXTENSIONS = {
-	page: ['tsx', 'jsx'],
-	api: ['ts', 'js'],
+	page: Config.PAGE_EXTENSIONS,
+	api: Config.API_EXTENSIONS,
 } as const
 
 // canonical file names for each route file type
@@ -228,10 +258,23 @@ export class Finder {
 	) {}
 
 	/**
+	 * Check whether a directory name declares a route group.
+	 */
+	static isRouteGroup(name: string) {
+		return Config.ROUTE_GROUP_RE.test(name)
+	}
+
+	/**
 	 * Extracts dynamic parameter names from a file path.
 	 */
 	static getParams(file: string) {
-		return Array.from(file.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
+		const normalised = file
+			.replace(/\\/g, '/')
+			.split('/')
+			.filter(segment => !Finder.isRouteGroup(segment))
+			.join('/')
+
+		return Array.from(normalised.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
 	}
 
 	/**
@@ -248,16 +291,114 @@ export class Finder {
 	 * Convert a file path to a canonical route.
 	 */
 	static toCanonicalRoute(file: string) {
-		const route = file
-			.replace(new RegExp(`^${Config.APP_DIR}`), '')
-			.replace(/\/\+page\.(j|t)sx?$/, '')
-			.replace(/\/\+endpoint\.(j|t)sx?$/, '')
-			.replace(/\[\.\.\..+?\]/g, '*') // wildcard routes
-			.replace(/\[(.+?)\]/g, ':$1') // dynamic routes
+		const segments = file
+			.replace(/\\/g, '/')
+			.replace(new RegExp(`^${Config.APP_DIR}(?=/|$)`), '')
+			.replace(Config.PAGE_SUFFIX_RE, '')
+			.replace(Config.ENDPOINT_SUFFIX_RE, '')
+			.split('/')
+			.filter(Boolean)
+			.filter(segment => !Finder.isRouteGroup(segment))
+			.map(
+				segment =>
+					segment
+						.replace(/\[\.\.\..+?\]/g, '*') // wildcard routes
+						.replace(/\[(.+?)\]/g, ':$1'), // dynamic routes
+			)
 
-		if (!route || route === '') return '/'
+		return segments.length ? `/${segments.join('/')}` : '/'
+	}
 
-		return route.startsWith('/') ? route : `/${route}`
+	/**
+	 * Reduce a route to the URL shape it matches, ignoring dynamic parameter
+	 * names.
+	 */
+	static getRouteShape(route: string) {
+		return route.replace(/:[^/]+/g, ':')
+	}
+
+	/**
+	 * Reject directories that look like route groups but use an unsupported
+	 * name.
+	 */
+	static validateRouteGroups(res: ScanResult) {
+		const paths = new Set<string>()
+
+		for (const segment of res.segments) {
+			paths.add(segment.dir)
+			if (segment.page) paths.add(segment.page)
+		}
+
+		for (const endpoint of res.endpoints) paths.add(endpoint.file)
+
+		for (const file of paths) {
+			const normalised = file.replace(/\\/g, '/')
+
+			for (const segment of normalised.split('/')) {
+				if (Config.ROUTE_GROUP_LIKE_RE.test(segment) && !Finder.isRouteGroup(segment)) {
+					throw new BuildError(
+						`Invalid route group "${segment}" in ${normalised}. Group names must start with a letter or number and contain only letters, numbers, dots, underscores or hyphens.`,
+					)
+				}
+			}
+		}
+	}
+
+	/**
+	 * Resolve scanned segments to canonical routes and reject ambiguous routes.
+	 *
+	 * A page supersedes a layout-only segment at the same route, because the
+	 * page already carries the full layout chain.
+	 */
+	static prepareSegments(segments: ScanResult['segments']) {
+		const pages = new Map<string, string>()
+		const layouts = new Map<string, string>()
+		const byShape = new Map<string, RouteOwner>()
+		const prepared: PreparedSegment[] = []
+
+		for (const segment of segments) {
+			const file = segment.page ?? `${segment.dir.replace(/\\/g, '/')}/+page.tsx`
+			const route = Finder.toCanonicalRoute(file)
+			const shape = Finder.getRouteShape(route)
+			const owner = byShape.get(shape)
+
+			if (owner && owner.route !== route) {
+				throw new RouteConflictError(
+					`Route conflict: ${owner.route} and ${route} match the same URLs (${owner.file} and ${file}). Use the same parameter name in both routes.`,
+				)
+			}
+
+			if (!owner) byShape.set(shape, { route, file })
+
+			if (segment.page) {
+				const existing = pages.get(route)
+
+				if (existing) {
+					throw new RouteConflictError(
+						`Route conflict: ${route} is declared by two pages (${existing} and ${segment.page}).`,
+					)
+				}
+
+				pages.set(route, segment.page)
+			} else {
+				const existing = layouts.get(route)
+
+				if (existing) {
+					throw new RouteConflictError(
+						`Route conflict: ${route} has two layout-only segments (${existing} and ${segment.dir}).`,
+					)
+				}
+
+				layouts.set(route, segment.dir)
+			}
+
+			prepared.push({ ...segment, route })
+		}
+
+		return {
+			segments: prepared.filter(segment => segment.page || !pages.has(segment.route)),
+			byShape,
+		}
 	}
 
 	/**
@@ -275,7 +416,7 @@ export class Finder {
 		const result = path
 			.relative(generatedDir, path.resolve(cwd, file))
 			.replace(/\\/g, '/')
-			.replace(/\.(t|j)sx?$/, '')
+			.replace(Config.ROUTE_EXTENSION_RE, '')
 
 		// shared shells, layouts and boundaries are resolved once per segment, so
 		// cache the result for the rest of the build
@@ -342,6 +483,7 @@ export class Finder {
 
 			const state: DirState = {}
 			let currentPage: string | undefined
+			const isGroup = Finder.isRouteGroup(path.basename(dir))
 
 			for (const file of files) {
 				const route = path.join(dir, file.name)
@@ -349,7 +491,12 @@ export class Finder {
 				if (file.isDirectory()) {
 					// before recursing, create segment for current dir
 					// if it has a layout (wraps child routes)
-					if (!currentPage && state.layout) {
+					if (
+						!isGroup &&
+						!currentPage &&
+						state.layout &&
+						!res.segments.some(s => s.dir === dir)
+					) {
 						const segment = buildSegment(dir, undefined, extendChains(prev, state))
 						if (segment) res.segments.push(segment)
 					}
@@ -382,7 +529,7 @@ export class Finder {
 						currentPage = relative
 
 						const segment = buildSegment(dir, relative, extendChains(prev, state))
-						if (!segment) throw new Error('Missing app shell')
+						if (!segment) throw new BuildError('Missing app shell')
 						res.segments.push(segment)
 					}
 				}
@@ -390,6 +537,7 @@ export class Finder {
 
 			// warn if segment has status boundaries/loading but no page or layout
 			if (
+				!isGroup &&
 				!currentPage &&
 				!state.layout &&
 				(state['401'] || state['403'] || state['404'] || state['500'] || state.loader)
@@ -401,13 +549,20 @@ export class Finder {
 
 			// create segment if we have a layout but no page
 			// and haven't created one yet
-			if (!currentPage && state.layout && !res.segments.some(s => s.dir === dir)) {
+			if (
+				!isGroup &&
+				!currentPage &&
+				state.layout &&
+				!res.segments.some(s => s.dir === dir)
+			) {
 				const segment = buildSegment(dir, undefined, extendChains(prev, state))
 				if (segment) res.segments.push(segment)
 			}
 
 			return res satisfies ScanResult
 		} catch (err) {
+			if (err instanceof BuildError) throw err
+
 			logger.error(`[Build:Finder:#scan]: Failed to compose manifest from ${dir}`, err)
 
 			return {
@@ -435,6 +590,9 @@ export class Finder {
 
 		const trailingSlash = this.config?.trailingSlash ?? 'never'
 
+		Finder.validateRouteGroups(res)
+		const { segments, byShape } = Finder.prepareSegments(res.segments)
+
 		// route path → segment/endpoint entries, used at runtime
 		// to look up the component tree for a matched route
 		const manifest: Record<string, Segment | Endpoint | (Segment | Endpoint)[]> = {}
@@ -457,7 +615,7 @@ export class Finder {
 		// only trigger one export read across routes
 		const prerenderCache = new Map<string, Route.PrerenderMode | false | undefined>()
 
-		for (const segment of res.segments) {
+		for (const segment of segments) {
 			try {
 				if (!this.buildContext || !this.config) continue
 
@@ -474,12 +632,7 @@ export class Finder {
 					dir,
 				} = segment
 
-				// derive the route pattern from the directory path, falling
-				// back to a synthetic +page.tsx when this is
-				// a layout-only segment
-				const route = Finder.toCanonicalRoute(
-					pagePath ?? `${dir.replace(/\\/g, '/')}/+page.tsx`,
-				)
+				const route = segment.route
 				const params = Finder.getParams(dir)
 				const depth = Finder.getDepth(route)
 
@@ -654,7 +807,7 @@ export class Finder {
 						if (
 							!(await this.buildContext.exportReader.has(middlewarePath, 'middleware'))
 						) {
-							throw new Error(`Missing middleware export in ${middlewarePath}`)
+							throw new MissingMiddlewareExportError(middlewarePath)
 						}
 
 						imports.middlewares.static.set(middlewareId, middlewareImport)
@@ -763,13 +916,13 @@ export class Finder {
 					middlewareIds,
 				}
 			} catch (err) {
-				if (err instanceof Error && err.message.startsWith('Missing middleware export')) {
-					throw err
-				}
+				if (err instanceof BuildError) throw err
 
 				logger.error('[Build:Finder:process]: failed to process segment', err)
 			}
 		}
+
+		const endpointOwners = new Map<string, string>()
 
 		// process api endpoints — each file can export multiple HTTP
 		// verbs which become separate manifest entries grouped
@@ -783,11 +936,13 @@ export class Finder {
 
 				const route = Finder.toCanonicalRoute(endpointFilePath)
 				const params = Finder.getParams(endpointFilePath)
+				const shape = Finder.getRouteShape(route)
 
 				const endpointExports =
 					await this.buildContext.exportReader.exports(endpointFilePath)
 
 				const group: Endpoint[] = []
+				let shapeChecked = false
 
 				for (const method of endpointExports) {
 					if (!HTTP_VERBS.includes(method as HttpMethod)) {
@@ -798,7 +953,33 @@ export class Finder {
 						continue
 					}
 
+					if (!shapeChecked) {
+						const shapeOwner = byShape.get(shape)
+
+						if (shapeOwner && shapeOwner.route !== route) {
+							throw new RouteConflictError(
+								`Route conflict: ${shapeOwner.route} and ${route} match the same URLs (${shapeOwner.file} and ${endpointFilePath}). Use the same parameter name in both routes.`,
+							)
+						}
+
+						if (!shapeOwner) {
+							byShape.set(shape, { route, file: endpointFilePath })
+						}
+
+						shapeChecked = true
+					}
+
 					const m = method.toLowerCase() as Lowercase<HttpMethod>
+					const owner = endpointOwners.get(`${method}\0${route}`)
+
+					if (owner) {
+						throw new RouteConflictError(
+							`Route conflict: ${method} ${route} is declared by two endpoints (${owner} and ${endpointFilePath}).`,
+						)
+					}
+
+					endpointOwners.set(`${method}\0${route}`, endpointFilePath)
+
 					const endpointId = `${EntryKind.ENDPOINT}${hash(Finder.getImportPath(endpointFilePath))}_${m}`
 
 					const middlewareIds = await Promise.all(
@@ -817,7 +998,7 @@ export class Finder {
 										'middleware',
 									))
 								) {
-									throw new Error(`Missing middleware export in ${middlewarePath}`)
+									throw new MissingMiddlewareExportError(middlewarePath)
 								}
 
 								imports.middlewares.static.set(middlewareId, middlewareImport)
@@ -876,9 +1057,7 @@ export class Finder {
 					manifest[route] = entry
 				}
 			} catch (err) {
-				if (err instanceof Error && err.message.startsWith('Missing middleware export')) {
-					throw err
-				}
+				if (err instanceof BuildError) throw err
 
 				logger.error('[Build:Finder:process]: failed to process route', err)
 			}
