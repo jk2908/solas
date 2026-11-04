@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.18.0
+
+### Breaking
+
+- Route group directories are reserved syntax. A directory whose name is entirely wrapped in parentheses, such as `(marketing)`, no longer contributes a URL segment.
+- Ambiguous routes now fail the build. This covers two pages at the same URL, two endpoints for the same method and URL, and routes such as `/blog/:id` and `/blog/:slug` that match the same URLs.
+
+### Features
+
+- Route groups: directories wrapped in parentheses group routes without adding a URL segment. Groups inherit layouts, loading states, status boundaries and middleware, and work for pages and endpoints. A group never creates a route by itself; `app/+layout.tsx` remains the app shell.
+- Endpoints and middleware accept `.mts` and `.mjs` in addition to `.ts` and `.js`. CommonJS `.cts` and `.cjs` route modules remain unsupported.
+
+### Fixes
+
+- A missing `app/+layout.tsx` shell now fails the build instead of being logged and skipped.
+- The route watcher and build guards recognise every supported route extension, so `.mts` and `.mjs` edits rebuild the graph and report unsupported adapter features.
+- Duplicate layout-only segments are no longer emitted when a directory has multiple child directories.
+
+### Changed
+
+- Fatal route-graph errors use a shared `BuildError` type instead of matching error message prefixes.
+- The Cloudflare adapter scans `.mts` and `.mjs` route files when pre-bundling request-time dependencies.
+
 ## 0.17.2
 
 ### Docs
