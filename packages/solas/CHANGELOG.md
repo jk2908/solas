@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.19.1
+
+### Fixes
+
+- The Cloudflare development entry now receives the route client CSS map, so client component styles are linked in the initial HTML during dev.
+- Development route CSS collection uses Vite's `transformRequest` instead of requiring a runnable RSC environment.
+
 ## 0.19.0
 
 ### Features
