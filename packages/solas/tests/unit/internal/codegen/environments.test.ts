@@ -61,7 +61,7 @@ describe('writeCloudflareEntry', () => {
 			"import { createWorker } from '@jk2908/solas/runtime/cloudflare'",
 		)
 		expect(result).toContain(
-			'export default createWorker({ config, manifest, importMap })',
+			'createWorker({ config, manifest, importMap, devClientCssByRoute })',
 		)
 		expect(result).not.toContain('Runtime')
 	})

@@ -42,8 +42,9 @@ export function writeCloudflareEntry() {
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'
 		import { config } from './config.js'
+		import { clientCssByRoute as devClientCssByRoute } from 'virtual:solas-dev-client-css'
 
-		export default createWorker({ config, manifest, importMap })
+		export default createWorker({ config, manifest, importMap, devClientCssByRoute })
 	`
 }
 

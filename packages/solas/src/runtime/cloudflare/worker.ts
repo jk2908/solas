@@ -8,6 +8,7 @@ export type CreateWorkerOptions = {
 	config: RuntimeConfig
 	manifest: Manifest
 	importMap: ImportMap
+	devClientCssByRoute?: Record<string, string[]>
 }
 
 type Handler = Awaited<ReturnType<typeof createRuntimeHandler>>
@@ -30,6 +31,7 @@ export function createWorker(options: CreateWorkerOptions) {
 			options.manifest,
 			options.importMap,
 			assets,
+			{ devClientCssByRoute: options.devClientCssByRoute },
 		)
 	}
 

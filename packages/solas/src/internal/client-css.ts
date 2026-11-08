@@ -261,18 +261,16 @@ export async function collectDevClientCss(
 ) {
 	const plan: Record<string, string[]> = {}
 
+	// client module id -> CSS URLs already discovered for it
 	const clientCss = new Map<string, Set<string>>()
-	const loadedModules = new Set<string>()
+	// RSC modules already transformed in dev
+	const transformedModules = new Set<string>()
+	// module id -> direct imports; null means the transform failed
 	const moduleImports = new Map<string, string[] | null>()
-
+	// extensionless route path -> resolved file; null means no file was found
 	const routeFiles = new Map<string, string | null>()
 	// plugin-rsc records every 'use client' module here during transform
 	const metaMap = getPluginApi(server.config)?.manager.clientReferenceMetaMap ?? {}
-	// dev environments expose a runner at runtime, but Vite's public type omits it
-	const rsc = server.environments.rsc as typeof server.environments.rsc & {
-		runner: { import: (url: string) => Promise<unknown> }
-	}
-
 	// no routes means there is nothing to map
 	if (!routes) return plan
 
@@ -286,18 +284,18 @@ export async function collectDevClientCss(
 		return resolved
 	}
 
-	// import each RSC module once, then cache its direct imports
+	// transform each RSC module once, then cache its direct imports
 	async function getModuleImports(file: string) {
 		if (moduleImports.has(file)) return moduleImports.get(file) ?? []
 
-		if (!loadedModules.has(file)) {
-			loadedModules.add(file)
+		if (!transformedModules.has(file)) {
+			transformedModules.add(file)
 
 			try {
-				// importing transforms this module and its dependencies into the RSC graph
-				await rsc.runner.import(pathToFileURL(file).href)
+				// transforming adds this module and its dependencies to the RSC graph
+				await server.environments.rsc.transformRequest(pathToFileURL(file).href)
 			} catch {
-				// cache failed imports as null so other routes skip them
+				// cache failed transforms as null so other routes skip them
 				moduleImports.set(file, null)
 				return []
 			}
@@ -329,11 +327,12 @@ export async function collectDevClientCss(
 
 			visited.add(file)
 
-			for (const imported of await getModuleImports(file)) {
-				// a meta-map entry marks a module as a client boundary
-				if (metaMap[imported]) clientModules.add(imported)
-				pending.push(imported)
-			}
+			const imports = await getModuleImports(file)
+
+			// transforming the file may have registered it as a client boundary
+			if (metaMap[file]) clientModules.add(file)
+
+			for (const imported of imports) pending.push(imported)
 		}
 
 		return clientModules
