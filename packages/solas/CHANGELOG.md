@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.19.0
+
+### Features
+
+- Client component CSS is linked in the initial HTML per route, preventing a flash of unstyled content for prerendered, PPR and dynamic routes. Production builds derive the stylesheet plan from the RSC bundle graph; development derives it from Vite's module graph.
+- Shared client-entry CSS is included on every route, while client-reference CSS is linked only for routes that use it.
+
+### Changed
+
+- The runtime manifest stores `clientCssByRoute`; there is no global client CSS union or runtime fallback.
+- Development uses blocking `?direct` stylesheet links. Vite's HMR stylesheet may also appear, so the same CSS can be present twice in dev; production emits only the stylesheet link.
+- The Cloudflare adapter resolves the RSC asset manifest from the RSC environment output directory.
+
 ## 0.18.0
 
 ### Breaking
