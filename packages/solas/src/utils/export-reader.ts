@@ -1,12 +1,9 @@
+import type { Program, StaticExport, StaticExportEntry } from 'oxc-parser'
+
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import {
-	parseSync,
-	type Program,
-	type StaticExport,
-	type StaticExportEntry,
-} from 'oxc-parser'
+import { parseModuleSource, type SourceLoader } from './module.js'
 
 type ModuleLoader = (filePath: string) => Promise<Record<string, unknown>>
 
@@ -33,20 +30,6 @@ export class ExportReader {
 	#loadModule: ModuleLoader | null = null
 
 	/**
-	 * Pick the parser language that matches the source file extension.
-	 */
-	static #getLoaderType(filePath: string): ExportReader.LoaderType {
-		const ext = path.extname(filePath).toLowerCase()
-
-		if (ext === '.js' || ext === '.mjs' || ext === '.cjs') return 'js'
-		if (ext === '.jsx') return 'jsx'
-		if (ext === '.ts' || ext === '.mts' || ext === '.cts') return 'ts'
-		if (ext === '.tsx') return 'tsx'
-
-		throw new Error(`Unsupported module extension: ${ext || '(none)'} in ${filePath}`)
-	}
-
-	/**
 	 * Set the module loader used to execute route modules.
 	 */
 	set loadModule(l: ModuleLoader) {
@@ -57,12 +40,11 @@ export class ExportReader {
 	 * Parse a source file as an ESM route module.
 	 */
 	async #parse(filePath: string) {
-		const source = await this.raw(filePath)
-		const result = parseSync(filePath, source, {
-			lang: ExportReader.#getLoaderType(filePath),
-			sourceType: 'module',
-			preserveParens: false,
-		})
+		const result = parseModuleSource(filePath, await this.raw(filePath))
+
+		if (!result) {
+			throw new Error(`Unsupported module extension in ${filePath}`)
+		}
 
 		if (result.errors.length > 0) {
 			throw new Error(result.errors[0]?.message ?? `Failed to parse ${filePath}`)
@@ -201,6 +183,6 @@ export class ExportReader {
 }
 
 export namespace ExportReader {
-	export type LoaderType = 'js' | 'jsx' | 'ts' | 'tsx'
+	export type LoaderType = SourceLoader
 	export type Validator<T> = (value: unknown) => value is T
 }

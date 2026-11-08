@@ -1,3 +1,4 @@
+import { normalisePath } from './utils/path.js'
 import { isRecord, isStringArray } from './utils/validation.js'
 
 import type { Assets } from './internal/assets.js'
@@ -10,13 +11,14 @@ export type Manifest = {
 	artifacts: Prerender.ArtifactManifest
 	publicFiles: ReadonlySet<string>
 	csp?: CspConfig
+	clientCssByRoute?: Record<string, string[]>
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 }
 
 export function getManifestPath(outDir: string) {
 	return [outDir, Config.GENERATED_DIR, Config.RUNTIME_MANIFEST]
 		.map((part, index) => {
-			const normalised = part.replace(/\\/g, '/').replace(/\/+/g, '/')
+			const normalised = normalisePath(part).replace(/\/+/g, '/')
 
 			if (index === 0) return normalised.replace(/\/+$/, '')
 			return normalised.replace(/^\/+/, '').replace(/\/+$/, '')
@@ -53,6 +55,22 @@ export async function loadManifest(assets: Assets = nodeAssets) {
 			} else {
 				return null
 			}
+		}
+
+		let clientCssByRoute: Record<string, string[]> | undefined
+
+		if (value.clientCssByRoute !== undefined) {
+			if (!isRecord(value.clientCssByRoute)) return null
+
+			const byRoute: Record<string, string[]> = {}
+
+			for (const [route, css] of Object.entries(value.clientCssByRoute)) {
+				if (!isStringArray(css)) return null
+
+				byRoute[route] = css
+			}
+
+			clientCssByRoute = byRoute
 		}
 
 		let cspConfig: CspConfig | undefined
@@ -119,6 +137,7 @@ export async function loadManifest(assets: Assets = nodeAssets) {
 			artifacts: parsedArtifacts,
 			publicFiles: parsedPublicFiles,
 			csp: cspConfig,
+			clientCssByRoute,
 			trailingSlash,
 		}
 	} catch {

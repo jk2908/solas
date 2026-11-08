@@ -42,11 +42,18 @@ function toSafeUsable(metadata: Collection.Item | Promise<Collection.Item>) {
 export function Head({
 	metadata: m,
 	url,
+	clientCss,
 }: {
 	metadata?: Collection.Item | Promise<Collection.Item>
 	url?: { pathname: string }
+	clientCss?: readonly string[]
 }) {
-	if (!m) return null
+	const clientLinks = clientCss?.map(href => (
+		<link key={href} rel="stylesheet" href={href} precedence="default" />
+	))
+
+	if (!m) return <>{clientLinks}</>
+
 	const metadata = use(toSafeUsable(m))
 
 	// canonical url from the resolved origin and the request path, unless the
@@ -59,6 +66,8 @@ export function Head({
 
 	return (
 		<>
+			{clientLinks}
+
 			<meta name="generator" content={Config.NAME} />
 
 			{canonical && <link rel="canonical" href={canonical} />}

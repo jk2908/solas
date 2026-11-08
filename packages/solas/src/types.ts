@@ -90,6 +90,7 @@ export type RuntimeConfig = PluginConfig & {
 export type BuildContext = {
 	prerenderRoutes: Set<string>
 	knownRoutes: Set<string>
+	routeModulePaths?: Record<string, RoutePaths>
 	exportReader: ExportReader
 	command?: 'build' | 'serve'
 }
@@ -128,6 +129,8 @@ export type Segment = {
 	dynamic: boolean
 	wildcard: boolean
 }
+
+export type RoutePaths = Segment['paths']
 
 export type Endpoint = {
 	__id: string

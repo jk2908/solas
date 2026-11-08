@@ -5,6 +5,7 @@ import path from 'node:path'
 
 import { hash } from '../utils/hash.js'
 import { Logger } from '../utils/logger.js'
+import { normalisePath } from '../utils/path.js'
 
 import type {
 	BuildContext,
@@ -268,8 +269,7 @@ export class Finder {
 	 * Extracts dynamic parameter names from a file path.
 	 */
 	static getParams(file: string) {
-		const normalised = file
-			.replace(/\\/g, '/')
+		const normalised = normalisePath(file)
 			.split('/')
 			.filter(segment => !Finder.isRouteGroup(segment))
 			.join('/')
@@ -291,8 +291,7 @@ export class Finder {
 	 * Convert a file path to a canonical route.
 	 */
 	static toCanonicalRoute(file: string) {
-		const segments = file
-			.replace(/\\/g, '/')
+		const segments = normalisePath(file)
 			.replace(new RegExp(`^${Config.APP_DIR}(?=/|$)`), '')
 			.replace(Config.PAGE_SUFFIX_RE, '')
 			.replace(Config.ENDPOINT_SUFFIX_RE, '')
@@ -332,7 +331,7 @@ export class Finder {
 		for (const endpoint of res.endpoints) paths.add(endpoint.file)
 
 		for (const file of paths) {
-			const normalised = file.replace(/\\/g, '/')
+			const normalised = normalisePath(file)
 
 			for (const segment of normalised.split('/')) {
 				if (Config.ROUTE_GROUP_LIKE_RE.test(segment) && !Finder.isRouteGroup(segment)) {
@@ -357,7 +356,7 @@ export class Finder {
 		const prepared: PreparedSegment[] = []
 
 		for (const segment of segments) {
-			const file = segment.page ?? `${segment.dir.replace(/\\/g, '/')}/+page.tsx`
+			const file = segment.page ?? `${normalisePath(segment.dir)}/+page.tsx`
 			const route = Finder.toCanonicalRoute(file)
 			const shape = Finder.getRouteShape(route)
 			const owner = byShape.get(shape)
@@ -413,10 +412,9 @@ export class Finder {
 		if (cached !== undefined) return cached
 
 		const generatedDir = path.join(cwd, Config.GENERATED_DIR)
-		const result = path
-			.relative(generatedDir, path.resolve(cwd, file))
-			.replace(/\\/g, '/')
-			.replace(Config.ROUTE_EXTENSION_RE, '')
+		const result = normalisePath(
+			path.relative(generatedDir, path.resolve(cwd, file)),
+		).replace(Config.ROUTE_EXTENSION_RE, '')
 
 		// shared shells, layouts and boundaries are resolved once per segment, so
 		// cache the result for the rest of the build
@@ -504,7 +502,7 @@ export class Finder {
 					await this.#scan(route, res, extendChains(prev, state))
 				} else {
 					const base = path.basename(file.name)
-					const relative = path.relative(process.cwd(), route).replace(/\\/g, '/')
+					const relative = normalisePath(path.relative(process.cwd(), route))
 
 					if (validFiles[TYPES.layout].has(base)) {
 						state.layout = relative

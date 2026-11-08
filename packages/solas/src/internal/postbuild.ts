@@ -3,10 +3,12 @@ import path from 'node:path'
 
 import * as Compress from '../utils/compress.js'
 import { Logger } from '../utils/logger.js'
+import { normalisePath } from '../utils/path.js'
 
 import type { BuildManifest, CspConfig } from '../types.js'
 import * as Config from '../config.js'
 import * as Manifest from '../manifest.js'
+import { loadClientCssByRoute, loadClientCssManifest } from './client-css.js'
 import { buildPolicy } from './csp.js'
 import { hashInlineAssets } from './hash-inline-assets.js'
 import * as Prerender from './prerender.js'
@@ -24,6 +26,15 @@ export type PrerenderImport = () => Promise<{ default: App }>
 export type PostbuildOptions = {
 	csp?: CspConfig
 	load?: PrerenderImport
+	/**
+	 * Directory containing the built RSC bundle and its Vite asset manifest.
+	 * Defaults to `<outDir>/rsc`.
+	 */
+	rscDir?: string
+	/**
+	 * Client reference keys for each route, collected from the RSC bundle.
+	 */
+	routeReferences?: Record<string, string[]>
 }
 
 /**
@@ -37,7 +48,7 @@ export async function postbuild(
 	cwd: string = process.cwd(),
 	options: PostbuildOptions = {},
 ) {
-	const { csp, load: customLoad } = options
+	const { csp, load: customLoad, rscDir: configuredRscDir, routeReferences } = options
 	const manifestPath = path.join(cwd, Config.GENERATED_DIR, 'build.json')
 
 	let manifest: BuildManifest
@@ -51,7 +62,9 @@ export async function postbuild(
 	}
 
 	const outDir = path.resolve(cwd, Config.OUT_DIR)
-	const rscDir = path.join(outDir, 'rsc')
+	const rscDir = path.resolve(cwd, configuredRscDir ?? path.join(Config.OUT_DIR, 'rsc'))
+	const clientCssManifest = await loadClientCssManifest(outDir, rscDir)
+	const clientCssByRoute = loadClientCssByRoute(routeReferences ?? {}, clientCssManifest)
 	const artifactRoot = Prerender.getArtifactRootPath(outDir)
 	const staticRoot = path.join(outDir, 'static')
 	const staticMode = manifest.trailingSlash === 'always' ? 'always' : 'never'
@@ -72,6 +85,18 @@ export async function postbuild(
 		logger.info(
 			'[prerender]',
 			`prerendering ${manifest.prerenderRoutes.length} routes (concurrency: ${concurrency})...`,
+		)
+
+		// the generated RSC entry loads the runtime manifest when it is imported.
+		// Publish the route CSS plan first so prerendering uses the same lookup
+		// as a normal request. The final manifest replaces this partial
+		// one below.
+		const preliminaryManifestPath = Manifest.getManifestPath(outDir)
+
+		await fs.mkdir(path.dirname(preliminaryManifestPath), { recursive: true })
+		await fs.writeFile(
+			preliminaryManifestPath,
+			JSON.stringify({ artifacts: {}, clientCssByRoute }),
 		)
 
 		const entry = path.join(rscDir, 'index.js')
@@ -112,8 +137,9 @@ export async function postbuild(
 
 			const artifact = result.artifact
 			const artifactDir = Prerender.getArtifactPath(outDir, route)
+			const html = artifact.html
 
-			const csp = hashInlineAssets(artifact.html)
+			const csp = hashInlineAssets(html)
 			const hashes = csp.script.length > 0 || csp.style.length > 0 ? { csp } : {}
 
 			await enqueueWrite(async () => {
@@ -122,7 +148,7 @@ export async function postbuild(
 						await fs.mkdir(artifactDir, { recursive: true })
 
 						const writes: Promise<void>[] = [
-							fs.writeFile(path.join(artifactDir, 'prelude.html'), artifact.html),
+							fs.writeFile(path.join(artifactDir, 'prelude.html'), html),
 							fs.writeFile(
 								path.join(artifactDir, 'metadata.json'),
 								JSON.stringify({
@@ -166,7 +192,7 @@ export async function postbuild(
 					)
 
 					await fs.mkdir(path.dirname(staticPath), { recursive: true })
-					await fs.writeFile(staticPath, artifact.html)
+					await fs.writeFile(staticPath, html)
 
 					// a static host has no server to answer an RSC navigation, so emit
 					// the payload next to the HTML for the client router to fetch
@@ -224,6 +250,7 @@ export async function postbuild(
 				Object.values(artfifactManifest).flatMap(artifact => artifact.csp?.style ?? []),
 			),
 		]
+
 		let largestRoute = ''
 		let largestSize = 0
 
@@ -305,6 +332,7 @@ export async function postbuild(
 		artifacts: artfifactManifest,
 		publicFiles: [...manifest.publicFiles, ...generatedPublicFiles],
 		csp,
+		clientCssByRoute,
 		trailingSlash: manifest.trailingSlash,
 	}
 
@@ -325,7 +353,7 @@ export async function postbuild(
 					return false
 				}
 
-				const normalisedPath = relativePath.split(path.sep).join('/')
+				const normalisedPath = normalisePath(relativePath)
 
 				// browser-served client assets and static prerendered routes benefit
 				// from generic precompression; internal ppr support files are read by

@@ -12,20 +12,26 @@ import {
 	type ViteDevServer,
 } from 'vite'
 
-import rsc from '@vitejs/plugin-rsc'
+import rsc, { getPluginApi } from '@vitejs/plugin-rsc'
 
 import { ExportReader } from './utils/export-reader.js'
 import { Logger } from './utils/logger.js'
+import { normalisePath } from './utils/path.js'
 import { debounce } from './utils/time.js'
 
 import type {
 	BuildContext,
 	ConfiguredPluginConfig,
+	Endpoint,
 	Origin,
 	PluginConfig,
 } from './types.js'
 import * as Config from './config.js'
 import * as Build from './internal/build.js'
+import {
+	collectDevClientCss,
+	collectRouteClientReferences,
+} from './internal/client-css.js'
 import { writeConfig } from './internal/codegen/config.js'
 import {
 	writeBrowserEntry,
@@ -79,6 +85,9 @@ function solas(c?: PluginConfig): PluginOption[] {
 		knownRoutes: new Set<string>(),
 		exportReader,
 	}
+
+	let devClientCssCache: Record<string, string[]> | undefined
+	let devServer: ViteDevServer | undefined
 
 	// cache for file contents to avoid unnecessary readFile invocations
 	const fileCache = new Map<string, string>()
@@ -156,6 +165,14 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 		buildContext.prerenderRoutes = prerenderRoutes
 		buildContext.knownRoutes = knownRoutes
+		buildContext.routeModulePaths = Object.fromEntries(
+			Object.entries(manifest).flatMap(([route, value]) =>
+				(Array.isArray(value) ? value : [value])
+					.filter((entry): entry is Exclude<typeof entry, Endpoint> => 'paths' in entry)
+					.map(entry => [route, entry.paths]),
+			),
+		)
+		devClientCssCache = undefined
 
 		const files: [string, string][] = [
 			['config.ts', writeConfig(config)],
@@ -206,11 +223,11 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 	// normalise all watcher paths to forward slashes so path checks behave the
 	// same on Windows and POSIX
-	const WATCH_CWD = process.cwd().replace(/\\/g, '/')
+	const WATCH_CWD = normalisePath(process.cwd())
 	const WATCH_APP_ROOT = `${WATCH_CWD}/${Config.APP_DIR}/`
 
 	// convert watcher paths to a consistent slash format before comparing them
-	const normaliseWatchPath = (p: string) => p.replace(/\\/g, '/')
+	const normaliseWatchPath = normalisePath
 
 	// resolve relative watcher paths against the project root so prefix checks are reliable
 	const toAbsoluteWatchPath = (p: string) =>
@@ -402,6 +419,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			buildContext.command = resolvedConfig.command
 		},
 		configureServer(server: ViteDevServer) {
+			devServer = server
 			logger.info('[configureServer]', `Watching for changes in ./${Config.APP_DIR}...`)
 
 			server.watcher
@@ -410,6 +428,24 @@ function solas(c?: PluginConfig): PluginOption[] {
 				.on('unlink', (p: string) => rebuild('unlink', p))
 				.on('addDir', (p: string) => rebuild('addDir', p))
 				.on('unlinkDir', (p: string) => rebuild('unlinkDir', p))
+		},
+		resolveId(source: string) {
+			if (source === 'virtual:solas-dev-client-css') return `\0${source}`
+		},
+		async load(id: string) {
+			if (id !== '\0virtual:solas-dev-client-css') return
+
+			if (!resolvedViteConfig || resolvedViteConfig.command !== 'serve' || !devServer) {
+				return 'export const clientCssByRoute = {}'
+			}
+
+			devClientCssCache ??= await collectDevClientCss(
+				devServer,
+				buildContext.routeModulePaths,
+				path.join(resolvedViteConfig.root, Config.GENERATED_DIR),
+			)
+
+			return `export const clientCssByRoute = ${JSON.stringify(devClientCssCache)}`
 		},
 		async buildStart() {
 			logger.info('[buildStart]', 'building route graph...')
@@ -470,10 +506,19 @@ function solas(c?: PluginConfig): PluginOption[] {
 				if (!resolvedViteConfig) throw new Error('Vite config not resolved yet')
 
 				const load = await config.adapter?.postbuild?.(resolvedViteConfig)
+				const pluginApi = getPluginApi(resolvedViteConfig)
+				const routeReferences = collectRouteClientReferences(
+					buildContext.routeModulePaths,
+					pluginApi?.manager.bundles.rsc,
+					pluginApi?.manager.clientReferenceMetaMap,
+					path.join(resolvedViteConfig.root, Config.GENERATED_DIR),
+				)
 
 				await postbuild(resolvedViteConfig.root, {
 					csp: config.csp,
 					load,
+					rscDir: resolvedViteConfig.environments.rsc?.build.outDir,
+					routeReferences,
 				})
 			},
 		},

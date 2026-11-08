@@ -206,7 +206,7 @@ describe('solas() plugin integration', () => {
 		expect(entry).toContain("from '@jk2908/solas/env/rsc'")
 		expect(entry).toContain('createRuntimeHandler')
 		expect(entry).toContain(
-			'export default await createRuntimeHandler(config, manifest, importMap)',
+			'createRuntimeHandler(config, manifest, importMap, undefined, {',
 		)
 		expect(entry).not.toContain('Solas.Config')
 		expect(entry).not.toContain('  ')

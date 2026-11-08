@@ -4,6 +4,7 @@ import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
 import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 import { Logger } from '../../utils/logger.js'
+import { normalisePath } from '../../utils/path.js'
 
 import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
@@ -49,12 +50,17 @@ export type HandlerOptions = {
 	 * The build-time runtime manifest describing which routes were prerendered.
 	 */
 	runtimeManifest?: RuntimeManifest.Manifest | null
+	/**
+	 * Development-only route CSS plan. Production uses the runtime manifest.
+	 */
+	devClientCssByRoute?: Record<string, string[]>
 }
 
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
 	root: React.ReactNode
+	clientCss?: string[]
 	metadata?: Promise<Metadata.Item>
 	url: {
 		pathname: string
@@ -72,9 +78,7 @@ const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
  */
 function toClientAsset(relativePath: string): AssetRef | Response {
 	try {
-		const decoded = decodeURIComponent(relativePath)
-			.replace(/\\/g, '/')
-			.replace(/^\/+/, '')
+		const decoded = normalisePath(decodeURIComponent(relativePath)).replace(/^\/+/, '')
 
 		if (!decoded || decoded.split('/').includes('..')) {
 			return new Response('Forbidden', { status: 403 })
@@ -100,6 +104,7 @@ async function createPayload(
 	formState?: ReactFormState,
 	temporaryReferences?: unknown,
 	nonce?: string,
+	clientCssByRoute?: Record<string, string[]>,
 ) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = req.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -119,6 +124,7 @@ async function createPayload(
 	// served from static HTML. PPR responses are dynamic: the cached prelude uses
 	// hashes, while the resumed holes need the request nonce.
 	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
+	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
 
 	// if there's no match then no user supplied error boundary
 	// has been found, and we should server render a default
@@ -148,6 +154,7 @@ async function createPayload(
 			),
 			returnValue,
 			formState,
+			clientCss: matchedClientCss,
 			url: {
 				pathname: url.pathname,
 				search: url.search,
@@ -201,6 +208,7 @@ async function createPayload(
 		),
 		returnValue,
 		formState,
+		clientCss: matchedClientCss,
 		metadata,
 		url: {
 			pathname: url.pathname,
@@ -276,6 +284,7 @@ async function createPayload(
 							),
 							returnValue,
 							formState,
+							clientCss: matchedClientCss,
 							url: {
 								pathname: url.pathname,
 								search: url.search,
@@ -306,6 +315,8 @@ export function createHandler(
 ) {
 	const assets = options.assets ?? nodeAssets
 	const runtimeManifest = options.runtimeManifest ?? null
+	const clientCssByRoute =
+		runtimeManifest?.clientCssByRoute ?? options.devClientCssByRoute ?? {}
 	// requests for /_solas and /_solas/* are reserved
 	const SOLAS_ASSETS_URL_ROOT = `/${Config.ASSETS_DIR}`
 
@@ -363,6 +374,8 @@ export function createHandler(
 			? resolveNonce(requestCsp, configuredHeaders, clientNonce)
 			: (generatedNonce ?? resolveNonce(null, configuredHeaders, clientNonce))
 
+		const requestPathname = new URL(req.url).pathname
+		const requestLookupPath = normaliseTrailingSlash(requestPathname, prerenderPathMode)
 		const {
 			stream: rscStream,
 			status,
@@ -377,6 +390,7 @@ export function createHandler(
 			opts.formState,
 			opts.temporaryReferences,
 			nonce,
+			clientCssByRoute,
 		)
 
 		const stream = await rscStream
@@ -393,8 +407,8 @@ export function createHandler(
 		}
 
 		const mod = await import.meta.viteRsc.loadModule<SSRModule>('ssr', 'index')
-		const pathname = new URL(req.url).pathname
-		const lookupPath = normaliseTrailingSlash(pathname, prerenderPathMode)
+		const pathname = requestPathname
+		const lookupPath = requestLookupPath
 		const runtimePpr = !import.meta.env.DEV && ppr
 
 		async function tryErrorRecovery(err: unknown) {
@@ -425,6 +439,7 @@ export function createHandler(
 					opts.formState,
 					opts.temporaryReferences,
 					nonce,
+					clientCssByRoute,
 				)
 
 				const retriedStream = await retriedRscStream
@@ -762,10 +777,17 @@ export async function createRuntimeHandler(
 	manifest: Manifest,
 	importMap: ImportMap,
 	assets: Assets = nodeAssets,
+	options: HandlerOptions = {},
 ) {
-	const runtimeManifest = await RuntimeManifest.loadManifest(assets)
+	const runtimeManifest = import.meta.env.DEV
+		? null
+		: await RuntimeManifest.loadManifest(assets)
 
-	return createHandler(config, manifest, importMap, { assets, runtimeManifest })
+	return createHandler(config, manifest, importMap, {
+		...options,
+		assets,
+		runtimeManifest,
+	})
 }
 
 function onError(err: unknown) {

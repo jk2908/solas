@@ -11,7 +11,7 @@ describe('writeRSCEntry', () => {
 	it('generates RSC handler code', () => {
 		const result = writeRSCEntry({ trailingSlash: 'never' })
 		expect(result).toContain(
-			'export default await createRuntimeHandler(config, manifest, importMap)',
+			'createRuntimeHandler(config, manifest, importMap, undefined, {',
 		)
 		expect(result).toContain(
 			"import { createRuntimeHandler } from '@jk2908/solas/env/rsc'",

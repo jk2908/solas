@@ -41,6 +41,24 @@ describe('loadManifest', () => {
 		expect(manifest?.artifacts['/'].mode).toBe('full')
 	})
 
+	it('loads per-route client CSS', async () => {
+		const manifest = await loadManifest(
+			assetsWith({
+				artifacts: {},
+				publicFiles: [],
+				clientCssByRoute: {
+					'/': ['/_solas/page.css'],
+					'/writing/:slug': [],
+				},
+			}),
+		)
+
+		expect(manifest?.clientCssByRoute).toEqual({
+			'/': ['/_solas/page.css'],
+			'/writing/:slug': [],
+		})
+	})
+
 	it('loads the CSP config and trailing slash mode', async () => {
 		const manifest = await loadManifest(
 			assetsWith({
