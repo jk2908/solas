@@ -18,6 +18,47 @@ type Props = BaseProps & BrowserRouter.LinkProps
 
 const HOVER_DELAY = 100
 
+/**
+ * Run viewport prefetch work only after the page has loaded and the browser is
+ * idle, so it does not compete with first paint or startup.
+ */
+function deferUntilIdle(callback: () => void) {
+	if (typeof window === 'undefined') return () => {}
+
+	let cancelled = false
+	let idleId: number | undefined
+	let timeoutId: ReturnType<typeof setTimeout> | undefined
+
+	function schedule() {
+		if (cancelled) return
+
+		if (typeof window.requestIdleCallback === 'function') {
+			idleId = window.requestIdleCallback(callback, { timeout: 2000 })
+			return
+		}
+
+		timeoutId = setTimeout(callback, 200)
+	}
+
+	function run() {
+		if (cancelled) return
+		schedule()
+	}
+
+	if (document.readyState === 'complete') {
+		schedule()
+	} else {
+		window.addEventListener('load', run, { once: true })
+	}
+
+	return () => {
+		cancelled = true
+		window.removeEventListener('load', run)
+		if (idleId !== undefined) window.cancelIdleCallback(idleId)
+		if (timeoutId !== undefined) clearTimeout(timeoutId)
+	}
+}
+
 function isCurrent(path: string) {
 	try {
 		const url = new URL(path, window.location.href)
@@ -129,8 +170,15 @@ export function Link({
 			return
 		}
 
-		observer.observe(node, () => guard(target, prefetcher))
-		return () => observer.unobserve(node)
+		// defer viewport prefetch until load and idle to avoid competing with first paint
+		const cancel = deferUntilIdle(() => {
+			observer.observe(node, () => guard(target, prefetcher))
+		})
+
+		return () => {
+			cancel()
+			observer.unobserve(node)
+		}
 	}, [observable, observer, prefetcher, prefetchStrategy, target])
 
 	return (
