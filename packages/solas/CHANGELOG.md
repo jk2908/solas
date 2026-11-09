@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.2
+
+### Changed
+
+- Viewport prefetch now waits for the page load and an idle period before starting. Hover and intent prefetch remain immediate.
+
 ## 0.19.1
 
 ### Fixes
