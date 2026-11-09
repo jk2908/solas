@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20.0
+
+### Breaking
+
+- `createRuntimeHandler` now accepts a single options object instead of positional arguments. Generated Solas entries are updated; direct imports of `@jk2908/solas/env/rsc` must use the object form.
+
+### Fixes
+
+- Generated `.solas/solas.d.ts` now declares `virtual:solas-dev-client-css`, fixing TypeScript's `TS2307` when resolving the generated RSC entry.
+
 ## 0.19.3
 
 ### Fixes
