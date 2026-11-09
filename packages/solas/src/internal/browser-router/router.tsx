@@ -138,6 +138,20 @@ function scrollToHash(hash: string, attempts = MAX_HASH_ATTEMPTS) {
  * the top (or the target hash), back/forward restore the saved position, and
  * refreshes leave the page where it is.
  */
+/**
+ * Reset focus to the document body after a client navigation, matching the
+ * browser behavior of a full page load.
+ */
+function resetFocusAfterNavigation() {
+	if (typeof document === 'undefined') return
+
+	if (!document.body.hasAttribute('tabindex')) {
+		document.body.setAttribute('tabindex', '-1')
+	}
+
+	document.body.focus({ preventScroll: true })
+}
+
 function applyScroll(intent: BrowserRouter.ScrollIntent, hash: string) {
 	if (typeof window === 'undefined') return
 	if (intent === 'none') return
@@ -175,6 +189,26 @@ export function BrowserRouterProvider({
 	const id = useRef(0)
 	const controller = useRef<AbortController | null>(null)
 	const history = useRef(new BrowserRouterHistory(url))
+	const focusPending = useRef(false)
+	const mounted = useRef(false)
+
+	useEffect(() => {
+		if (!mounted.current) {
+			mounted.current = true
+			return
+		}
+
+		if (!focusPending.current) return
+
+		focusPending.current = false
+		resetFocusAfterNavigation()
+
+		window.dispatchEvent(
+			new CustomEvent(Events.names.NAVIGATION_COMMITTED, {
+				detail: { path: url.pathname + (url.search ?? '') + (url.hash ?? '') },
+			}),
+		)
+	}, [url.pathname, url.search, url.hash])
 
 	/**
 	 * Navigates to a given path.
@@ -280,6 +314,8 @@ export function BrowserRouterProvider({
 				if (resolvedPath !== path) {
 					history.current.replaceState(resolvedPath)
 				}
+
+				focusPending.current = scrollIntent !== 'none' && !hash
 
 				setPayload?.(payload)
 				applyScroll(scrollIntent, hash)

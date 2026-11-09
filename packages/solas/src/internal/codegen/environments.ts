@@ -69,6 +69,7 @@ export function writeBrowserEntry() {
 	return source`
 		${AUTOGEN_MSG}
 
+		import 'virtual:solas-announcer.css'
 		import { browser } from '${Config.PKG_NAME}/env/browser'
 
 		browser()
