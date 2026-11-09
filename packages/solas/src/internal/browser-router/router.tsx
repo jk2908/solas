@@ -1,16 +1,17 @@
 'use client'
 import { createContext, useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { createFromFetch } from '@vitejs/plugin-rsc/browser'
+import { createFromFetch, createFromReadableStream } from '@vitejs/plugin-rsc/browser'
 
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 import { Logger } from '../../utils/logger.js'
 
 import type { RscPayload } from '../env/rsc.js'
+import * as Config from '../../config.js'
 import * as Events from '../../events.js'
 import { BrowserRouterHistory } from './history.js'
+import { PrefetchCache } from './prefetch-cache.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
-import { ResponseCache } from './response-cache.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -36,7 +37,7 @@ const DEFAULT_GO_CONFIG = {
 } satisfies BrowserRouter.GoOptions
 
 const logger = new Logger()
-const responseCache = new ResponseCache()
+const prefetchCache = new PrefetchCache()
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
@@ -55,6 +56,28 @@ function getPayloadUrl(path: string) {
 	url.search = ''
 
 	return url
+}
+
+/**
+ * Read and decode a prefetched RSC response.
+ *
+ * @description Consuming the body here lets the network request finish even when
+ * the user never navigates to the prefetched route.
+ */
+async function decodePrefetchedResponse(response: Response) {
+	if (response.status === 204 || !response.ok) return null
+
+	const text = await response.text()
+	const payload = await createFromReadableStream<RscPayload>(
+		new ReadableStream<Uint8Array>({
+			start(controller) {
+				controller.enqueue(new TextEncoder().encode(text))
+				controller.close()
+			},
+		}),
+	)
+
+	return { payload, url: response.url }
 }
 
 function performNavigationFetch(path: string, init?: RequestInit) {
@@ -186,8 +209,6 @@ export function BrowserRouterProvider({
 			controller.current?.abort()
 			controller.current = null
 
-			let existing = false
-
 			try {
 				const target = BrowserRouter.toTarget(to, opts.params, opts.query)
 
@@ -197,7 +218,8 @@ export function BrowserRouterProvider({
 
 				const url = new URL(target, window.location.origin)
 				const hash = url.hash
-				const key = ResponseCache.toCacheKey(url.toString(), window.location.origin)
+
+				const key = BrowserRouter.toCacheKey(url.toString(), window.location.origin)
 				if (!key) throw new Error('Invalid navigation url')
 
 				path = key
@@ -210,29 +232,48 @@ export function BrowserRouterProvider({
 					}
 				}
 
-				let promise = responseCache.get(path)
-				existing = promise !== undefined
+				let payload: RscPayload | undefined
+				let resolvedPath = path
 
-				if (!promise) {
+				const prefetched = prefetchCache.get(path)
+
+				if (prefetched) {
+					prefetchCache.remove(path)
+
+					try {
+						const result = await prefetched
+
+						if (result) {
+							payload = result.payload
+							resolvedPath = STATIC
+								? path
+								: (BrowserRouter.toCacheKey(result.url, window.location.origin) ?? path)
+						}
+					} catch {
+						// fall back to a normal navigation fetch below
+					}
+				}
+
+				if (!payload) {
 					const ctrl = new AbortController()
 					controller.current = ctrl
 
-					promise = performNavigationFetch(path, { signal: ctrl.signal })
-					responseCache.set(path, promise)
+					const promise = performNavigationFetch(path, { signal: ctrl.signal })
+
+					if (navigationId !== id.current) return path
+
+					const [res, loadedPayload] = await Promise.all([
+						promise,
+						createFromFetch<RscPayload>(promise),
+					])
+
+					// on a static host the payload comes from `<path>.rsc.txt`, so the
+					// response URL is not the page path
+					payload = loadedPayload
+					resolvedPath = STATIC
+						? path
+						: (BrowserRouter.toCacheKey(res.url, window.location.origin) ?? path)
 				}
-
-				if (navigationId !== id.current) return path
-
-				const [res, payload] = await Promise.all([
-					promise,
-					createFromFetch<RscPayload>(promise),
-				])
-
-				// on a static host the payload comes from `<path>.rsc.txt`, so the
-				// response URL is not the page path
-				const resolvedPath = STATIC
-					? path
-					: (ResponseCache.toCacheKey(res.url, window.location.origin) ?? path)
 
 				if (navigationId !== id.current) return resolvedPath
 
@@ -267,7 +308,6 @@ export function BrowserRouterProvider({
 				logger.error('[navigation] failed', err)
 			} finally {
 				if (navigationId === id.current) controller.current = null
-				if (!existing) responseCache.remove(path)
 			}
 
 			return path
@@ -283,11 +323,17 @@ export function BrowserRouterProvider({
 	 * @returns Void.
 	 */
 	const prefetch = useCallback((path: string) => {
-		const key = ResponseCache.toCacheKey(path, window.location.origin)
+		const key = BrowserRouter.toCacheKey(path, window.location.origin)
 		if (!key) return
 
-		if (responseCache.has(key)) return
-		responseCache.set(key, performNavigationFetch(key))
+		if (prefetchCache.has(key)) return
+
+		const response = performNavigationFetch(key, {
+			headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
+		}).then(decodePrefetchedResponse)
+
+		prefetchCache.set(key, response)
+		void response.catch(() => prefetchCache.remove(key))
 	}, [])
 
 	/**
@@ -297,10 +343,9 @@ export function BrowserRouterProvider({
 	 */
 	const refresh = useCallback(() => {
 		const currentPath = window.location.pathname + window.location.search
-		const key = ResponseCache.toCacheKey(currentPath, window.location.origin)
+		const key = BrowserRouter.toCacheKey(currentPath, window.location.origin)
 
 		if (!key) return Promise.resolve(currentPath)
-		if (responseCache.has(key)) responseCache.remove(key)
 
 		// a refresh stays exactly where the user is
 		return go(currentPath, { replace: true, scroll: 'none' })

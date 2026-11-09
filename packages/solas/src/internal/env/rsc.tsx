@@ -124,6 +124,23 @@ async function createPayload(
 	// served from static HTML. PPR responses are dynamic: the cached prelude uses
 	// hashes, while the resumed holes need the request nonce.
 	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
+	const prefetch = req.headers.get(`x-${Config.SLUG}-prefetch`) === '1'
+
+	// only fully prerendered routes can be prefetched without waiting for
+	// dynamic work; return an empty response for everything else
+	if (prefetch && match && match.prerender !== 'full') {
+		return {
+			stream: new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.close()
+				},
+			}),
+			status: 204,
+			ppr: false,
+			nonce: undefined,
+		}
+	}
+
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
 
 	// if there's no match then no user supplied error boundary

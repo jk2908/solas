@@ -62,6 +62,18 @@ export type HistoryEntry = {
  */
 export type ExternalTarget = `${string}:${string}` | `//${string}` | `#${string}`
 
+/**
+ * Convert a path and origin into a cache key without a hash.
+ */
+export function toCacheKey(path: string, base: string) {
+	try {
+		const url = new URL(path, base)
+		return url.pathname + url.search
+	} catch {
+		return null
+	}
+}
+
 export function isHashOnlyTarget(target: string) {
 	return target.startsWith('#')
 }
