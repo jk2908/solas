@@ -26,13 +26,13 @@ export function createWorker(options: CreateWorkerOptions) {
 	let nodeHandler: Promise<Handler> | undefined
 
 	async function build(assets: Assets) {
-		return createRuntimeHandler(
-			options.config,
-			options.manifest,
-			options.importMap,
+		return createRuntimeHandler({
+			config: options.config,
+			manifest: options.manifest,
+			importMap: options.importMap,
 			assets,
-			{ devClientCssByRoute: options.devClientCssByRoute },
-		)
+			devClientCssByRoute: options.devClientCssByRoute,
+		})
 	}
 
 	function getHandler(env?: CloudflareEnv) {

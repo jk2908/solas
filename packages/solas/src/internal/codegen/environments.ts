@@ -16,7 +16,10 @@ export function writeRSCEntry(_config: ConfiguredPluginConfig) {
 		import { config } from './config.js'
 		import { clientCssByRoute as devClientCssByRoute } from 'virtual:solas-dev-client-css'
 
-		export default await createRuntimeHandler(config, manifest, importMap, undefined, {
+		export default await createRuntimeHandler({
+			config,
+			manifest,
+			importMap,
 			devClientCssByRoute,
 		})
 

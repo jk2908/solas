@@ -789,19 +789,23 @@ export function createHandler(
  * example the Cloudflare `ASSETS` binding), so the same generated entry runs
  * unchanged across runtimes.
  */
-export async function createRuntimeHandler(
-	config: RuntimeConfig,
-	manifest: Manifest,
-	importMap: ImportMap,
-	assets: Assets = nodeAssets,
-	options: HandlerOptions = {},
-) {
+export type RuntimeHandlerOptions = HandlerOptions & {
+	config: RuntimeConfig
+	manifest: Manifest
+	importMap: ImportMap
+}
+
+export async function createRuntimeHandler(options: RuntimeHandlerOptions) {
+	const { config, manifest, importMap, assets = nodeAssets, ...handlerOptions } = options
+
+	// development renders from source; do not pick up stale build artifacts
+	// left in dist/.solas by a previous production build
 	const runtimeManifest = import.meta.env.DEV
 		? null
 		: await RuntimeManifest.loadManifest(assets)
 
 	return createHandler(config, manifest, importMap, {
-		...options,
+		...handlerOptions,
 		assets,
 		runtimeManifest,
 	})

@@ -11,6 +11,10 @@ export namespace Solas {
 		
 	}
 }
+}
+
+declare module 'virtual:solas-dev-client-css' {
+export const clientCssByRoute: Record<string, string[]>
 }"
 `;
 
@@ -36,6 +40,10 @@ export namespace Solas {
 					}
 	}
 }
+}
+
+declare module 'virtual:solas-dev-client-css' {
+export const clientCssByRoute: Record<string, string[]>
 }"
 `;
 
@@ -55,5 +63,9 @@ export namespace Solas {
 					}
 	}
 }
+}
+
+declare module 'virtual:solas-dev-client-css' {
+export const clientCssByRoute: Record<string, string[]>
 }"
 `;

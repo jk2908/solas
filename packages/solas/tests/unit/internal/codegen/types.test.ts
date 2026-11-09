@@ -14,6 +14,7 @@ describe('writeTypes', () => {
 		expect(result).toContain("declare module '@jk2908/solas'")
 		expect(result).toContain('export namespace Solas')
 		expect(result).toContain('Routes')
+		expect(result).toContain("declare module 'virtual:solas-dev-client-css'")
 	})
 
 	it('includes params for dynamic routes', () => {

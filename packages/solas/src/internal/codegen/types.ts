@@ -52,5 +52,9 @@ export function writeTypes(manifest: Manifest) {
 				${body}
 			}
 		}
+	 }
+
+	 declare module 'virtual:solas-dev-client-css' {
+		export const clientCssByRoute: Record<string, string[]>
 	 }`
 }

@@ -10,9 +10,7 @@ import {
 describe('writeRSCEntry', () => {
 	it('generates RSC handler code', () => {
 		const result = writeRSCEntry({ trailingSlash: 'never' })
-		expect(result).toContain(
-			'createRuntimeHandler(config, manifest, importMap, undefined, {',
-		)
+		expect(result).toContain('createRuntimeHandler({')
 		expect(result).toContain(
 			"import { createRuntimeHandler } from '@jk2908/solas/env/rsc'",
 		)
