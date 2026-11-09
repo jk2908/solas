@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.19.3
+
+### Fixes
+
+- Prefetch responses are fully decoded into parsed route payloads, so their network requests finish even when no navigation follows.
+- Automatic viewport prefetch now applies only to fully prerendered routes. PPR and dynamic routes return `204` and navigate normally until shell prefetch is implemented.
+- Removed the redundant response cache; normal navigations remain streaming.
+
 ## 0.19.2
 
 ### Changed
