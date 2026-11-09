@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.21.0
+
+### Features
+
+- Client-side navigation now resets focus to the document body and announces the new document title through a screen-reader-only assertive live region.
+- Announcer styles are bundled into the client entry stylesheet, keeping the live region CSP-safe without inline styles.
+
 ## 0.20.0
 
 ### Breaking
