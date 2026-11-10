@@ -71,6 +71,7 @@ export type RscPayload = {
 
 const logger = new Logger()
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
+const nullBodyStatuses = new Set([101, 204, 205, 304])
 
 /**
  * Resolve a client asset request path to a logical asset reference, rejecting
@@ -411,6 +412,16 @@ export function createHandler(
 		)
 
 		const stream = await rscStream
+
+		if (nullBodyStatuses.has(status)) {
+			return new Response(null, {
+				headers: {
+					'Cache-Control': 'private, no-store',
+					Vary: 'accept',
+				},
+				status,
+			})
+		}
 
 		if (isRscRequest(req)) {
 			return new Response(stream, {
