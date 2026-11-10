@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.21.2
+
+### Fixes
+
+- Prefetch requests for PPR and dynamic routes now return a bodyless `204` response, avoiding an invalid response in runtimes that reject bodies for null-body statuses.
+
 ## 0.21.1
 
 ### Fixes
