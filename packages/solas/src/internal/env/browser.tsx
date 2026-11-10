@@ -22,7 +22,6 @@ import type { RscPayload } from './rsc.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
-import { RouteAnnouncer } from '../render/route-announcer.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
 import { rscStream } from './flight.js'
 
@@ -65,7 +64,6 @@ export async function browser() {
 					</ErrorBoundary>
 
 					{p.root}
-					<RouteAnnouncer />
 				</BrowserRouterProvider>
 			</RedirectBoundary>
 		)

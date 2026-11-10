@@ -204,6 +204,18 @@ await router.go('/p/:id', {
 
 `router.refresh()` clears the cached RSC response for the current path and fetches a fresh payload, so it is most useful for routes that render request-time data. `router.isNavigating` exposes pending client-side navigation state.
 
+### Route announcements
+
+Client-side navigation resets focus to the document body. Add `Announcer` once inside the root layout's `<body>` to announce each new page title through a screen-reader only live region:
+
+```tsx
+import { Announcer } from '@jk2908/solas/router'
+;<body>
+	{children}
+	<Announcer />
+</body>
+```
+
 Navigation manages scroll for you: `Link` and `router.go(...)` scroll to the top of the new route, or to the target element when the URL has a hash. Back and forward restore the position each history entry was left at. Override this with the `scroll` option:
 
 ```tsx

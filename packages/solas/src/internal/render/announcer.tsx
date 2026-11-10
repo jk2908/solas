@@ -1,22 +1,25 @@
+'use client'
+
 import { useEffect, useState } from 'react'
-import { createPortal } from 'react-dom'
 
 import * as Events from '../../events.js'
+import './announcer.css'
 
 /**
  * Announces the new document title after client-side navigation through a
  * screen-reader only live region.
  */
-export function RouteAnnouncer() {
+export function Announcer() {
 	const [message, setMessage] = useState('')
 
 	useEffect(() => {
-		let frame: number | undefined
+		let frame: number | null = null
 
 		function announce() {
-			if (frame !== undefined) cancelAnimationFrame(frame)
+			if (frame != null) cancelAnimationFrame(frame)
 
 			setMessage('')
+
 			frame = requestAnimationFrame(() => {
 				setMessage(document.title)
 			})
@@ -26,18 +29,15 @@ export function RouteAnnouncer() {
 
 		return () => {
 			window.removeEventListener(Events.names.NAVIGATION_COMMITTED, announce)
-			if (frame !== undefined) cancelAnimationFrame(frame)
+
+			if (frame != null) cancelAnimationFrame(frame)
+			frame = null
 		}
 	}, [])
 
-	return createPortal(
-		<div
-			className="solas-announcer"
-			role="status"
-			aria-live="assertive"
-			aria-atomic="true">
+	return (
+		<div id="solas-announcer" role="status" aria-live="assertive" aria-atomic="true">
 			{message}
-		</div>,
-		document.body,
+		</div>
 	)
 }

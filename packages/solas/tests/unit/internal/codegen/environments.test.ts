@@ -42,7 +42,6 @@ describe('writeSSREntry', () => {
 describe('writeBrowserEntry', () => {
 	it('generates browser init code', () => {
 		const result = writeBrowserEntry()
-		expect(result).toContain("import 'virtual:solas-announcer.css'")
 		expect(result).toContain("import { browser } from '@jk2908/solas/env/browser'")
 		expect(result).toContain('browser()')
 	})

@@ -27,7 +27,6 @@ import type {
 	PluginConfig,
 } from './types.js'
 import * as Config from './config.js'
-import { ANNOUNCER_CSS } from './internal/browser-router/announcer.js'
 import * as Build from './internal/build.js'
 import {
 	collectDevClientCss,
@@ -432,10 +431,8 @@ function solas(c?: PluginConfig): PluginOption[] {
 		},
 		resolveId(source: string) {
 			if (source === 'virtual:solas-dev-client-css') return `\0${source}`
-			if (source === 'virtual:solas-announcer.css') return `\0${source}`
 		},
 		async load(id: string) {
-			if (id === '\0virtual:solas-announcer.css') return ANNOUNCER_CSS
 			if (id !== '\0virtual:solas-dev-client-css') return
 
 			if (!resolvedViteConfig || resolvedViteConfig.command !== 'serve' || !devServer) {
