@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.21.1
+
+### Fixes
+
+- `Announcer` no longer portals into `document.body`, fixing the hydration mismatch introduced in `0.21.0`.
+- Announcer styles are imported by the component instead of a virtual entry stylesheet, so they ship only when the component is used.
+
+### Changed
+
+- `Announcer` is exported from `@jk2908/solas/router` and must be rendered once inside the root layout's `<body>`.
+
 ## 0.21.0
 
 ### Features
