@@ -74,10 +74,16 @@ function readRouteType(res: Response) {
 }
 
 /**
- * Start decoding an RSC response while counting its bytes as they stream.
+ * Begin decoding an RSC response while counting its bytes in parallel.
  *
- * The payload can resolve before the byte count is final, so callers decide
- * whether they need the payload immediately or the complete cache size.
+ * `payload` resolves when the root RSC tree is ready to render. Deferred
+ * Suspense content may still be streaming at that point.
+ *
+ * `bytes` resolves only when the full body has arrived and the final byte
+ * count is available for cache accounting.
+ *
+ * Navigation can await `payload` for an immediate render, while cache
+ * promotion can await `bytes` without delaying the UI.
  */
 function decodeRscResponse(res: Response) {
 	const type = readRouteType(res)
