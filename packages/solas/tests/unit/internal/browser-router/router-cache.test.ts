@@ -2,9 +2,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 import type {
 	CachedPayload,
-	DecodedResponse,
+	DecodedStream,
 } from '../../../../src/internal/browser-router/router-cache.js'
 import { RouterCache } from '../../../../src/internal/browser-router/router-cache.js'
+
+function settle() {
+	return new Promise(resolve => setTimeout(resolve, 0))
+}
 
 function cached(path: string, bytes: number): CachedPayload {
 	return {
@@ -14,11 +18,11 @@ function cached(path: string, bytes: number): CachedPayload {
 	}
 }
 
-function decoded(path: string, bytes: number): DecodedResponse {
+function stream(path: string, bytes: number): DecodedStream {
 	return {
-		payload: { root: null, url: { pathname: path } },
+		payload: Promise.resolve({ root: null, url: { pathname: path } }),
+		finished: Promise.resolve(bytes),
 		url: path,
-		bytes,
 		type: 'full',
 	}
 }
@@ -26,13 +30,13 @@ function decoded(path: string, bytes: number): DecodedResponse {
 describe('RouterCache', () => {
 	it('promotes a pending entry to ready', async () => {
 		const cache = new RouterCache()
-		const promise = Promise.resolve(decoded('/about', 10))
+		const promise = Promise.resolve(stream('/about', 10))
 
 		cache.set('/about', promise)
 		expect(cache.get('/about')?.state).toBe('pending')
 
 		await promise
-		await Promise.resolve()
+		await settle()
 
 		const entry = cache.get('/about')
 		expect(entry?.state).toBe('ready')
@@ -74,15 +78,13 @@ describe('RouterCache', () => {
 	it('evicts LRU entries when the byte budget is exceeded', async () => {
 		const cache = new RouterCache({ maxBytes: 120 })
 
-		cache.set('/a', Promise.resolve(decoded('/a', 60)))
-		cache.set('/b', Promise.resolve(decoded('/b', 40)))
-		await Promise.resolve()
-		await Promise.resolve()
+		cache.set('/a', Promise.resolve(stream('/a', 60)))
+		cache.set('/b', Promise.resolve(stream('/b', 40)))
+		await settle()
 
 		cache.get('/a')
-		cache.set('/c', Promise.resolve(decoded('/c', 60)))
-		await Promise.resolve()
-		await Promise.resolve()
+		cache.set('/c', Promise.resolve(stream('/c', 60)))
+		await settle()
 
 		expect(cache.has('/a')).toBe(true)
 		expect(cache.has('/b')).toBe(false)
@@ -91,9 +93,8 @@ describe('RouterCache', () => {
 
 	it('clears all entries and resets the byte count', async () => {
 		const cache = new RouterCache()
-		cache.set('/about', Promise.resolve(decoded('/about', 10)))
-		await Promise.resolve()
-		await Promise.resolve()
+		cache.set('/about', Promise.resolve(stream('/about', 10)))
+		await settle()
 
 		cache.clear()
 

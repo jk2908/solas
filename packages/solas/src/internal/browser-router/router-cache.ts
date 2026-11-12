@@ -15,6 +15,13 @@ export type CachedPayload = {
 	bytes: number
 }
 
+export type DecodedStream = {
+	payload: Promise<RscPayload>
+	finished: Promise<number>
+	url: string
+	type?: RouterCacheType
+}
+
 export type DecodedResponse = {
 	payload: RscPayload | null
 	url: string
@@ -24,8 +31,7 @@ export type DecodedResponse = {
 
 type PendingEntry = {
 	state: 'pending'
-	type?: RouterCacheType
-	promise: Promise<DecodedResponse | null>
+	response: Promise<DecodedStream | null>
 	timer?: ReturnType<typeof setTimeout>
 }
 
@@ -75,34 +81,46 @@ export class RouterCache {
 		return entry
 	}
 
-	set(key: string, promise: Promise<DecodedResponse | null>) {
+	set(key: string, response: Promise<DecodedStream | null>) {
 		this.#delete(key)
 
-		const entry: PendingEntry = { state: 'pending', promise }
+		const entry: PendingEntry = { state: 'pending', response }
 		this.#cache.set(key, entry)
 
-		void promise.then(
-			value => {
+		void response.then(
+			stream => {
 				if (this.#cache.get(key) !== entry) return
 
-				if (!value?.payload) {
+				if (!stream) {
 					this.#delete(key)
 					return
 				}
 
-				const ready: ReadyEntry = {
-					state: 'ready',
-					type: value.type,
-					value: {
-						payload: value.payload,
-						url: value.url,
-						bytes: value.bytes,
+				void Promise.all([stream.payload, stream.finished]).then(
+					([payload, bytes]) => {
+						if (this.#cache.get(key) !== entry) return
+
+						const type =
+							stream.type ?? payload.type ?? ('dynamic' satisfies RouterCacheType)
+						const ready: ReadyEntry = {
+							state: 'ready',
+							type,
+							value: {
+								payload,
+								url: stream.url,
+								bytes,
+							},
+							timer: this.#timer(key, type),
+						}
+
+						this.#cache.set(key, ready)
+						this.#bytes += ready.value.bytes
+						this.#evict(key)
 					},
-					timer: this.#timer(key, value.type),
-				}
-				this.#cache.set(key, ready)
-				this.#bytes += ready.value.bytes
-				this.#evict(key)
+					() => {
+						if (this.#cache.get(key) === entry) this.#delete(key)
+					},
+				)
 			},
 			() => {
 				if (this.#cache.get(key) === entry) this.#delete(key)

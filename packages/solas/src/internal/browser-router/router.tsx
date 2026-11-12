@@ -109,20 +109,6 @@ function decodeRscResponse(res: Response) {
 	return { payload, finished, url: res.url, type }
 }
 
-async function decodeToCached(res: Response) {
-	const decoded = decodeRscResponse(res)
-	if (!decoded) return null
-
-	const [payload, bytes] = await Promise.all([decoded.payload, decoded.finished])
-
-	return {
-		payload,
-		url: decoded.url,
-		bytes,
-		type: decoded.type ?? payload.type ?? (STATIC ? 'full' : 'dynamic'),
-	}
-}
-
 function performNavigationFetch(path: string, init?: RequestInit) {
 	if (STATIC) return fetch(getPayloadUrl(path), init)
 
@@ -327,18 +313,20 @@ export function BrowserRouterProvider({
 
 				if (cached) {
 					try {
-						const result =
-							cached.state === 'ready'
-								? cached.value
-								: cached.state === 'pending'
-									? await cached.promise
-									: undefined
-
-						if (result?.payload) {
-							payload = result.payload
+						if (cached.state === 'ready') {
+							payload = cached.value.payload
 							resolvedPath = STATIC
 								? path
-								: (BrowserRouter.toCacheKey(result.url, window.location.origin) ?? path)
+								: (BrowserRouter.toCacheKey(cached.value.url, window.location.origin) ??
+									path)
+						} else if (cached.state === 'pending') {
+							const stream = await cached.response
+							if (stream) {
+								payload = await stream.payload
+								resolvedPath = STATIC
+									? path
+									: (BrowserRouter.toCacheKey(stream.url, window.location.origin) ?? path)
+							}
 						}
 					} catch {
 						// fall back to a normal navigation fetch below
@@ -445,7 +433,7 @@ export function BrowserRouterProvider({
 
 			const response = performNavigationFetch(key, {
 				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
-			}).then(decodeToCached)
+			}).then(decodeRscResponse)
 
 			routerCache.set(key, response)
 		},
