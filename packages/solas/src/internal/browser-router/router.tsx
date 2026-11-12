@@ -229,7 +229,7 @@ export function BrowserRouterProvider({
 		resetFocusAfterNavigation()
 
 		window.dispatchEvent(
-			new CustomEvent(Events.names.NAVIGATION_COMMITTED, {
+			new CustomEvent(Events.NAVIGATION_COMMITTED, {
 				detail: { path: url.pathname + (url.search ?? '') + (url.hash ?? '') },
 			}),
 		)
@@ -359,7 +359,7 @@ export function BrowserRouterProvider({
 				applyScroll(scrollIntent, hash)
 
 				window.dispatchEvent(
-					new CustomEvent(Events.names.NAVIGATION, {
+					new CustomEvent(Events.NAVIGATION, {
 						detail: { path: resolvedPath },
 					}),
 				)
@@ -371,7 +371,7 @@ export function BrowserRouterProvider({
 				}
 
 				window.dispatchEvent(
-					new CustomEvent(Events.names.NAVIGATION_ERROR, {
+					new CustomEvent(Events.NAVIGATION_ERROR, {
 						detail: {
 							path,
 							error: err instanceof Error ? err.message : Logger.print(err),

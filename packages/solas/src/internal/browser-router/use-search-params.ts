@@ -9,11 +9,11 @@ export function useSearchParams() {
 	const search = useSyncExternalStore(
 		fn => {
 			window.addEventListener('popstate', fn)
-			window.addEventListener(Events.names.NAVIGATION, fn)
+			window.addEventListener(Events.NAVIGATION, fn)
 
 			return () => {
 				window.removeEventListener('popstate', fn)
-				window.removeEventListener(Events.names.NAVIGATION, fn)
+				window.removeEventListener(Events.NAVIGATION, fn)
 			}
 		},
 		() => window.location.search,

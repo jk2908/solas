@@ -25,10 +25,10 @@ export function Announcer() {
 			})
 		}
 
-		window.addEventListener(Events.names.NAVIGATION_COMMITTED, announce)
+		window.addEventListener(Events.NAVIGATION_COMMITTED, announce)
 
 		return () => {
-			window.removeEventListener(Events.names.NAVIGATION_COMMITTED, announce)
+			window.removeEventListener(Events.NAVIGATION_COMMITTED, announce)
 
 			if (frame != null) cancelAnimationFrame(frame)
 			frame = null

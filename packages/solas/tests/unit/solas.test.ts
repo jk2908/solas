@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import * as Config from '../../src/config.js'
-import { names } from '../../src/events.js'
+import * as Events from '../../src/events.js'
 import { getManifestPath } from '../../src/manifest.js'
 import { getVersion } from '../../src/solas.js'
 
@@ -277,8 +277,8 @@ describe('Solas', () => {
 
 	describe('Events', () => {
 		it('has expected event names', () => {
-			expect(names.NAVIGATION).toBe('solasnavigation')
-			expect(names.NAVIGATION_ERROR).toBe('solasnavigationerror')
+			expect(Events.NAVIGATION).toBe('solasnavigation')
+			expect(Events.NAVIGATION_ERROR).toBe('solasnavigationerror')
 		})
 	})
 })
