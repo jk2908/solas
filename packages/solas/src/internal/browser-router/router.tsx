@@ -10,8 +10,8 @@ import type { RscPayload } from '../env/rsc.js'
 import * as Config from '../../config.js'
 import * as Events from '../../events.js'
 import { BrowserRouterHistory } from './history.js'
-import { PrefetchCache } from './prefetch-cache.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
+import { RouterCache } from './router-cache.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -37,7 +37,7 @@ const DEFAULT_GO_CONFIG = {
 } satisfies BrowserRouter.GoOptions
 
 const logger = new Logger()
-const prefetchCache = new PrefetchCache()
+const routerCache = new RouterCache()
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
@@ -67,17 +67,17 @@ function getPayloadUrl(path: string) {
 async function decodePrefetchedResponse(response: Response) {
 	if (response.status === 204 || !response.ok) return null
 
-	const text = await response.text()
+	const buffer = await response.arrayBuffer()
 	const payload = await createFromReadableStream<RscPayload>(
 		new ReadableStream<Uint8Array>({
 			start(controller) {
-				controller.enqueue(new TextEncoder().encode(text))
+				controller.enqueue(new Uint8Array(buffer))
 				controller.close()
 			},
 		}),
 	)
 
-	return { payload, url: response.url }
+	return { payload, url: response.url, bytes: buffer.byteLength }
 }
 
 function performNavigationFetch(path: string, init?: RequestInit) {
@@ -247,14 +247,14 @@ export function BrowserRouterProvider({
 				const target = BrowserRouter.toTarget(to, opts.params, opts.query)
 
 				if (BrowserRouter.isExternalTarget(target, window.location.origin)) {
-					throw new Error('[router.go]: external URLs are not supported. Use <a> instead')
+					throw new Error('[router.go]: External URLs are not supported. Use <a> instead')
 				}
 
 				const url = new URL(target, window.location.origin)
 				const hash = url.hash
 
 				const key = BrowserRouter.toCacheKey(url.toString(), window.location.origin)
-				if (!key) throw new Error('Invalid navigation url')
+				if (!key) throw new Error('[router.go]: Invalid navigation url')
 
 				path = key
 
@@ -269,13 +269,11 @@ export function BrowserRouterProvider({
 				let payload: RscPayload | undefined
 				let resolvedPath = path
 
-				const prefetched = prefetchCache.get(path)
+				const cached = routerCache.get(path)
 
-				if (prefetched) {
-					prefetchCache.remove(path)
-
+				if (cached) {
 					try {
-						const result = await prefetched
+						const result = cached.state === 'ready' ? cached.value : await cached.promise
 
 						if (result) {
 							payload = result.payload
@@ -362,14 +360,13 @@ export function BrowserRouterProvider({
 		const key = BrowserRouter.toCacheKey(path, window.location.origin)
 		if (!key) return
 
-		if (prefetchCache.has(key)) return
+		if (routerCache.has(key)) return
 
 		const response = performNavigationFetch(key, {
 			headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
 		}).then(decodePrefetchedResponse)
 
-		prefetchCache.set(key, response)
-		void response.catch(() => prefetchCache.remove(key))
+		routerCache.set(key, 'full', response)
 	}, [])
 
 	/**
@@ -382,6 +379,8 @@ export function BrowserRouterProvider({
 		const key = BrowserRouter.toCacheKey(currentPath, window.location.origin)
 
 		if (!key) return Promise.resolve(currentPath)
+
+		routerCache.remove(key)
 
 		// a refresh stays exactly where the user is
 		return go(currentPath, { replace: true, scroll: 'none' })
