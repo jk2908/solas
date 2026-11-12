@@ -11,7 +11,7 @@ const cache = new WeakMap<object, Promise<Collection.Item>>()
 /**
  * Convert supported metadata primitives to string for meta tag content.
  */
-function toContent(value: unknown) {
+function toMetadataContentItem(value: unknown) {
 	return typeof value === 'string' ||
 		typeof value === 'number' ||
 		typeof value === 'boolean'
@@ -72,8 +72,8 @@ export function Head({
 
 			{canonical && <link rel="canonical" href={canonical} />}
 
-			{toContent(metadata.title) !== undefined && (
-				<title>{toContent(metadata.title)}</title>
+			{toMetadataContentItem(metadata.title) !== undefined && (
+				<title>{toMetadataContentItem(metadata.title)}</title>
 			)}
 
 			{metadata.meta?.map(meta => {
@@ -83,7 +83,11 @@ export function Head({
 
 				if ('name' in meta) {
 					return (
-						<meta key={meta.name} name={meta.name} content={toContent(meta.content)} />
+						<meta
+							key={meta.name}
+							name={meta.name}
+							content={toMetadataContentItem(meta.content)}
+						/>
 					)
 				}
 
@@ -92,7 +96,7 @@ export function Head({
 						<meta
 							key={meta.httpEquiv}
 							httpEquiv={meta.httpEquiv}
-							content={toContent(meta.content)}
+							content={toMetadataContentItem(meta.content)}
 						/>
 					)
 				}
@@ -102,7 +106,7 @@ export function Head({
 						<meta
 							key={meta.property}
 							property={meta.property}
-							content={toContent(meta.content)}
+							content={toMetadataContentItem(meta.content)}
 						/>
 					)
 				}
