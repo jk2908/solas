@@ -56,6 +56,15 @@ export type Adapter = {
 	) => PrerenderImport | undefined | Promise<PrerenderImport | undefined>
 }
 
+export type RouterConfig = {
+	cache?: {
+		/**
+		 * Maximum bytes retained by the client route cache. Defaults to 8 MiB.
+		 */
+		maxBytes?: number
+	}
+}
+
 type PluginConfigBase = {
 	precompress?: boolean
 	prerender?: Route.PrerenderMode | false
@@ -65,14 +74,7 @@ type PluginConfigBase = {
 	headers?: HeadersInput
 	csp?: CspConfig
 	adapter?: Adapter
-	router?: {
-		cache?: {
-			/**
-			 * Maximum bytes retained by the client route cache. Defaults to 8 MiB.
-			 */
-			maxBytes?: number
-		}
-	}
+	router?: RouterConfig
 	readonly logger?: {
 		level?: LogLevel
 	}
@@ -92,7 +94,9 @@ export type ConfiguredPluginConfig = PluginConfig
 /**
  * The client-safe subset of plugin configuration bundled into the browser.
  */
-export type BrowserConfig = Pick<PluginConfig, 'router'>
+export type BrowserConfig = {
+	router?: RouterConfig
+}
 
 export type RuntimeConfig = PluginConfig & {
 	precompress: NonNullable<PluginConfig['precompress']>

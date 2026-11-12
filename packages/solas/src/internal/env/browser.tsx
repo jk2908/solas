@@ -58,7 +58,7 @@ export async function browser(config: BrowserConfig = {}) {
 					setPayload={setPayloadInTransition}
 					isNavigating={isPending}
 					url={p.url}
-					cacheMaxBytes={config.router?.cache?.maxBytes}>
+					config={config}>
 					<ErrorBoundary fallback={null}>
 						<Suspense fallback={null}>
 							<Head metadata={p.metadata} url={p.url} clientCss={p.clientCss} />

@@ -6,6 +6,7 @@ import { createFromFetch, createFromReadableStream } from '@vitejs/plugin-rsc/br
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 import { Logger } from '../../utils/logger.js'
 
+import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
 import * as Config from '../../config.js'
 import * as Events from '../../events.js'
@@ -175,7 +176,7 @@ export function BrowserRouterProvider({
 	setPayload,
 	isNavigating = false,
 	url,
-	cacheMaxBytes,
+	config = {},
 }: {
 	children: React.ReactNode
 	setPayload?: (payload: RscPayload) => void
@@ -185,12 +186,12 @@ export function BrowserRouterProvider({
 		search?: string
 		hash?: string
 	}
-	cacheMaxBytes?: number
+	config?: BrowserConfig
 }) {
 	const id = useRef(0)
 	const routerCache = useMemo(
-		() => new RouterCache({ maxBytes: cacheMaxBytes }),
-		[cacheMaxBytes],
+		() => new RouterCache({ maxBytes: config.router?.cache?.maxBytes }),
+		[config],
 	)
 	const controller = useRef<AbortController | null>(null)
 	const history = useRef(new BrowserRouterHistory(url))
