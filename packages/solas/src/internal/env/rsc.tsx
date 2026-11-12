@@ -6,7 +6,13 @@ import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/bas
 import { Logger } from '../../utils/logger.js'
 import { normalisePath } from '../../utils/path.js'
 
-import type { ImportMap, Manifest, RuntimeConfig, SolasRequest } from '../../types.js'
+import type {
+	ImportMap,
+	Manifest,
+	Route,
+	RuntimeConfig,
+	SolasRequest,
+} from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
 import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
@@ -62,6 +68,7 @@ export type RscPayload = {
 	root: React.ReactNode
 	clientCss?: string[]
 	metadata?: Promise<Metadata.Item>
+	type?: Route.PrerenderMode | 'dynamic'
 	url: {
 		pathname: string
 		search?: string
@@ -120,6 +127,8 @@ async function createPayload(
 			req[Config.REQUEST_META_KEY].error,
 		),
 	)
+	const routeType: Route.PrerenderMode | 'dynamic' =
+		match?.prerender === 'full' ? 'full' : match?.prerender === 'ppr' ? 'ppr' : 'dynamic'
 
 	// build-time prerender requests have no request nonce, and full routes are
 	// served from static HTML. PPR responses are dynamic: the cached prelude uses
@@ -139,6 +148,7 @@ async function createPayload(
 			status: 204,
 			ppr: false,
 			nonce: undefined,
+			type: routeType,
 		}
 	}
 
@@ -202,6 +212,7 @@ async function createPayload(
 			status: 404,
 			ppr: false,
 			nonce: effectiveNonce,
+			type: routeType,
 		}
 	}
 
@@ -228,6 +239,7 @@ async function createPayload(
 		formState,
 		clientCss: matchedClientCss,
 		metadata,
+		type: routeType,
 		url: {
 			pathname: url.pathname,
 			search: url.search,
@@ -251,7 +263,7 @@ async function createPayload(
 				}),
 		)
 
-		return { stream, status, ppr, nonce: effectiveNonce }
+		return { stream, status, ppr, nonce: effectiveNonce, type: routeType }
 	} catch (err) {
 		logger.error('[rsc:render]', err)
 
@@ -316,6 +328,7 @@ async function createPayload(
 			status: 500,
 			ppr: false,
 			nonce: effectiveNonce,
+			type: routeType,
 		}
 	}
 }
@@ -399,6 +412,7 @@ export function createHandler(
 			status,
 			ppr,
 			nonce: effectiveNonce,
+			type,
 		} = await createPayload(
 			req,
 			manifest,
@@ -416,6 +430,7 @@ export function createHandler(
 		if (nullBodyStatuses.has(status)) {
 			return new Response(null, {
 				headers: {
+					[`x-${Config.SLUG}-route-type`]: type,
 					'Cache-Control': 'private, no-store',
 					Vary: 'accept',
 				},
@@ -426,6 +441,7 @@ export function createHandler(
 		if (isRscRequest(req)) {
 			return new Response(stream, {
 				headers: {
+					[`x-${Config.SLUG}-route-type`]: type,
 					'Cache-Control': 'private, no-store',
 					'Content-Type': 'text/x-component; charset=utf-8',
 					Vary: 'accept',

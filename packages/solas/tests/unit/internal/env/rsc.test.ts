@@ -31,5 +31,6 @@ describe('createHandler', () => {
 
 		expect(response.status).toBe(204)
 		expect(response.body).toBeNull()
+		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('ppr')
 	})
 })

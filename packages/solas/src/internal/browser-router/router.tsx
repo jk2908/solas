@@ -1,7 +1,7 @@
 'use client'
 import { createContext, useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { createFromFetch, createFromReadableStream } from '@vitejs/plugin-rsc/browser'
+import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
 
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 import { Logger } from '../../utils/logger.js'
@@ -12,7 +12,7 @@ import * as Config from '../../config.js'
 import * as Events from '../../events.js'
 import { BrowserRouterHistory } from './history.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
-import { RouterCache } from './router-cache.js'
+import { RouterCache, type RouterCacheType } from './router-cache.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -64,8 +64,20 @@ function getPayloadUrl(path: string) {
  * @description Consuming the body here lets the network request finish even when
  * the user never navigates to the prefetched route.
  */
-async function decodePrefetchedResponse(response: Response) {
-	if (response.status === 204 || !response.ok) return null
+function readRouteType(response: Response): RouterCacheType | undefined {
+	const type = response.headers.get(`x-${Config.SLUG}-route-type`)
+
+	return type === 'full' || type === 'ppr' || type === 'dynamic' ? type : undefined
+}
+
+async function decodeRscResponse(response: Response) {
+	const headerType = readRouteType(response)
+
+	if (response.status === 204) {
+		return { payload: null, url: response.url, bytes: 0, type: headerType ?? 'dynamic' }
+	}
+
+	if (!response.ok) return null
 
 	const buffer = await response.arrayBuffer()
 	const payload = await createFromReadableStream<RscPayload>(
@@ -77,7 +89,12 @@ async function decodePrefetchedResponse(response: Response) {
 		}),
 	)
 
-	return { payload, url: response.url, bytes: buffer.byteLength }
+	return {
+		payload,
+		url: response.url,
+		bytes: buffer.byteLength,
+		type: headerType ?? payload.type ?? (STATIC ? 'full' : 'dynamic'),
+	}
 }
 
 function performNavigationFetch(path: string, init?: RequestInit) {
@@ -279,9 +296,14 @@ export function BrowserRouterProvider({
 
 				if (cached) {
 					try {
-						const result = cached.state === 'ready' ? cached.value : await cached.promise
+						const result =
+							cached.state === 'ready'
+								? cached.value
+								: cached.state === 'pending'
+									? await cached.promise
+									: undefined
 
-						if (result) {
+						if (result?.payload) {
 							payload = result.payload
 							resolvedPath = STATIC
 								? path
@@ -300,17 +322,27 @@ export function BrowserRouterProvider({
 
 					if (navigationId !== id.current) return path
 
-					const [res, loadedPayload] = await Promise.all([
-						promise,
-						createFromFetch<RscPayload>(promise),
-					])
+					const res = await promise
+					const decoded = await decodeRscResponse(res)
 
-					// on a static host the payload comes from `<path>.rsc.txt`, so the
-					// response URL is not the page path
-					payload = loadedPayload
+					if (!decoded?.payload) {
+						throw new Error('[router.go]: route response did not contain a payload')
+					}
+
+					payload = decoded.payload
 					resolvedPath = STATIC
 						? path
-						: (BrowserRouter.toCacheKey(res.url, window.location.origin) ?? path)
+						: decoded.url
+							? (BrowserRouter.toCacheKey(decoded.url, window.location.origin) ?? path)
+							: path
+
+					if (decoded.type === 'full') {
+						routerCache.setReady(path, 'full', {
+							payload,
+							url: resolvedPath,
+							bytes: decoded.bytes,
+						})
+					}
 				}
 
 				if (navigationId !== id.current) return resolvedPath
@@ -371,9 +403,9 @@ export function BrowserRouterProvider({
 
 			const response = performNavigationFetch(key, {
 				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
-			}).then(decodePrefetchedResponse)
+			}).then(decodeRscResponse)
 
-			routerCache.set(key, 'full', response)
+			routerCache.set(key, response)
 		},
 		[routerCache],
 	)

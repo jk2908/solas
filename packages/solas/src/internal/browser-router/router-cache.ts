@@ -9,10 +9,17 @@ export type CachedPayload = {
 	bytes: number
 }
 
+export type DecodedResponse = {
+	payload: RscPayload | null
+	url: string
+	bytes: number
+	type: RouterCacheType
+}
+
 type PendingEntry = {
 	state: 'pending'
-	type: RouterCacheType
-	promise: Promise<CachedPayload | null>
+	type?: RouterCacheType
+	promise: Promise<DecodedResponse | null>
 	timer?: ReturnType<typeof setTimeout>
 }
 
@@ -23,7 +30,13 @@ type ReadyEntry = {
 	timer?: ReturnType<typeof setTimeout>
 }
 
-export type RouterCacheEntry = PendingEntry | ReadyEntry
+type NegativeEntry = {
+	state: 'negative'
+	type: RouterCacheType
+	timer: ReturnType<typeof setTimeout>
+}
+
+export type RouterCacheEntry = PendingEntry | ReadyEntry | NegativeEntry
 
 /**
  * In-memory client cache for route payloads. Fully prerendered entries are
@@ -35,9 +48,14 @@ export class RouterCache {
 	#bytes = 0
 
 	maxBytes = 8 * 1024 * 1024
+	negativeTtl = 60_000
 
-	constructor({ maxBytes = 8 * 1024 * 1024 }: { maxBytes?: number } = {}) {
+	constructor({
+		maxBytes = 8 * 1024 * 1024,
+		negativeTtl = 60_000,
+	}: { maxBytes?: number; negativeTtl?: number } = {}) {
 		this.maxBytes = maxBytes
+		this.negativeTtl = negativeTtl
 	}
 
 	has(key: string) {
@@ -57,10 +75,10 @@ export class RouterCache {
 		return entry
 	}
 
-	set(key: string, type: RouterCacheType, promise: Promise<CachedPayload | null>) {
+	set(key: string, promise: Promise<DecodedResponse | null>) {
 		this.#delete(key)
 
-		const entry: PendingEntry = { state: 'pending', type, promise }
+		const entry: PendingEntry = { state: 'pending', promise }
 		this.#cache.set(key, entry)
 
 		void promise.then(
@@ -72,15 +90,42 @@ export class RouterCache {
 					return
 				}
 
-				const ready: ReadyEntry = { state: 'ready', type, value }
+				if (!value.payload) {
+					const timer = setTimeout(() => this.#delete(key), this.negativeTtl)
+					this.#cache.set(key, {
+						state: 'negative',
+						type: value.type,
+						timer,
+					})
+					return
+				}
+
+				const ready: ReadyEntry = {
+					state: 'ready',
+					type: value.type,
+					value: {
+						payload: value.payload,
+						url: value.url,
+						bytes: value.bytes,
+					},
+				}
 				this.#cache.set(key, ready)
-				this.#bytes += value.bytes
+				this.#bytes += ready.value.bytes
 				this.#evict(key)
 			},
 			() => {
 				if (this.#cache.get(key) === entry) this.#delete(key)
 			},
 		)
+	}
+
+	setReady(key: string, type: RouterCacheType, value: CachedPayload) {
+		this.#delete(key)
+
+		const ready: ReadyEntry = { state: 'ready', type, value }
+		this.#cache.set(key, ready)
+		this.#bytes += value.bytes
+		this.#evict(key)
 	}
 
 	remove(key: string) {
