@@ -31,13 +31,13 @@ export namespace RouterCache {
 	}
 
 	type PendingEntry = {
-		state: 'pending'
+		status: 'pending'
 		response: Promise<DecodedStream | null>
 		timer?: ReturnType<typeof setTimeout>
 	}
 
 	type ReadyEntry = {
-		state: 'ready'
+		status: 'ready'
 		type: Type
 		value: CachedPayload
 		timer?: ReturnType<typeof setTimeout>
@@ -74,7 +74,7 @@ export class RouterCache {
 		const entry = this.#cache.get(key)
 		if (!entry) return
 
-		if (entry.state === 'ready') {
+		if (entry.status === 'ready') {
 			// refresh the LRU position for ready entries
 			this.#cache.delete(key)
 			this.#cache.set(key, entry)
@@ -86,7 +86,7 @@ export class RouterCache {
 	set(key: string, response: Promise<RouterCache.DecodedStream | null>) {
 		this.#delete(key)
 
-		const entry: RouterCache.Entry = { state: 'pending', response }
+		const entry: RouterCache.Entry = { status: 'pending', response }
 		this.#cache.set(key, entry)
 
 		void response.then(
@@ -104,8 +104,9 @@ export class RouterCache {
 
 						const type =
 							stream.type ?? payload.type ?? ('dynamic' satisfies RouterCache.Type)
+
 						const ready: RouterCache.Entry = {
-							state: 'ready',
+							status: 'ready',
 							type,
 							value: {
 								payload,
@@ -117,6 +118,7 @@ export class RouterCache {
 
 						this.#cache.set(key, ready)
 						this.#bytes += ready.value.bytes
+
 						this.#evict(key)
 					},
 					() => {
@@ -134,11 +136,12 @@ export class RouterCache {
 		this.#delete(key)
 
 		const ready: RouterCache.Entry = {
-			state: 'ready',
+			status: 'ready',
 			type,
 			value,
 			timer: this.#timer(key, type),
 		}
+
 		this.#cache.set(key, ready)
 		this.#bytes += value.bytes
 		this.#evict(key)
@@ -159,16 +162,15 @@ export class RouterCache {
 
 	#timer(key: string, type: RouterCache.Type) {
 		if (type === 'full') return
-
 		return setTimeout(() => this.#delete(key), this.ttl)
 	}
 
-	#evict(currentKey: string) {
+	#evict(evictionKey: string) {
 		if (this.#bytes <= this.maxBytes) return
 
 		for (const [key, entry] of this.#cache) {
 			if (this.#bytes <= this.maxBytes) break
-			if (key === currentKey || entry.state !== 'ready') continue
+			if (key === evictionKey || entry.status !== 'ready') continue
 
 			this.#delete(key)
 		}
@@ -179,7 +181,7 @@ export class RouterCache {
 		if (!entry) return
 
 		if (entry.timer !== undefined) clearTimeout(entry.timer)
-		if (entry.state === 'ready') this.#bytes -= entry.value.bytes
+		if (entry.status === 'ready') this.#bytes -= entry.value.bytes
 
 		this.#cache.delete(key)
 	}

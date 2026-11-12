@@ -313,13 +313,13 @@ export function BrowserRouterProvider({
 
 				if (cached) {
 					try {
-						if (cached.state === 'ready') {
+						if (cached.status === 'ready') {
 							payload = cached.value.payload
 							resolvedPath = STATIC
 								? path
 								: (BrowserRouter.toCacheKey(cached.value.url, window.location.origin) ??
 									path)
-						} else if (cached.state === 'pending') {
+						} else if (cached.status === 'pending') {
 							const stream = await cached.response
 							if (stream) {
 								payload = await stream.payload

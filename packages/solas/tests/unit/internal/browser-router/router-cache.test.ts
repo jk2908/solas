@@ -29,14 +29,14 @@ describe('RouterCache', () => {
 		const promise = Promise.resolve(stream('/about', 10))
 
 		cache.set('/about', promise)
-		expect(cache.get('/about')?.state).toBe('pending')
+		expect(cache.get('/about')?.status).toBe('pending')
 
 		await promise
 		await settle()
 
 		const entry = cache.get('/about')
-		expect(entry?.state).toBe('ready')
-		if (entry?.state !== 'ready') throw new Error('expected ready entry')
+		expect(entry?.status).toBe('ready')
+		if (entry?.status !== 'ready') throw new Error('expected ready entry')
 		expect(entry.value.payload.url.pathname).toBe('/about')
 		expect(entry.value.bytes).toBe(10)
 	})
@@ -56,7 +56,7 @@ describe('RouterCache', () => {
 		const cache = new RouterCache()
 		cache.setReady('/about', 'full', cached('/about', 10))
 
-		expect(cache.get('/about')?.state).toBe('ready')
+		expect(cache.get('/about')?.status).toBe('ready')
 	})
 
 	it('expires dynamic payloads after the ttl', async () => {
