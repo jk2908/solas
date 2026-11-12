@@ -1,16 +1,12 @@
 import { describe, expect, it, vi } from 'vitest'
 
-import type {
-	CachedPayload,
-	DecodedStream,
-} from '../../../../src/internal/browser-router/router-cache.js'
 import { RouterCache } from '../../../../src/internal/browser-router/router-cache.js'
 
 function settle() {
 	return new Promise(resolve => setTimeout(resolve, 0))
 }
 
-function cached(path: string, bytes: number): CachedPayload {
+function cached(path: string, bytes: number): RouterCache.CachedPayload {
 	return {
 		payload: { root: null, url: { pathname: path } },
 		url: path,
@@ -18,7 +14,7 @@ function cached(path: string, bytes: number): CachedPayload {
 	}
 }
 
-function stream(path: string, bytes: number): DecodedStream {
+function stream(path: string, bytes: number): RouterCache.DecodedStream {
 	return {
 		payload: Promise.resolve({ root: null, url: { pathname: path } }),
 		finished: Promise.resolve(bytes),
