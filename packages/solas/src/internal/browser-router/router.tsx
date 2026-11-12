@@ -73,13 +73,22 @@ function readRouteType(res: Response) {
 	return isRouterCacheEntryType(type) ? type : undefined
 }
 
+/**
+ * Start decoding an RSC response while counting its bytes as they stream.
+ *
+ * The payload can resolve before the byte count is final, so callers decide
+ * whether they need the payload immediately or the complete cache size.
+ */
 function decodeRscResponse(res: Response) {
 	const type = readRouteType(res)
 
+	// null-body responses have nothing to decode or cache
 	if (res.status === 204 || !res.ok || !res.body) return null
 
 	let byteCount = 0
-	let finish!: () => void
+	let finish: () => void
+
+	// the count is only known once the body has fully streamed
 	const bytes = new Promise<number>(resolve => {
 		finish = () => resolve(byteCount)
 	})
@@ -87,6 +96,7 @@ function decodeRscResponse(res: Response) {
 	const body = res.body.pipeThrough(
 		new TransformStream<Uint8Array, Uint8Array>({
 			transform(chunk, controller) {
+				// count without copying the chunk or buffering the response
 				byteCount += chunk.byteLength
 				controller.enqueue(chunk)
 			},
@@ -96,6 +106,8 @@ function decodeRscResponse(res: Response) {
 		}),
 	)
 
+	// createFromFetch consumes the counted stream and can resolve the payload
+	// before the stream closes
 	const payload = createFromFetch<RscPayload>(
 		Promise.resolve(
 			new Response(body, {
@@ -109,12 +121,21 @@ function decodeRscResponse(res: Response) {
 	return { payload, bytes, url: res.url, type }
 }
 
+/**
+ * Fetch the RSC representation for a client navigation or prefetch.
+ *
+ * Static hosts use pre-generated payload files instead of making a server
+ * request.
+ */
 function performNavigationFetch(path: string, init?: RequestInit) {
+	// fully prerendered static deployments read their pre-generated payload
 	if (STATIC) return fetch(getPayloadUrl(path), init)
 
 	const headers = new Headers(init?.headers)
+	// ask the server for the RSC representation rather than a document
 	headers.set('accept', 'text/x-component')
 
+	// reuse the document nonce so inline payload scripts satisfy CSP
 	const nonce = getDocumentNonce()
 	if (nonce) headers.set('x-solas-nonce', nonce)
 
