@@ -65,12 +65,18 @@ export function writeSSREntry() {
 /**
  * Generates the browser entry code.
  */
-export function writeBrowserEntry() {
+export function writeBrowserEntry(config?: ConfiguredPluginConfig) {
+	const maxBytes = config?.router?.cache?.maxBytes
+	const call =
+		maxBytes === undefined
+			? 'browser()'
+			: `browser({ router: { cache: { maxBytes: ${maxBytes} } } })`
+
 	return source`
 		${AUTOGEN_MSG}
 
 		import { browser } from '${Config.PKG_NAME}/env/browser'
 
-		browser()
+		${call}
 	`
 }

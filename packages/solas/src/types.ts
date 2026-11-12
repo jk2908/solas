@@ -65,6 +65,14 @@ type PluginConfigBase = {
 	headers?: HeadersInput
 	csp?: CspConfig
 	adapter?: Adapter
+	router?: {
+		cache?: {
+			/**
+			 * Maximum bytes retained by the client route cache. Defaults to 8 MiB.
+			 */
+			maxBytes?: number
+		}
+	}
 	readonly logger?: {
 		level?: LogLevel
 	}

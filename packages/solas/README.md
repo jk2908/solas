@@ -294,6 +294,28 @@ export default defineConfig({
 })
 ```
 
+### `router.cache.maxBytes`
+
+Use `router.cache.maxBytes` to set the client-side route cache byte budget. When the budget is exceeded, the least recently used resolved entries are evicted.
+
+Default: `8388608` (8 MiB)
+
+```ts
+export default defineConfig({
+	plugins: [
+		solas({
+			router: {
+				cache: {
+					maxBytes: 16 * 1024 * 1024,
+				},
+			},
+		}),
+	],
+})
+```
+
+`maxBytes` must be a positive integer.
+
 ### `prerender`
 
 Use `prerender` to set the default prerender mode for the app. Valid values are `full`, `ppr`, and `false`.

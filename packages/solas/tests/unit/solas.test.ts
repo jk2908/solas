@@ -125,6 +125,25 @@ describe('Solas', () => {
 				expect(Config.validate({ precompress: true })).toHaveProperty('precompress', true)
 			})
 
+			it('accepts a positive router cache byte budget', () => {
+				expect(Config.validate({ router: { cache: { maxBytes: 1024 } } })).toHaveProperty(
+					'router.cache.maxBytes',
+					1024,
+				)
+			})
+
+			it('rejects invalid router cache byte budgets', () => {
+				expect(() => Config.validate({ router: { cache: { maxBytes: 0 } } })).toThrow(
+					'router.cache.maxBytes must be a positive integer',
+				)
+				expect(() => Config.validate({ router: { cache: { maxBytes: 1.5 } } })).toThrow(
+					'router.cache.maxBytes must be a positive integer',
+				)
+				expect(() => Config.validate({ router: { cache: { maxBytes: '1' } } })).toThrow(
+					'router.cache.maxBytes must be a positive integer',
+				)
+			})
+
 			it('accepts a structured CSP config', () => {
 				const csp = {
 					directives: {

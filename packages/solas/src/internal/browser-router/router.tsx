@@ -39,6 +39,13 @@ const DEFAULT_GO_CONFIG = {
 const logger = new Logger()
 const routerCache = new RouterCache()
 
+/**
+ * Apply client router cache settings from the generated browser entry.
+ */
+export function configureRouterCache(maxBytes?: number) {
+	if (maxBytes !== undefined) routerCache.maxBytes = maxBytes
+}
+
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
 /**

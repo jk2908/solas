@@ -88,6 +88,7 @@ const CONFIG_KEYS = new Set([
 	'metadata',
 	'precompress',
 	'prerender',
+	'router',
 	'sitemap',
 	'trustedOrigins',
 	'trailingSlash',
@@ -155,6 +156,36 @@ export function validate(input: unknown, envUrl?: string) {
 	if ('precompress' in input && input.precompress !== undefined) {
 		if (typeof input.precompress !== 'boolean') {
 			errors.push('precompress must be a boolean')
+		}
+	}
+
+	if ('router' in input && input.router !== undefined) {
+		if (!isRecord(input.router)) {
+			errors.push('router must be an object')
+		} else {
+			for (const key of Object.keys(input.router)) {
+				if (key !== 'cache') errors.push(`Unknown router key: ${key}`)
+			}
+
+			if (input.router.cache !== undefined) {
+				if (!isRecord(input.router.cache)) {
+					errors.push('router.cache must be an object')
+				} else {
+					for (const key of Object.keys(input.router.cache)) {
+						if (key !== 'maxBytes') {
+							errors.push(`Unknown router.cache key: ${key}`)
+						}
+					}
+
+					const maxBytes = input.router.cache.maxBytes
+					if (
+						maxBytes !== undefined &&
+						(typeof maxBytes !== 'number' || !Number.isInteger(maxBytes) || maxBytes <= 0)
+					) {
+						errors.push('router.cache.maxBytes must be a positive integer')
+					}
+				}
+			}
 		}
 	}
 

@@ -46,6 +46,12 @@ describe('writeBrowserEntry', () => {
 		expect(result).toContain('browser()')
 	})
 
+	it('passes the router cache byte budget', () => {
+		const result = writeBrowserEntry({ router: { cache: { maxBytes: 1024 } } })
+
+		expect(result).toContain('browser({ router: { cache: { maxBytes: 1024 } } })')
+	})
+
 	it('snapshot', () => {
 		expect(writeBrowserEntry()).toMatchSnapshot()
 	})
