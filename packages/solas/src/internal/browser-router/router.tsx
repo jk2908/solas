@@ -37,14 +37,6 @@ const DEFAULT_GO_CONFIG = {
 } satisfies BrowserRouter.GoOptions
 
 const logger = new Logger()
-const routerCache = new RouterCache()
-
-/**
- * Apply client router cache settings from the generated browser entry.
- */
-export function configureRouterCache(maxBytes?: number) {
-	if (maxBytes !== undefined) routerCache.maxBytes = maxBytes
-}
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
@@ -183,6 +175,7 @@ export function BrowserRouterProvider({
 	setPayload,
 	isNavigating = false,
 	url,
+	cacheMaxBytes,
 }: {
 	children: React.ReactNode
 	setPayload?: (payload: RscPayload) => void
@@ -192,8 +185,13 @@ export function BrowserRouterProvider({
 		search?: string
 		hash?: string
 	}
+	cacheMaxBytes?: number
 }) {
 	const id = useRef(0)
+	const routerCache = useMemo(
+		() => new RouterCache({ maxBytes: cacheMaxBytes }),
+		[cacheMaxBytes],
+	)
 	const controller = useRef<AbortController | null>(null)
 	const history = useRef(new BrowserRouterHistory(url))
 	const focusPending = useRef(false)
@@ -353,7 +351,7 @@ export function BrowserRouterProvider({
 
 			return path
 		},
-		[setPayload],
+		[routerCache, setPayload],
 	)
 
 	/**
@@ -363,18 +361,21 @@ export function BrowserRouterProvider({
 	 * @param path - The target path to prefetch.
 	 * @returns Void.
 	 */
-	const prefetch = useCallback((path: string) => {
-		const key = BrowserRouter.toCacheKey(path, window.location.origin)
-		if (!key) return
+	const prefetch = useCallback(
+		(path: string) => {
+			const key = BrowserRouter.toCacheKey(path, window.location.origin)
+			if (!key) return
 
-		if (routerCache.has(key)) return
+			if (routerCache.has(key)) return
 
-		const response = performNavigationFetch(key, {
-			headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
-		}).then(decodePrefetchedResponse)
+			const response = performNavigationFetch(key, {
+				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
+			}).then(decodePrefetchedResponse)
 
-		routerCache.set(key, 'full', response)
-	}, [])
+			routerCache.set(key, 'full', response)
+		},
+		[routerCache],
+	)
 
 	/**
 	 * Refreshes the current page by re-fetching the RSC response for the current path and updating the
@@ -391,7 +392,7 @@ export function BrowserRouterProvider({
 
 		// a refresh stays exactly where the user is
 		return go(currentPath, { replace: true, scroll: 'none' })
-	}, [go])
+	}, [go, routerCache])
 
 	useEffect(() => {
 		const h = history.current

@@ -13,7 +13,7 @@ export function writeRSCEntry(_config: ConfiguredPluginConfig) {
 
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'
-		import { config } from './config.js'
+		import { config } from './browser-config.js'
 		import { clientCssByRoute as devClientCssByRoute } from 'virtual:solas-dev-client-css'
 
 		export default await createRuntimeHandler({
@@ -44,7 +44,7 @@ export function writeCloudflareEntry() {
 
 		import { manifest } from './manifest.js'
 		import { importMap } from './maps.js'
-		import { config } from './config.js'
+		import { config } from './browser-config.js'
 		import { clientCssByRoute as devClientCssByRoute } from 'virtual:solas-dev-client-css'
 
 		export default createWorker({ config, manifest, importMap, devClientCssByRoute })
@@ -71,7 +71,7 @@ export function writeBrowserEntry() {
 
 		import { browser } from '${Config.PKG_NAME}/env/browser'
 
-		import { config } from './config.js'
+		import { config } from './browser-config.js'
 
 		browser(config)
 	`

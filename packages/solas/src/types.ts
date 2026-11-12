@@ -89,6 +89,11 @@ export type PluginConfig = PluginConfigBase & {
 
 export type ConfiguredPluginConfig = PluginConfig
 
+/**
+ * The client-safe subset of plugin configuration bundled into the browser.
+ */
+export type BrowserConfig = Pick<PluginConfig, 'router'>
+
 export type RuntimeConfig = PluginConfig & {
 	precompress: NonNullable<PluginConfig['precompress']>
 	trailingSlash: NonNullable<PluginConfig['trailingSlash']>

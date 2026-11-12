@@ -3,6 +3,19 @@ import * as Config from '../../config.js'
 import { AUTOGEN_MSG, source, toSourceLiteral } from './utils.js'
 
 /**
+ * Generates the browser-safe config object.
+ */
+export function writeBrowserConfig(config: PluginConfig) {
+	return source`
+		${AUTOGEN_MSG}
+
+		import type { BrowserConfig } from '${Config.PKG_NAME}'
+
+		export const config = ${toSourceLiteral(Config.parseBrowserConfig(config))} as const satisfies BrowserConfig
+	`
+}
+
+/**
  * Generates the code to create an exported config object.
  */
 export function writeConfig(config: PluginConfig) {

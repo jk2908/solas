@@ -43,7 +43,7 @@ describe('writeBrowserEntry', () => {
 	it('generates browser init code', () => {
 		const result = writeBrowserEntry()
 		expect(result).toContain("import { browser } from '@jk2908/solas/env/browser'")
-		expect(result).toContain("import { config } from './config.js'")
+		expect(result).toContain("import { config } from './browser-config.js'")
 		expect(result).toContain('browser(config)')
 	})
 

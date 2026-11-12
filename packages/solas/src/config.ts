@@ -1,6 +1,6 @@
 import { isRecord, isStringArray } from './utils/validation.js'
 
-import type { PluginConfig } from './types.js'
+import type { BrowserConfig, PluginConfig } from './types.js'
 
 export const NAME = 'Solas'
 export const SLUG = NAME.toLowerCase()
@@ -95,6 +95,15 @@ const CONFIG_KEYS = new Set([
 	'url',
 ])
 const LOGGER_KEYS = new Set(['level'])
+
+/**
+ * Select the configuration fields that are safe and useful in the browser.
+ */
+export function parseBrowserConfig(config: PluginConfig): BrowserConfig {
+	const maxBytes = config.router?.cache?.maxBytes
+
+	return maxBytes === undefined ? {} : { router: { cache: { maxBytes } } }
+}
 
 /**
  * Validate the plugin configuration object, throwing an error if invalid.

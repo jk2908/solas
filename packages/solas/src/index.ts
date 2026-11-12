@@ -32,7 +32,7 @@ import {
 	collectDevClientCss,
 	collectRouteClientReferences,
 } from './internal/client-css.js'
-import { writeConfig } from './internal/codegen/config.js'
+import { writeBrowserConfig, writeConfig } from './internal/codegen/config.js'
 import {
 	writeBrowserEntry,
 	writeRSCEntry,
@@ -176,6 +176,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 		const files: [string, string][] = [
 			['config.ts', writeConfig(config)],
+			['browser-config.ts', writeBrowserConfig(config)],
 			['manifest.ts', writeManifest(manifest)],
 			['maps.ts', writeMaps(imports, modules)],
 			[`${Config.SLUG}.d.ts`, writeTypes(manifest)],

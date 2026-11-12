@@ -1,6 +1,31 @@
 import { describe, it, expect } from 'vitest'
 
-import { writeConfig } from '../../../../src/internal/codegen/config.js'
+import {
+	writeBrowserConfig,
+	writeConfig,
+} from '../../../../src/internal/codegen/config.js'
+
+describe('writeBrowserConfig', () => {
+	it('only serialises client-safe fields', () => {
+		const result = writeBrowserConfig({
+			precompress: true,
+			prerender: 'full',
+			router: { cache: { maxBytes: 1024 } },
+			headers: { 'x-test': 'yes' },
+		})
+
+		expect(result).toContain('maxBytes: 1024')
+		expect(result).not.toContain('precompress')
+		expect(result).not.toContain('prerender')
+		expect(result).not.toContain('x-test')
+	})
+
+	it('omits router config when maxBytes is unset', () => {
+		const result = writeBrowserConfig({})
+
+		expect(result).not.toContain('router')
+	})
+})
 
 describe('writeConfig', () => {
 	it('generates config export', () => {
