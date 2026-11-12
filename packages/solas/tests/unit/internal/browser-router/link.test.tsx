@@ -318,61 +318,25 @@ describe('Link', () => {
 		}
 	})
 
-	it('uses viewport on devices without hover for auto', async () => {
+	it('uses intent on devices without hover for auto', async () => {
 		const matchMedia = vi.spyOn(window, 'matchMedia').mockReturnValue({
 			matches: false,
 		} as MediaQueryList)
-		const instances: MockIntersectionObserver[] = []
-
-		class MockIntersectionObserver {
-			readonly root = null
-			readonly rootMargin = ''
-			readonly thresholds = []
-			readonly observe = vi.fn()
-			readonly disconnect = vi.fn()
-			readonly takeRecords = vi.fn(() => [])
-			readonly unobserve = vi.fn()
-
-			constructor(readonly callback: IntersectionObserverCallback) {
-				instances.push(this)
-			}
-
-			trigger() {
-				this.callback(
-					[
-						{
-							isIntersecting: true,
-							target: document.querySelector('a[href="/about"]')!,
-						} as IntersectionObserverEntry,
-					],
-					this as unknown as IntersectionObserver,
-				)
-			}
-		}
-
-		const original = globalThis.IntersectionObserver
-		// @ts-expect-error test double
-		globalThis.IntersectionObserver = MockIntersectionObserver
 
 		try {
 			const prefetch = vi.fn()
 			mockRouter({ prefetch })
 
-			await render(
-				<PrefetchObserverProvider>
-					<Link href="/about" prefetch="auto">
-						AutoViewportLink
-					</Link>
-				</PrefetchObserverProvider>,
+			const screen = await render(
+				<Link href="/about" prefetch="auto">
+					AutoIntentLink
+				</Link>,
 			)
 
-			await vi.waitFor(() => expect(instances.length).toBeGreaterThan(0))
-
-			instances.at(-1)?.trigger()
+			await screen.getByRole('link', { name: 'AutoIntentLink' }).click()
 
 			expect(prefetch).toHaveBeenCalledWith('/about')
 		} finally {
-			globalThis.IntersectionObserver = original
 			matchMedia.mockRestore()
 		}
 	})

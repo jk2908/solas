@@ -147,11 +147,11 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 <Link href="/posts" prefetch="intent">Prefetch on focus or touch</Link>
 <Link href="/posts" prefetch="hover">Prefetch on hover</Link>
 <Link href="/posts" prefetch="viewport">Prefetch when visible</Link>
-<Link href="/posts" prefetch="auto">Hover or viewport, depending on input</Link>
+<Link href="/posts" prefetch="auto">Hover or intent, depending on input</Link>
 <Link href="/p/:id" params={{ id: 'post-1' }}>Typed params</Link>
 ```
 
-`prefetch={false}` is the default. `intent` prefetches on focus or touch, `hover` after a short mouse hover, `viewport` when the link enters the viewport, and `auto` uses hover on hover-capable devices and viewport otherwise. Prefetches are skipped for hidden pages, save-data connections and 2G/slow-2G. Nothing is prefetched unless you opt in with `Link` or call `router.prefetch(...)`.
+`prefetch={false}` is the default. `intent` prefetches on focus or touch, `hover` after a short mouse hover, `viewport` when the link enters the viewport, and `auto` uses hover on hover-capable devices and intent otherwise. Prefetches are skipped for hidden pages, save-data connections and 2G/slow-2G. Nothing is prefetched unless you opt in with `Link` or call `router.prefetch(...)`.
 
 Fully prerendered and dynamic routes prefetch their complete payload. Dynamic payloads expire after `router.cache.ttl`; PPR shell prefetching is not implemented yet.
 

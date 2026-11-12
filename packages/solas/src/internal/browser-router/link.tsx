@@ -83,15 +83,11 @@ function guard(path: string, prefetcher: (path: string) => void) {
 	prefetcher(path)
 }
 
-function getPrefetchStrategy(
-	prefetch: PrefetchMode | false,
-	hoverable: boolean,
-	observable: boolean,
-) {
+function getPrefetchStrategy(prefetch: PrefetchMode | false, hoverable: boolean) {
 	if (prefetch !== 'auto') return prefetch
 	if (hoverable) return 'hover'
 
-	return observable ? 'viewport' : 'intent'
+	return 'intent'
 }
 
 /**
@@ -130,7 +126,7 @@ export function Link({
 		window.matchMedia('(hover: hover) and (pointer: fine)').matches
 	const observable = typeof IntersectionObserver !== 'undefined'
 
-	const prefetchStrategy = getPrefetchStrategy(prefetch, hoverable, observable)
+	const prefetchStrategy = getPrefetchStrategy(prefetch, hoverable)
 
 	useImperativeHandle(ref, () => anchor.current!, [])
 
