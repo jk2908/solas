@@ -101,8 +101,13 @@ const LOGGER_KEYS = new Set(['level'])
  */
 export function parseBrowserConfig(config: PluginConfig): BrowserConfig {
 	const maxBytes = config.router?.cache?.maxBytes
+	const ttl = config.router?.cache?.ttl
+	const cache = {
+		...(maxBytes === undefined ? {} : { maxBytes }),
+		...(ttl === undefined ? {} : { ttl }),
+	}
 
-	return maxBytes === undefined ? {} : { router: { cache: { maxBytes } } }
+	return Object.keys(cache).length === 0 ? {} : { router: { cache } }
 }
 
 /**
@@ -181,7 +186,7 @@ export function validate(input: unknown, envUrl?: string) {
 					errors.push('router.cache must be an object')
 				} else {
 					for (const key of Object.keys(input.router.cache)) {
-						if (key !== 'maxBytes') {
+						if (key !== 'maxBytes' && key !== 'ttl') {
 							errors.push(`Unknown router.cache key: ${key}`)
 						}
 					}
@@ -192,6 +197,14 @@ export function validate(input: unknown, envUrl?: string) {
 						(typeof maxBytes !== 'number' || !Number.isInteger(maxBytes) || maxBytes <= 0)
 					) {
 						errors.push('router.cache.maxBytes must be a positive integer')
+					}
+
+					const ttl = input.router.cache.ttl
+					if (
+						ttl !== undefined &&
+						(typeof ttl !== 'number' || !Number.isInteger(ttl) || ttl <= 0)
+					) {
+						errors.push('router.cache.ttl must be a positive integer')
 					}
 				}
 			}

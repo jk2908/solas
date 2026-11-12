@@ -136,9 +136,9 @@ async function createPayload(
 	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
 	const prefetch = req.headers.get(`x-${Config.SLUG}-prefetch`) === '1'
 
-	// only fully prerendered routes can be prefetched without waiting for
-	// dynamic work; return an empty response for everything else
-	if (prefetch && match && match.prerender !== 'full') {
+	// ppr shells are not implemented yet; dynamic routes can be prefetched in
+	// full, just like fully prerendered routes
+	if (prefetch && match && match.prerender === 'ppr') {
 		return {
 			stream: new ReadableStream<Uint8Array>({
 				start(controller) {

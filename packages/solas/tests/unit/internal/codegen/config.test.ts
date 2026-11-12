@@ -20,7 +20,13 @@ describe('writeBrowserConfig', () => {
 		expect(result).not.toContain('x-test')
 	})
 
-	it('omits router config when maxBytes is unset', () => {
+	it('includes the router cache ttl', () => {
+		const result = writeBrowserConfig({ router: { cache: { ttl: 500 } } })
+
+		expect(result).toContain('ttl: 500')
+	})
+
+	it('omits router config when cache settings are unset', () => {
 		const result = writeBrowserConfig({})
 
 		expect(result).not.toContain('router')

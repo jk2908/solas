@@ -132,6 +132,19 @@ describe('Solas', () => {
 				)
 			})
 
+			it('accepts a positive router cache ttl', () => {
+				expect(Config.validate({ router: { cache: { ttl: 500 } } })).toHaveProperty(
+					'router.cache.ttl',
+					500,
+				)
+			})
+
+			it('rejects invalid router cache ttl', () => {
+				expect(() => Config.validate({ router: { cache: { ttl: 0 } } })).toThrow(
+					'router.cache.ttl must be a positive integer',
+				)
+			})
+
 			it('rejects invalid router cache byte budgets', () => {
 				expect(() => Config.validate({ router: { cache: { maxBytes: 0 } } })).toThrow(
 					'router.cache.maxBytes must be a positive integer',

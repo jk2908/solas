@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import type {
 	CachedPayload,
@@ -41,23 +41,6 @@ describe('RouterCache', () => {
 		expect(entry.value.bytes).toBe(10)
 	})
 
-	it('keeps a negative entry until its ttl expires', async () => {
-		const cache = new RouterCache({ negativeTtl: 10 })
-		const promise = Promise.resolve({
-			payload: null,
-			url: '/dynamic',
-			bytes: 0,
-			type: 'dynamic' as const,
-		})
-
-		cache.set('/dynamic', promise)
-		await promise
-		await Promise.resolve()
-
-		expect(cache.get('/dynamic')?.state).toBe('negative')
-		cache.clear()
-	})
-
 	it('removes an entry when the promise fails', async () => {
 		const cache = new RouterCache()
 		const promise = Promise.reject(new Error('failed'))
@@ -74,6 +57,18 @@ describe('RouterCache', () => {
 		cache.setReady('/about', 'full', cached('/about', 10))
 
 		expect(cache.get('/about')?.state).toBe('ready')
+	})
+
+	it('expires dynamic payloads after the ttl', async () => {
+		vi.useFakeTimers()
+		const cache = new RouterCache({ ttl: 1000 })
+		cache.setReady('/dynamic', 'dynamic', cached('/dynamic', 10))
+
+		vi.advanceTimersByTime(999)
+		expect(cache.has('/dynamic')).toBe(true)
+		vi.advanceTimersByTime(1)
+		expect(cache.has('/dynamic')).toBe(false)
+		vi.useRealTimers()
 	})
 
 	it('evicts LRU entries when the byte budget is exceeded', async () => {

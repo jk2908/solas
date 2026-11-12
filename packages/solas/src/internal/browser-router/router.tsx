@@ -12,7 +12,7 @@ import * as Config from '../../config.js'
 import * as Events from '../../events.js'
 import { BrowserRouterHistory } from './history.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
-import { RouterCache, type RouterCacheType } from './router-cache.js'
+import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -60,26 +60,23 @@ function getPayloadUrl(path: string) {
 
 /**
  * Read and decode a prefetched RSC response.
- *
- * @description Consuming the body here lets the network request finish even when
- * the user never navigates to the prefetched route.
  */
-function readRouteType(response: Response): RouterCacheType | undefined {
-	const type = response.headers.get(`x-${Config.SLUG}-route-type`)
-
-	return type === 'full' || type === 'ppr' || type === 'dynamic' ? type : undefined
+function readRouteType(res: Response) {
+	const type = res.headers.get(`x-${Config.SLUG}-route-type`)
+	return isRouterCacheEntryType(type) ? type : undefined
 }
 
-async function decodeRscResponse(response: Response) {
-	const headerType = readRouteType(response)
+async function decodeRscResponse(res: Response) {
+	const headerType = readRouteType(res)
 
-	if (response.status === 204) {
-		return { payload: null, url: response.url, bytes: 0, type: headerType ?? 'dynamic' }
+	if (res.status === 204) {
+		return { payload: null, url: res.url, bytes: 0, type: headerType ?? 'dynamic' }
 	}
 
-	if (!response.ok) return null
+	if (!res.ok) return null
 
-	const buffer = await response.arrayBuffer()
+	const buffer = await res.arrayBuffer()
+
 	const payload = await createFromReadableStream<RscPayload>(
 		new ReadableStream<Uint8Array>({
 			start(controller) {
@@ -91,7 +88,7 @@ async function decodeRscResponse(response: Response) {
 
 	return {
 		payload,
-		url: response.url,
+		url: res.url,
 		bytes: buffer.byteLength,
 		type: headerType ?? payload.type ?? (STATIC ? 'full' : 'dynamic'),
 	}
@@ -206,14 +203,19 @@ export function BrowserRouterProvider({
 	config?: BrowserConfig
 }) {
 	const id = useRef(0)
-	const routerCache = useMemo(
-		() => new RouterCache({ maxBytes: config.router?.cache?.maxBytes }),
-		[config],
-	)
 	const controller = useRef<AbortController | null>(null)
 	const history = useRef(new BrowserRouterHistory(url))
 	const focusPending = useRef(false)
 	const mounted = useRef(false)
+
+	const routerCache = useMemo(
+		() =>
+			new RouterCache({
+				maxBytes: config.router?.cache?.maxBytes,
+				ttl: config.router?.cache?.ttl,
+			}),
+		[config],
+	)
 
 	useEffect(() => {
 		if (!mounted.current) {

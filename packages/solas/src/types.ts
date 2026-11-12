@@ -62,6 +62,10 @@ export type RouterConfig = {
 		 * Maximum bytes retained by the client route cache. Defaults to 8 MiB.
 		 */
 		maxBytes?: number
+		/**
+		 * How long non-prerendered route payloads stay cached. Defaults to 60 seconds.
+		 */
+		ttl?: number
 	}
 }
 

@@ -153,6 +153,8 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 
 `prefetch={false}` is the default. `intent` prefetches on focus or touch, `hover` after a short mouse hover, `viewport` when the link enters the viewport, and `auto` uses hover on hover-capable devices and viewport otherwise. Prefetches are skipped for hidden pages, save-data connections and 2G/slow-2G. Nothing is prefetched unless you opt in with `Link` or call `router.prefetch(...)`.
 
+Fully prerendered and dynamic routes prefetch their complete payload. Dynamic payloads expire after `router.cache.ttl`; PPR shell prefetching is not implemented yet.
+
 Use `useRouter()` inside client components for programmatic navigation, prefetching, and refreshing the current route:
 
 ```tsx
@@ -315,6 +317,28 @@ export default defineConfig({
 ```
 
 `maxBytes` must be a positive integer.
+
+### `router.cache.ttl`
+
+Use `router.cache.ttl` to control how long dynamically rendered route payloads remain reusable. Fully prerendered routes do not expire.
+
+Default: `60000` (60 seconds)
+
+```ts
+export default defineConfig({
+	plugins: [
+		solas({
+			router: {
+				cache: {
+					ttl: 30_000,
+				},
+			},
+		}),
+	],
+})
+```
+
+`ttl` must be a positive integer.
 
 ### `prerender`
 

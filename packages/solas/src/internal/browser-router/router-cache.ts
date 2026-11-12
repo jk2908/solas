@@ -3,6 +3,12 @@ import type { RscPayload } from '../env/rsc.js'
 
 export type RouterCacheType = Route.PrerenderMode | 'dynamic'
 
+export function isRouterCacheEntryType(
+	value: string | null | undefined,
+): value is RouterCacheType {
+	return value === 'full' || value === 'ppr' || value === 'dynamic'
+}
+
 export type CachedPayload = {
 	payload: RscPayload
 	url: string
@@ -30,32 +36,26 @@ type ReadyEntry = {
 	timer?: ReturnType<typeof setTimeout>
 }
 
-type NegativeEntry = {
-	state: 'negative'
-	type: RouterCacheType
-	timer: ReturnType<typeof setTimeout>
-}
-
-export type RouterCacheEntry = PendingEntry | ReadyEntry | NegativeEntry
+export type RouterCacheEntry = PendingEntry | ReadyEntry
 
 /**
  * In-memory client cache for route payloads. Fully prerendered entries are
  * held indefinitely for the lifetime of the document and evicted only when the
- * cache exceeds its byte budget.
+ * cache exceeds its byte budget. Dynamic entries expire after their TTL.
  */
 export class RouterCache {
 	#cache = new Map<string, RouterCacheEntry>()
 	#bytes = 0
 
 	maxBytes = 8 * 1024 * 1024
-	negativeTtl = 60_000
+	ttl = 60_000
 
 	constructor({
 		maxBytes = 8 * 1024 * 1024,
-		negativeTtl = 60_000,
-	}: { maxBytes?: number; negativeTtl?: number } = {}) {
+		ttl = 60_000,
+	}: { maxBytes?: number; ttl?: number } = {}) {
 		this.maxBytes = maxBytes
-		this.negativeTtl = negativeTtl
+		this.ttl = ttl
 	}
 
 	has(key: string) {
@@ -85,18 +85,8 @@ export class RouterCache {
 			value => {
 				if (this.#cache.get(key) !== entry) return
 
-				if (!value) {
+				if (!value?.payload) {
 					this.#delete(key)
-					return
-				}
-
-				if (!value.payload) {
-					const timer = setTimeout(() => this.#delete(key), this.negativeTtl)
-					this.#cache.set(key, {
-						state: 'negative',
-						type: value.type,
-						timer,
-					})
 					return
 				}
 
@@ -108,6 +98,7 @@ export class RouterCache {
 						url: value.url,
 						bytes: value.bytes,
 					},
+					timer: this.#timer(key, value.type),
 				}
 				this.#cache.set(key, ready)
 				this.#bytes += ready.value.bytes
@@ -122,7 +113,12 @@ export class RouterCache {
 	setReady(key: string, type: RouterCacheType, value: CachedPayload) {
 		this.#delete(key)
 
-		const ready: ReadyEntry = { state: 'ready', type, value }
+		const ready: ReadyEntry = {
+			state: 'ready',
+			type,
+			value,
+			timer: this.#timer(key, type),
+		}
 		this.#cache.set(key, ready)
 		this.#bytes += value.bytes
 		this.#evict(key)
@@ -139,6 +135,12 @@ export class RouterCache {
 
 		this.#cache.clear()
 		this.#bytes = 0
+	}
+
+	#timer(key: string, type: RouterCacheType) {
+		if (type === 'full') return
+
+		return setTimeout(() => this.#delete(key), this.ttl)
 	}
 
 	#evict(currentKey: string) {
