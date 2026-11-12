@@ -2,7 +2,7 @@ export type HttpRouterErrorCode =
 	| 'missing-endpoint'
 	| 'invalid-route-group'
 	| 'missing-page-entry'
-	| 'middleware-next-called'
+	| 'middleware-next-called-multiple-times-multiple-times'
 
 export class HttpRouterError extends Error {
 	readonly code: HttpRouterErrorCode
@@ -38,10 +38,13 @@ export class MissingPageEntryError extends HttpRouterError {
 	}
 }
 
-export class MiddlewareNextCalledError extends HttpRouterError {
+export class MiddlewareNextCalledMultipleTimesError extends HttpRouterError {
 	constructor() {
-		super('middleware-next-called', 'next() called more than once')
-		this.name = 'MiddlewareNextCalledError'
+		super(
+			'middleware-next-called-multiple-times-multiple-times',
+			'next() called more than once',
+		)
+		this.name = 'MiddlewareNextCalledMultipleTimesError'
 	}
 }
 
@@ -54,6 +57,6 @@ export function isHttpRouterError(error: unknown): error is HttpRouterError {
 			(error.code === 'missing-endpoint' ||
 				error.code === 'invalid-route-group' ||
 				error.code === 'missing-page-entry' ||
-				error.code === 'middleware-next-called'))
+				error.code === 'middleware-next-called-multiple-times-multiple-times'))
 	)
 }

@@ -8,7 +8,7 @@ import * as Config from '../../config.js'
 import { HttpException } from '../navigation/http-exception.js'
 import { maybeAction } from '../server/actions.js'
 import { CsrfConfig, enforce } from '../server/csrf.js'
-import { MiddlewareNextCalledError } from './errors.js'
+import { MiddlewareNextCalledMultipleTimesError } from './errors.js'
 import {
 	getAlternatePathname,
 	normaliseTrailingSlash,
@@ -395,7 +395,7 @@ export class HttpRouter {
 				return Promise.resolve(
 					handler(request, (replacement?: Request) => {
 						// next() can only be used once per middleware call
-						if (called) throw new MiddlewareNextCalledError()
+						if (called) throw new MiddlewareNextCalledMultipleTimesError()
 						called = true
 
 						return prev(withRequestMeta(replacement ?? request, request))

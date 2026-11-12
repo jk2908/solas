@@ -5,7 +5,7 @@ export { url } from './internal/server/url.js'
 export {
 	HttpRouterError,
 	InvalidRouteGroupError,
-	MiddlewareNextCalledError,
+	MiddlewareNextCalledMultipleTimesError,
 	MissingEndpointHandlerError,
 	MissingPageEntryError,
 	isHttpRouterError,
