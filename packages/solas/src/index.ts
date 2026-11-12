@@ -181,7 +181,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			[`${Config.SLUG}.d.ts`, writeTypes(manifest)],
 			[Config.ENTRY_RSC, writeRSCEntry(config)],
 			[Config.ENTRY_SSR, writeSSREntry()],
-			[Config.ENTRY_BROWSER, writeBrowserEntry(config)],
+			[Config.ENTRY_BROWSER, writeBrowserEntry()],
 		]
 
 		// remove generated files no longer emitted by the current codegen, so

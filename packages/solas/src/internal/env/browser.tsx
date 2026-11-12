@@ -18,6 +18,7 @@ import {
 
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 
+import type { PluginConfig } from '../../types.js'
 import type { RscPayload } from './rsc.js'
 import { BrowserRouterProvider, configureRouterCache } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
@@ -28,16 +29,8 @@ import { rscStream } from './flight.js'
 /**
  * Browser RSC hydration entry point.
  */
-type BrowserOptions = {
-	router?: {
-		cache?: {
-			maxBytes?: number
-		}
-	}
-}
-
-export async function browser(options: BrowserOptions = {}) {
-	configureRouterCache(options.router?.cache?.maxBytes)
+export async function browser(config: PluginConfig = {}) {
+	configureRouterCache(config.router?.cache?.maxBytes)
 
 	// read the initial payload from the inline __FLIGHT_DATA pushes that were
 	// injected into the html document during ssr/prerender
