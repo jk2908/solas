@@ -1,7 +1,7 @@
 'use client'
 import { createContext, useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
+import { createFromFetch } from '@vitejs/plugin-rsc/browser'
 
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 import { Logger } from '../../utils/logger.js'
@@ -80,23 +80,42 @@ async function decodeRscResponse(res: Response) {
 		return { payload: null, url: res.url, bytes: 0, type: headerType ?? 'dynamic' }
 	}
 
-	if (!res.ok) return null
+	if (!res.ok || !res.body) return null
 
-	const buffer = await res.arrayBuffer()
+	let bytes = 0
+	let finish!: () => void
+	const finished = new Promise<void>(resolve => {
+		finish = resolve
+	})
 
-	const payload = await createFromReadableStream<RscPayload>(
-		new ReadableStream<Uint8Array>({
-			start(controller) {
-				controller.enqueue(new Uint8Array(buffer))
-				controller.close()
+	const body = res.body.pipeThrough(
+		new TransformStream<Uint8Array, Uint8Array>({
+			transform(chunk, controller) {
+				bytes += chunk.byteLength
+				controller.enqueue(chunk)
+			},
+			flush() {
+				finish()
 			},
 		}),
 	)
 
+	const payload = await createFromFetch<RscPayload>(
+		Promise.resolve(
+			new Response(body, {
+				status: res.status,
+				statusText: res.statusText,
+				headers: res.headers,
+			}),
+		),
+	)
+
+	await finished
+
 	return {
 		payload,
 		url: res.url,
-		bytes: buffer.byteLength,
+		bytes,
 		type: headerType ?? payload.type ?? (STATIC ? 'full' : 'dynamic'),
 	}
 }
