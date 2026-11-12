@@ -1,6 +1,7 @@
 import { applyBasePath, normaliseBasePath } from '../../utils/base-path.js'
 
 import * as Solas from '../../solas.js'
+import { InvalidWildcardParamError, MissingRouteParamError } from './errors.js'
 
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 
@@ -264,7 +265,7 @@ export function toTarget(path: string, params?: Record<string, string>, query?: 
 		const value = params?.[key]
 
 		if (value == null) {
-			throw new Error(`[Link]: missing route param: ${key}`)
+			throw new MissingRouteParamError(key)
 		}
 
 		used.add(key)
@@ -275,7 +276,7 @@ export function toTarget(path: string, params?: Record<string, string>, query?: 
 		const remaining = Object.entries(params ?? {}).filter(([key]) => !used.has(key))
 
 		if (remaining.length !== 1) {
-			throw new Error('[Link]: wildcard routes require exactly one unmatched param')
+			throw new InvalidWildcardParamError()
 		}
 
 		to = to.replace('*', remaining[0][1].split('/').map(encodeURIComponent).join('/'))

@@ -10,6 +10,13 @@ import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
 import * as Config from '../../config.js'
 import * as Events from '../../events.js'
+import {
+	ExternalUrlError,
+	InvalidNavigationPayloadError,
+	InvalidNavigationUrlError,
+	isBrowserRouterError,
+	isRouteTargetError,
+} from './errors.js'
 import { BrowserRouterHistory } from './history.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
@@ -272,14 +279,14 @@ export function BrowserRouterProvider({
 				const target = BrowserRouter.toTarget(to, opts.params, opts.query)
 
 				if (BrowserRouter.isExternalTarget(target, window.location.origin)) {
-					throw new Error('[router.go]: External URLs are not supported. Use <a> instead')
+					throw new ExternalUrlError()
 				}
 
 				const url = new URL(target, window.location.origin)
 				const hash = url.hash
 
 				const key = BrowserRouter.toCacheKey(url.toString(), window.location.origin)
-				if (!key) throw new Error('[router.go]: Invalid navigation url')
+				if (!key) throw new InvalidNavigationUrlError()
 
 				path = key
 
@@ -328,7 +335,7 @@ export function BrowserRouterProvider({
 					const decoded = await decodeRscResponse(res)
 
 					if (!decoded?.payload) {
-						throw new Error('[router.go]: route response did not contain a payload')
+						throw new InvalidNavigationPayloadError()
 					}
 
 					payload = decoded.payload
@@ -375,6 +382,10 @@ export function BrowserRouterProvider({
 						detail: {
 							path,
 							error: err instanceof Error ? err.message : Logger.print(err),
+							code:
+								isBrowserRouterError(err) || isRouteTargetError(err)
+									? err.code
+									: undefined,
 						},
 					}),
 				)
