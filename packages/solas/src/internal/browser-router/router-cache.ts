@@ -18,7 +18,7 @@ export namespace RouterCache {
 
 	export type DecodedStream = {
 		payload: Promise<RscPayload>
-		finished: Promise<number>
+		bytes: Promise<number>
 		url: string
 		type?: Type
 	}
@@ -98,7 +98,7 @@ export class RouterCache {
 					return
 				}
 
-				void Promise.all([stream.payload, stream.finished]).then(
+				void Promise.all([stream.payload, stream.bytes]).then(
 					([payload, bytes]) => {
 						if (this.#cache.get(key) !== entry) return
 

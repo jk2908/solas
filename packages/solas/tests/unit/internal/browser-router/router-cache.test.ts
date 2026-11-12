@@ -17,7 +17,7 @@ function cached(path: string, bytes: number): RouterCache.CachedPayload {
 function stream(path: string, bytes: number): RouterCache.DecodedStream {
 	return {
 		payload: Promise.resolve({ root: null, url: { pathname: path } }),
-		finished: Promise.resolve(bytes),
+		bytes: Promise.resolve(bytes),
 		url: path,
 		type: 'full',
 	}

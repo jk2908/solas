@@ -78,16 +78,16 @@ function decodeRscResponse(res: Response) {
 
 	if (res.status === 204 || !res.ok || !res.body) return null
 
-	let bytes = 0
+	let byteCount = 0
 	let finish!: () => void
-	const finished = new Promise<number>(resolve => {
-		finish = () => resolve(bytes)
+	const bytes = new Promise<number>(resolve => {
+		finish = () => resolve(byteCount)
 	})
 
 	const body = res.body.pipeThrough(
 		new TransformStream<Uint8Array, Uint8Array>({
 			transform(chunk, controller) {
-				bytes += chunk.byteLength
+				byteCount += chunk.byteLength
 				controller.enqueue(chunk)
 			},
 			flush() {
@@ -106,7 +106,7 @@ function decodeRscResponse(res: Response) {
 		),
 	)
 
-	return { payload, finished, url: res.url, type }
+	return { payload, bytes, url: res.url, type }
 }
 
 function performNavigationFetch(path: string, init?: RequestInit) {
@@ -359,7 +359,7 @@ export function BrowserRouterProvider({
 							: path
 
 					if (navigationType === 'full') {
-						void decoded.finished
+						void decoded.bytes
 							.then(bytes => {
 								routerCache.setReady(path, 'full', {
 									payload: loadedPayload,
