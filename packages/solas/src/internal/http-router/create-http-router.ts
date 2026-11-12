@@ -8,6 +8,11 @@ import type {
 	Segment,
 	SolasRequest,
 } from '../../types.js'
+import {
+	InvalidRouteGroupError,
+	MissingEndpointHandlerError,
+	MissingPageEntryError,
+} from './errors.js'
 import { HttpRouter } from './router.js'
 import { isRscRequest } from './utils.js'
 
@@ -102,7 +107,7 @@ export function createHttpRouter(
 			const endpoint = importMap[group.__id]?.endpoint
 
 			if (!endpoint) {
-				throw new Error(`Missing endpoint handler for ${group.__id}`)
+				throw new MissingEndpointHandlerError(group.__id)
 			}
 
 			// standalone endpoints resolve directly from the import map and bypass RSC
@@ -118,13 +123,14 @@ export function createHttpRouter(
 			continue
 		}
 
-		if (group.length > 2) throw new Error('Unexpected route group length')
+		if (group.length > 2)
+			throw new InvalidRouteGroupError('Unexpected route group length')
 
 		const page = group.find((entry): entry is Segment => 'paths' in entry)
 		const endpointEntry = group.find((entry): entry is Endpoint => !('paths' in entry))
 
 		if (!page) {
-			throw new Error('Unified route group missing page entry')
+			throw new MissingPageEntryError()
 		}
 
 		const endpoint = endpointEntry ? importMap[endpointEntry.__id]?.endpoint : undefined
