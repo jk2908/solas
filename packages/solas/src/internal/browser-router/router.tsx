@@ -73,19 +73,15 @@ function readRouteType(res: Response) {
 	return isRouterCacheEntryType(type) ? type : undefined
 }
 
-async function decodeRscResponse(res: Response) {
-	const headerType = readRouteType(res)
+function decodeRscResponse(res: Response) {
+	const type = readRouteType(res)
 
-	if (res.status === 204) {
-		return { payload: null, url: res.url, bytes: 0, type: headerType ?? 'dynamic' }
-	}
-
-	if (!res.ok || !res.body) return null
+	if (res.status === 204 || !res.ok || !res.body) return null
 
 	let bytes = 0
 	let finish!: () => void
-	const finished = new Promise<void>(resolve => {
-		finish = resolve
+	const finished = new Promise<number>(resolve => {
+		finish = () => resolve(bytes)
 	})
 
 	const body = res.body.pipeThrough(
@@ -100,7 +96,7 @@ async function decodeRscResponse(res: Response) {
 		}),
 	)
 
-	const payload = await createFromFetch<RscPayload>(
+	const payload = createFromFetch<RscPayload>(
 		Promise.resolve(
 			new Response(body, {
 				status: res.status,
@@ -110,13 +106,20 @@ async function decodeRscResponse(res: Response) {
 		),
 	)
 
-	await finished
+	return { payload, finished, url: res.url, type }
+}
+
+async function decodeToCached(res: Response) {
+	const decoded = decodeRscResponse(res)
+	if (!decoded) return null
+
+	const [payload, bytes] = await Promise.all([decoded.payload, decoded.finished])
 
 	return {
 		payload,
-		url: res.url,
+		url: decoded.url,
 		bytes,
-		type: headerType ?? payload.type ?? (STATIC ? 'full' : 'dynamic'),
+		type: decoded.type ?? payload.type ?? (STATIC ? 'full' : 'dynamic'),
 	}
 }
 
@@ -351,25 +354,32 @@ export function BrowserRouterProvider({
 					if (navigationId !== id.current) return path
 
 					const res = await promise
-					const decoded = await decodeRscResponse(res)
+					const decoded = decodeRscResponse(res)
 
-					if (!decoded?.payload) {
+					if (!decoded) {
 						throw new InvalidNavigationPayloadError()
 					}
 
-					payload = decoded.payload
+					const loadedPayload = await decoded.payload
+					payload = loadedPayload
+					const navigationType =
+						decoded.type ?? loadedPayload.type ?? (STATIC ? 'full' : 'dynamic')
 					resolvedPath = STATIC
 						? path
 						: decoded.url
 							? (BrowserRouter.toCacheKey(decoded.url, window.location.origin) ?? path)
 							: path
 
-					if (decoded.type === 'full') {
-						routerCache.setReady(path, 'full', {
-							payload,
-							url: resolvedPath,
-							bytes: decoded.bytes,
-						})
+					if (navigationType === 'full') {
+						void decoded.finished
+							.then(bytes => {
+								routerCache.setReady(path, 'full', {
+									payload: loadedPayload,
+									url: resolvedPath,
+									bytes,
+								})
+							})
+							.catch(() => {})
 					}
 				}
 
@@ -435,7 +445,7 @@ export function BrowserRouterProvider({
 
 			const response = performNavigationFetch(key, {
 				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
-			}).then(decodeRscResponse)
+			}).then(decodeToCached)
 
 			routerCache.set(key, response)
 		},
