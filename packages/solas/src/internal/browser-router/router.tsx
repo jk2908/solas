@@ -92,12 +92,9 @@ function decodeRscResponse(res: Response) {
 	if (res.status === 204 || !res.ok || !res.body) return null
 
 	let byteCount = 0
-	let finish: () => void
 
 	// the count is only known once the body has fully streamed
-	const bytes = new Promise<number>(resolve => {
-		finish = () => resolve(byteCount)
-	})
+	const { promise: bytes, resolve: finish } = Promise.withResolvers<number>()
 
 	const body = res.body.pipeThrough(
 		new TransformStream<Uint8Array, Uint8Array>({
@@ -107,12 +104,12 @@ function decodeRscResponse(res: Response) {
 				controller.enqueue(chunk)
 			},
 			flush() {
-				finish()
+				finish(byteCount)
 			},
 		}),
 	)
 
-	// createFromFetch consumes the counted stream and can resolve the payload
+	// `createFromFetch` consumes the counted stream and can resolve the payload
 	// before the stream closes
 	const payload = createFromFetch<RscPayload>(
 		Promise.resolve(
@@ -371,14 +368,14 @@ export function BrowserRouterProvider({
 					const res = await promise
 					const decoded = decodeRscResponse(res)
 
-					if (!decoded) {
-						throw new InvalidNavigationPayloadError()
-					}
+					if (!decoded) throw new InvalidNavigationPayloadError()
 
 					const loadedPayload = await decoded.payload
 					payload = loadedPayload
+
 					const navigationType =
 						decoded.type ?? loadedPayload.type ?? (STATIC ? 'full' : 'dynamic')
+
 					resolvedPath = STATIC
 						? path
 						: decoded.url
