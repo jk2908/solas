@@ -1,7 +1,7 @@
 'use client'
 import { createContext, useCallback, useEffect, useMemo, useRef } from 'react'
 
-import { createFromFetch } from '@vitejs/plugin-rsc/browser'
+import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
 
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 import { Logger } from '../../utils/logger.js'
@@ -112,17 +112,9 @@ function decodeRscResponse(res: Response) {
 		}),
 	)
 
-	// `createFromFetch` consumes the counted stream and can resolve the payload
-	// before the stream closes
-	const payload = createFromFetch<RscPayload>(
-		Promise.resolve(
-			new Response(body, {
-				status: res.status,
-				statusText: res.statusText,
-				headers: res.headers,
-			}),
-		),
-	)
+	// the parser consumes the counted stream and can resolve the payload before
+	// the stream closes
+	const payload = createFromReadableStream<RscPayload>(body)
 
 	return { payload, bytes, url: res.url, type }
 }
