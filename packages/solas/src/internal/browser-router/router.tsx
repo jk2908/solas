@@ -358,9 +358,6 @@ export function BrowserRouterProvider({
 								? path
 								: (BrowserRouter.toCacheKey(cached.value.url, window.location.origin) ??
 									path)
-
-							// dynamic prefetches are one-shot and must not become a route cache
-							if (cached.type === 'dynamic') routerCache.remove(path)
 						} else if (cached.status === 'pending') {
 							const stream = await cached.response
 
@@ -370,11 +367,6 @@ export function BrowserRouterProvider({
 								resolvedPath = STATIC
 									? path
 									: (BrowserRouter.toCacheKey(stream.url, window.location.origin) ?? path)
-
-								// remove before promotion so this payload is not reused
-								if ((stream.type ?? payload.type) === 'dynamic') {
-									routerCache.remove(path)
-								}
 							}
 						}
 					} catch {

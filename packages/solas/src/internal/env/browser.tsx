@@ -92,7 +92,6 @@ export async function browser(config: BrowserConfig = {}) {
 		)
 
 		payloadSetter.current(payload)
-		clearNavigationCache()
 
 		const { ok, data } = payload.returnValue ?? {}
 		if (!ok) throw data
