@@ -45,6 +45,14 @@ const DEFAULT_GO_CONFIG = {
 } satisfies BrowserRouter.GoOptions
 
 const logger = new Logger()
+let clearActiveCache = () => {}
+
+/**
+ * Clear the active router cache after a mutation or HMR update.
+ */
+export function clearNavigationCache() {
+	clearActiveCache()
+}
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
@@ -252,6 +260,14 @@ export function BrowserRouterProvider({
 	)
 
 	useEffect(() => {
+		clearActiveCache = () => routerCache.clear()
+
+		return () => {
+			clearActiveCache = () => {}
+		}
+	}, [routerCache])
+
+	useEffect(() => {
 		if (!mounted.current) {
 			mounted.current = true
 			return
@@ -342,6 +358,9 @@ export function BrowserRouterProvider({
 								? path
 								: (BrowserRouter.toCacheKey(cached.value.url, window.location.origin) ??
 									path)
+
+							// dynamic prefetches are one-shot and must not become a route cache
+							if (cached.type === 'dynamic') routerCache.remove(path)
 						} else if (cached.status === 'pending') {
 							const stream = await cached.response
 
@@ -351,6 +370,11 @@ export function BrowserRouterProvider({
 								resolvedPath = STATIC
 									? path
 									: (BrowserRouter.toCacheKey(stream.url, window.location.origin) ?? path)
+
+								// remove before promotion so this payload is not reused
+								if ((stream.type ?? payload.type) === 'dynamic') {
+									routerCache.remove(path)
+								}
 							}
 						}
 					} catch {
