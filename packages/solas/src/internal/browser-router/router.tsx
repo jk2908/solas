@@ -92,9 +92,12 @@ function decodeRscResponse(res: Response) {
 	if (res.status === 204 || !res.ok || !res.body) return null
 
 	let byteCount = 0
+	let finish: () => void
 
 	// the count is only known once the body has fully streamed
-	const { promise: bytes, resolve: finish } = Promise.withResolvers<number>()
+	const bytes = new Promise<number>(resolve => {
+		finish = () => resolve(byteCount)
+	})
 
 	const body = res.body.pipeThrough(
 		new TransformStream<Uint8Array, Uint8Array>({
@@ -104,7 +107,7 @@ function decodeRscResponse(res: Response) {
 				controller.enqueue(chunk)
 			},
 			flush() {
-				finish(byteCount)
+				finish()
 			},
 		}),
 	)
@@ -288,6 +291,7 @@ export function BrowserRouterProvider({
 			// change how this navigation scrolls
 			const scrollIntent = opts.scroll ?? 'top'
 
+			// each navigation invalidates any older request still in flight
 			id.current += 1
 			const navigationId = id.current
 
@@ -304,6 +308,7 @@ export function BrowserRouterProvider({
 
 			const replace = opts?.replace ?? DEFAULT_GO_CONFIG.replace
 
+			// stop the previous navigation fetch before starting another
 			controller.current?.abort()
 			controller.current = null
 
@@ -335,18 +340,22 @@ export function BrowserRouterProvider({
 
 				const cached = routerCache.get(path)
 
+				// ready entries are complete; pending entries can stream their payload
 				if (cached) {
 					try {
 						if (cached.status === 'ready') {
 							payload = cached.value.payload
+
 							resolvedPath = STATIC
 								? path
 								: (BrowserRouter.toCacheKey(cached.value.url, window.location.origin) ??
 									path)
 						} else if (cached.status === 'pending') {
 							const stream = await cached.response
+
 							if (stream) {
 								payload = await stream.payload
+
 								resolvedPath = STATIC
 									? path
 									: (BrowserRouter.toCacheKey(stream.url, window.location.origin) ?? path)
@@ -357,6 +366,7 @@ export function BrowserRouterProvider({
 					}
 				}
 
+				// no usable cached payload, so make a normal navigation request
 				if (!payload) {
 					const ctrl = new AbortController()
 					controller.current = ctrl
@@ -370,6 +380,7 @@ export function BrowserRouterProvider({
 
 					if (!decoded) throw new InvalidNavigationPayloadError()
 
+					// commit as soon as the RSC root is ready; bytes continue in the background
 					const loadedPayload = await decoded.payload
 					payload = loadedPayload
 
@@ -382,6 +393,7 @@ export function BrowserRouterProvider({
 							? (BrowserRouter.toCacheKey(decoded.url, window.location.origin) ?? path)
 							: path
 
+					// only full prerendered payloads are cached indefinitely
 					if (navigationType === 'full') {
 						void decoded.bytes
 							.then(bytes => {
@@ -395,17 +407,21 @@ export function BrowserRouterProvider({
 					}
 				}
 
+				// a newer navigation wins, so do not apply stale state
 				if (navigationId !== id.current) return resolvedPath
 
+				// redirects and canonicalisation can change the final URL
 				if (resolvedPath !== path) {
 					history.current.replaceState(resolvedPath)
 				}
 
+				// focus after React commits the new payload
 				focusPending.current = scrollIntent !== 'none' && !hash
 
 				setPayload?.(payload)
 				applyScroll(scrollIntent, hash)
 
+				// notify listeners only after the payload has been applied
 				window.dispatchEvent(
 					new CustomEvent(Events.NAVIGATION, {
 						detail: { path: resolvedPath },
@@ -414,6 +430,7 @@ export function BrowserRouterProvider({
 
 				return resolvedPath
 			} catch (err) {
+				// aborts are expected when a newer navigation starts
 				if (err instanceof Error && err.name === 'AbortError') {
 					return path
 				}
@@ -433,6 +450,7 @@ export function BrowserRouterProvider({
 
 				logger.error('[navigation] failed', err)
 			} finally {
+				// only clear the controller if this navigation is still current
 				if (navigationId === id.current) controller.current = null
 			}
 
@@ -453,8 +471,10 @@ export function BrowserRouterProvider({
 			const key = BrowserRouter.toCacheKey(path, window.location.origin)
 			if (!key) return
 
+			// avoid duplicate requests for cached or in-flight entries
 			if (routerCache.has(key)) return
 
+			// prefetches use the normal decode path but are never committed by this call
 			const response = performNavigationFetch(key, {
 				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
 			}).then(decodeRscResponse)
