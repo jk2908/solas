@@ -16,11 +16,11 @@ describe('RequestContext', () => {
 				__SOLAS__: { match: null },
 			}) as SolasRequest
 
-			const ctx = { req, prerender: null as const, cache: {} }
+			const ctx = { request: req, prerender: null as const, cache: {} }
 
 			const result = await RequestContext.write(ctx, () => {
 				const current = RequestContext.use()
-				return current.req.url
+				return current.request.url
 			})
 
 			expect(result).toBe('http://localhost/test')
@@ -31,7 +31,7 @@ describe('RequestContext', () => {
 				__SOLAS__: { match: null },
 			}) as SolasRequest
 
-			const ctx = { req, prerender: 'full' as const, cache: {} }
+			const ctx = { request: req, prerender: 'full' as const, cache: {} }
 
 			const result = await RequestContext.write(ctx, () => {
 				return RequestContext.use().prerender
@@ -46,7 +46,7 @@ describe('RequestContext', () => {
 			}) as SolasRequest
 
 			const cache = { headers: new Map([['x-test', 'value']]) }
-			const ctx = { req, prerender: null as const, cache }
+			const ctx = { request: req, prerender: null as const, cache }
 
 			const result = await RequestContext.write(ctx, () => {
 				return RequestContext.use().cache
@@ -60,11 +60,11 @@ describe('RequestContext', () => {
 				__SOLAS__: { match: null },
 			}) as SolasRequest
 
-			const ctx = { req, prerender: null as const, cache: {} }
+			const ctx = { request: req, prerender: null as const, cache: {} }
 
 			const result = await RequestContext.write(ctx, async () => {
 				await new Promise(r => setTimeout(r, 10))
-				return RequestContext.use().req.url
+				return RequestContext.use().request.url
 			})
 
 			expect(result).toBe('http://localhost/')
@@ -80,12 +80,12 @@ describe('RequestContext', () => {
 			}) as SolasRequest
 
 			const result = await RequestContext.write(
-				{ req: req1, prerender: null, cache: {} },
+				{ request: req1, prerender: null, cache: {} },
 				async () => {
-					const outerUrl = RequestContext.use().req.url
+					const outerUrl = RequestContext.use().request.url
 					const innerUrl = await RequestContext.write(
-						{ req: req2, prerender: null, cache: {} },
-						() => RequestContext.use().req.url,
+						{ request: req2, prerender: null, cache: {} },
+						() => RequestContext.use().request.url,
 					)
 					return { outerUrl, innerUrl }
 				},
@@ -100,7 +100,7 @@ describe('RequestContext', () => {
 				__SOLAS__: { match: null },
 			}) as SolasRequest
 
-			const ctx = { req, prerender: null as const, cache: {} }
+			const ctx = { request: req, prerender: null as const, cache: {} }
 
 			await RequestContext.write(ctx, () => RequestContext.use())
 			expect(() => RequestContext.use()).toThrow()

@@ -91,13 +91,13 @@ export function mockRequestContext(
 	cache: RequestCache = {},
 	prerender: {
 		prerender: null | 'full' | 'ppr'
-		req: SolasRequest
+		request: SolasRequest
 		cache: RequestCache
 	}['prerender'] = null,
 ) {
 	const meta: { [key: string]: RequestMeta } = { __SOLAS__: { match: null } }
 	const solasReq: SolasRequest = Object.assign(req, meta)
-	return { req: solasReq, prerender, cache }
+	return { request: solasReq, prerender, cache }
 }
 
 export async function drainStream(stream: ReadableStream<Uint8Array>): Promise<string> {
