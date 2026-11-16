@@ -18,6 +18,7 @@ declare module '../../../../src/solas.js' {
 vi.mock('../../../../src/internal/browser-router/router.js', () => ({
 	BrowserRouterContext: createContext<BrowserRouter.Context>({
 		go: async () => '',
+		invalidate: () => {},
 		prefetch: () => {},
 		refresh: async () => '',
 		isNavigating: false,
@@ -36,6 +37,7 @@ function createContextValue(
 ): BrowserRouter.Context {
 	const base: BrowserRouter.Context = {
 		go: vi.fn(),
+		invalidate: vi.fn(),
 		prefetch: vi.fn(),
 		refresh: vi.fn(),
 		isNavigating: false,
@@ -89,6 +91,25 @@ describe('useRouter', () => {
 
 		capturedGo!('/somewhere')
 		expect(go).toHaveBeenCalledWith('/somewhere')
+	})
+
+	it('provides invalidate from context', async () => {
+		const invalidate = vi.fn()
+		const contextValue = createContextValue({ invalidate })
+
+		let capturedInvalidate: BrowserRouter.Context['invalidate']
+		await render(
+			<BrowserRouterContext value={contextValue}>
+				<TestComponent
+					onRouter={r => {
+						capturedInvalidate = r.invalidate
+					}}
+				/>
+			</BrowserRouterContext>,
+		)
+
+		capturedInvalidate!('/about')
+		expect(invalidate).toHaveBeenCalledWith('/about')
 	})
 
 	it('provides the url from context', async () => {

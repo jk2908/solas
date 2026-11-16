@@ -26,6 +26,7 @@ export * as BrowserRouter from './shared.js'
 
 export const BrowserRouterContext = createContext<BrowserRouter.Context>({
 	go: async () => '',
+	invalidate: () => {},
 	prefetch: () => {},
 	refresh: async () => '',
 	isNavigating: false,
@@ -497,6 +498,14 @@ export function BrowserRouterProvider({
 	 * payload. It also clears any cached response for the current path to ensure that the latest
 	 * version is fetched.
 	 */
+	const invalidate = useCallback(
+		(path: string) => {
+			const key = BrowserRouter.toCacheKey(path, window.location.origin)
+			if (key) routerCache.remove(key)
+		},
+		[routerCache],
+	)
+
 	const refresh = useCallback(() => {
 		const currentPath = window.location.pathname + window.location.search
 		const key = BrowserRouter.toCacheKey(currentPath, window.location.origin)
@@ -569,6 +578,7 @@ export function BrowserRouterProvider({
 	const value = useMemo(
 		() => ({
 			go,
+			invalidate,
 			prefetch,
 			refresh,
 			isNavigating,
@@ -582,7 +592,7 @@ export function BrowserRouterProvider({
 				index: history.current.index,
 			},
 		}),
-		[go, prefetch, refresh, isNavigating, url],
+		[go, invalidate, prefetch, refresh, isNavigating, url],
 	)
 
 	return (

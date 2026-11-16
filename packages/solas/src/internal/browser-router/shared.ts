@@ -36,6 +36,7 @@ export type GoOptions = {
 
 export type Context = {
 	go: Go
+	invalidate: (path: string) => void
 	prefetch: (path: string) => void
 	refresh: Refresh
 	isNavigating: boolean

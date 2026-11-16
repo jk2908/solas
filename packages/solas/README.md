@@ -175,6 +175,10 @@ export function Controls() {
 				Prefetch posts
 			</button>
 
+			<button type="button" onClick={() => router.invalidate('/posts')}>
+				Invalidate cached posts
+			</button>
+
 			<button type="button" onClick={() => router.refresh()}>
 				Refresh current route
 			</button>
@@ -190,6 +194,8 @@ const finalPath = await router.go('/posts')
 
 await router.refresh()
 ```
+
+`router.invalidate(path)` removes a cached route payload without changing what is currently rendered. The next navigation to that path fetches fresh data.
 
 `router.refresh()` always refreshes the current browser location at the moment you call it. If you call it after `await router.go('/posts')`, it refreshes `/posts` (or the final redirected path).
 

@@ -13,6 +13,7 @@ const { useSearchParams } =
 function renderWithSearch(search: string) {
 	vi.mocked(useRouter).mockReturnValue({
 		go: vi.fn(),
+		invalidate: vi.fn(),
 		prefetch: vi.fn(),
 		refresh: vi.fn(),
 		isNavigating: false,

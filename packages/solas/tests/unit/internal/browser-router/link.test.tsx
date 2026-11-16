@@ -44,6 +44,7 @@ declare module '../../../../src/solas.js' {
 function mockRouter(overrides: Partial<BrowserRouter.Context> = {}) {
 	vi.mocked(useRouter).mockReturnValue({
 		go: vi.fn(),
+		invalidate: vi.fn(),
 		prefetch: vi.fn(),
 		refresh: vi.fn(),
 		isNavigating: false,
