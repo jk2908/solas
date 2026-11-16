@@ -12,7 +12,7 @@ const logger = new Logger()
 export async function url() {
 	await dynamic()
 
-	const { req, cache } = RequestContext.use()
+	const { request, cache } = RequestContext.use()
 
 	// always return a clone so consumers can mutate (e.g. searchParams.set)
 	// without corrupting the cached instance shared across the request
@@ -21,11 +21,11 @@ export async function url() {
 	let parsed: URL
 
 	try {
-		parsed = new URL(req.url)
+		parsed = new URL(request.url)
 	} catch (err) {
 		// if we throw the original error here, the rest of the code gets a messy parsing error
 		// instead of a simple 'invalid request url' failure
-		logger.error(`[url] invalid request url: ${req.url}`, err)
+		logger.error(`[url] invalid request url: ${request.url}`, err)
 		throw new Error('Invalid request url', { cause: err })
 	}
 

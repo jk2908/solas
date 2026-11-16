@@ -96,28 +96,40 @@ function toClientAsset(relativePath: string): AssetRef | Response {
  * Resolves the route match, collects metadata, and returns the stream,
  * status code, and prerender mode needed by the response layer.
  */
-async function createPayload(
-	req: SolasRequest,
-	manifest: Manifest,
-	importMap: ImportMap,
-	baseMetadata?: Metadata.Item,
-	returnValue?: { ok: boolean; data: unknown },
-	formState?: ReactFormState,
-	temporaryReferences?: unknown,
-	nonce?: string,
-	clientCssByRoute?: Record<string, string[]>,
-) {
+async function createPayload({
+	request,
+	manifest,
+	importMap,
+	baseMetadata,
+	returnValue,
+	formState,
+	temporaryReferences,
+	nonce,
+	clientCssByRoute,
+}: {
+	request: SolasRequest
+	manifest: Manifest
+	importMap: ImportMap
+	baseMetadata?: Metadata.Item
+	returnValue?: { ok: boolean; data: unknown }
+	formState?: ReactFormState
+	temporaryReferences?: unknown
+	nonce?: string
+	clientCssByRoute?: Record<string, string[]>
+}) {
 	const resolver = new Resolver(manifest, importMap)
-	const prerender = req.headers.get(`x-${Config.SLUG}-prerender`) === '1'
-	const url = new URL(req.url)
+	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
+	const url = new URL(request.url)
 	const routedPath = stripBasePath(url.pathname, BASE_PATH) ?? url.pathname
+
 	const pathname =
 		routedPath.endsWith('/') && routedPath !== '/' ? routedPath.slice(0, -1) : routedPath
+
 	const match = resolver.enhance(
 		resolver.reconcile(
 			pathname,
-			req[Config.REQUEST_META_KEY].match,
-			req[Config.REQUEST_META_KEY].error,
+			request[Config.REQUEST_META_KEY].match,
+			request[Config.REQUEST_META_KEY].error,
 		),
 	)
 
@@ -125,7 +137,7 @@ async function createPayload(
 	// served from static HTML. PPR responses are dynamic: the cached prelude uses
 	// hashes, while the resumed holes need the request nonce.
 	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
-	const prefetch = req.headers.get(`x-${Config.SLUG}-prefetch`) === '1'
+	const prefetch = request.headers.get(`x-${Config.SLUG}-prefetch`) === '1'
 
 	// only fully prerendered routes can be prefetched without waiting for
 	// dynamic work; return an empty response for everything else
@@ -149,7 +161,7 @@ async function createPayload(
 	// error screen
 	if (!match) {
 		const error = toHttpExceptionLike(
-			req[Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found'),
+			request[Config.REQUEST_META_KEY].error ?? new HttpException(404, 'Not found'),
 		)
 
 		const title = `${error.status ? `${error.status} -` : ''}${error.message}`
@@ -188,7 +200,7 @@ async function createPayload(
 			// we keep mode as null
 			stream: RequestContext.write(
 				{
-					req,
+					request,
 					prerender: prerender ? 'full' : null,
 					cache: {},
 					nonce: effectiveNonce,
@@ -239,7 +251,7 @@ async function createPayload(
 	try {
 		const stream = RequestContext.write(
 			{
-				req,
+				request,
 				prerender: prerender ? (ppr ? 'ppr' : 'full') : null,
 				cache: {},
 				nonce: effectiveNonce,
@@ -274,7 +286,7 @@ async function createPayload(
 			// prevents mode drift on error paths
 			stream: RequestContext.write(
 				{
-					req,
+					request,
 					prerender: prerender ? 'full' : null,
 					cache: {},
 					nonce: effectiveNonce,
@@ -355,7 +367,7 @@ export function createHandler(
 	 * converts the payload into component, HTML, or prerender artifact responses, and
 	 * applies the final status and headers.
 	 */
-	async function createResponse(req: SolasRequest) {
+	async function createResponse(request: SolasRequest) {
 		let opts: {
 			formState?: ReactFormState
 			temporaryReferences?: unknown
@@ -366,50 +378,50 @@ export function createHandler(
 			returnValue: undefined,
 		}
 
-		if (req[Config.REQUEST_META_KEY].action) {
-			opts = await processActionRequest(req, {
+		if (request[Config.REQUEST_META_KEY].action) {
+			opts = await processActionRequest(request, {
 				trustedOrigins: config.trustedOrigins,
 				url: config.url,
 			})
 		}
 
-		const requestCsp = req.headers.get('content-security-policy')
-		const configuredHeaders = await resolveHeaders(req)
+		const requestCsp = request.headers.get('content-security-policy')
+		const configuredHeaders = await resolveHeaders(request)
 
 		const clientNonce =
-			isRscRequest(req) || req[Config.REQUEST_META_KEY].action
-				? req.headers.get('x-solas-nonce')
+			isRscRequest(request) || request[Config.REQUEST_META_KEY].action
+				? request.headers.get('x-solas-nonce')
 				: null
 
 		const generatedNonce =
 			config.csp && !requestCsp ? clientNonce || crypto.randomUUID() : undefined
 
 		if (config.csp && generatedNonce) {
-			responseNonce.set(req, generatedNonce)
+			responseNonce.set(request, generatedNonce)
 		}
 
 		const nonce = requestCsp
 			? resolveNonce(requestCsp, configuredHeaders, clientNonce)
 			: (generatedNonce ?? resolveNonce(null, configuredHeaders, clientNonce))
 
-		const requestPathname = new URL(req.url).pathname
+		const requestPathname = new URL(request.url).pathname
 		const requestLookupPath = normaliseTrailingSlash(requestPathname, prerenderPathMode)
 		const {
 			stream: rscStream,
 			status,
 			ppr,
 			nonce: effectiveNonce,
-		} = await createPayload(
-			req,
+		} = await createPayload({
+			request,
 			manifest,
 			importMap,
-			config.metadata,
-			opts.returnValue,
-			opts.formState,
-			opts.temporaryReferences,
+			baseMetadata: config.metadata,
+			returnValue: opts.returnValue,
+			formState: opts.formState,
+			temporaryReferences: opts.temporaryReferences,
 			nonce,
 			clientCssByRoute,
-		)
+		})
 
 		const stream = await rscStream
 
@@ -423,7 +435,7 @@ export function createHandler(
 			})
 		}
 
-		if (isRscRequest(req)) {
+		if (isRscRequest(request)) {
 			return new Response(stream, {
 				headers: {
 					'Cache-Control': 'private, no-store',
@@ -442,33 +454,34 @@ export function createHandler(
 		async function tryErrorRecovery(err: unknown) {
 			if (isRedirect(err)) {
 				const redirect = toRedirect(err)
+
 				const location = redirect.url.startsWith('/')
-					? new URL(applyBasePath(redirect.url, BASE_PATH), req.url).toString()
+					? new URL(applyBasePath(redirect.url, BASE_PATH), request.url).toString()
 					: redirect.url
 
 				return Response.redirect(location, redirect.status)
 			}
 
-			if (req[Config.REQUEST_META_KEY].error || !isHttpException(err)) {
+			if (request[Config.REQUEST_META_KEY].error || !isHttpException(err)) {
 				return null
 			}
 
 			// retry once with the surfaced HttpException attached so createPayload can
 			// rebuild the route through the nearest matching status boundary
-			req[Config.REQUEST_META_KEY].error = toHttpException(err)
+			request[Config.REQUEST_META_KEY].error = toHttpException(err)
 
 			try {
-				const { stream: retriedRscStream, status: retriedStatus } = await createPayload(
-					req,
+				const { stream: retriedRscStream, status: retriedStatus } = await createPayload({
+					request,
 					manifest,
 					importMap,
-					config.metadata,
-					opts.returnValue,
-					opts.formState,
-					opts.temporaryReferences,
+					baseMetadata: config.metadata,
+					returnValue: opts.returnValue,
+					formState: opts.formState,
+					temporaryReferences: opts.temporaryReferences,
 					nonce,
 					clientCssByRoute,
-				)
+				})
 
 				const retriedStream = await retriedRscStream
 
@@ -477,15 +490,15 @@ export function createHandler(
 					retriedStream,
 				}
 			} finally {
-				req[Config.REQUEST_META_KEY].error = undefined
+				request[Config.REQUEST_META_KEY].error = undefined
 			}
 		}
 
 		// prerender artifact requests bypass the normal document path so the
 		// prerenderer gets structured JSON instead of a rendered html response
 		if (
-			req.headers.get(`x-${Config.SLUG}-prerender`) === '1' &&
-			req.headers.get(`x-${Config.SLUG}-prerender-artifact`) === '1'
+			request.headers.get(`x-${Config.SLUG}-prerender`) === '1' &&
+			request.headers.get(`x-${Config.SLUG}-prerender-artifact`) === '1'
 		) {
 			try {
 				const artifact = await mod.prerender(stream, {

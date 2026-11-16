@@ -10,7 +10,7 @@ export type RequestCache = {
 }
 
 export const RequestContext = Context.create<{
-	req: SolasRequest
+	request: SolasRequest
 	prerender: 'ppr' | 'full' | null
 	cache: RequestCache
 	nonce?: string
