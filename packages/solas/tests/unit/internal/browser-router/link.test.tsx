@@ -279,6 +279,8 @@ describe('Link', () => {
 				</PrefetchObserverProvider>,
 			)
 
+			await vi.waitFor(() => expect(instances.length).toBeGreaterThan(0))
+
 			const observer = instances.at(-1)
 			expect(observer).toBeDefined()
 			expect(observer?.observe).toHaveBeenCalled()
@@ -364,6 +366,8 @@ describe('Link', () => {
 				</PrefetchObserverProvider>,
 			)
 
+			await vi.waitFor(() => expect(instances.length).toBeGreaterThan(0))
+
 			instances.at(-1)?.trigger()
 
 			expect(prefetch).toHaveBeenCalledWith('/about')
@@ -418,7 +422,7 @@ describe('Link', () => {
 				</PrefetchObserverProvider>,
 			)
 
-			expect(instances).toHaveLength(1)
+			await vi.waitFor(() => expect(instances).toHaveLength(1))
 
 			const observer = instances[0]
 			observer.trigger([
