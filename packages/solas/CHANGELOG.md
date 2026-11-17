@@ -5,6 +5,7 @@
 ### Fixes
 
 - PPR prefetches no longer enhance the route before returning `204`. Resolving the route UI cached lazy components that had never rendered, which could break the following RSC navigation with a server component error.
+- Routes declared as PPR now use the effective prerender mode from the runtime manifest. A PPR route that produced a full artifact is prefetched and cached as a full route, while only routes with postponed work use the PPR path.
 
 ## 0.22.1
 

@@ -113,6 +113,7 @@ async function createPayload({
 	temporaryReferences,
 	nonce,
 	clientCssByRoute,
+	effectivePrerenderMode,
 }: {
 	request: SolasRequest
 	manifest: Manifest
@@ -123,6 +124,7 @@ async function createPayload({
 	temporaryReferences?: unknown
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
+	effectivePrerenderMode?: Route.PrerenderMode
 }) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -138,10 +140,13 @@ async function createPayload({
 		request[Config.REQUEST_META_KEY].error,
 	)
 	const prefetch = request.headers.get(`x-${Config.SLUG}-prefetch`) === '1'
+	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
+	const routeType: Route.PrerenderMode | 'dynamic' =
+		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
 
 	// ppr shells are not implemented yet; dynamic routes can be prefetched in
 	// full, just like fully prerendered routes
-	if (prefetch && reconciled?.prerender === 'ppr') {
+	if (prefetch && prerenderMode === 'ppr') {
 		return {
 			stream: new ReadableStream<Uint8Array>({
 				start(controller) {
@@ -151,20 +156,18 @@ async function createPayload({
 			status: 204,
 			ppr: false,
 			nonce: undefined,
-			type: 'ppr',
+			type: routeType,
 		}
 	}
 
 	// do not enhance a route for a PPR prefetch: resolving its lazy components
 	// would cache UI that was never rendered by this request
 	const match = resolver.enhance(reconciled)
-	const routeType: Route.PrerenderMode | 'dynamic' =
-		match?.prerender === 'full' ? 'full' : match?.prerender === 'ppr' ? 'ppr' : 'dynamic'
 
 	// build-time prerender requests have no request nonce, and full routes are
 	// served from static HTML. PPR responses are dynamic: the cached prelude uses
 	// hashes, while the resumed holes need the request nonce.
-	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
+	const effectiveNonce = prerender || routeType === 'full' ? undefined : nonce
 
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
 
@@ -231,7 +234,7 @@ async function createPayload({
 	}
 
 	// check if this route is a candidate for ppr
-	const ppr = match.prerender === 'ppr'
+	const ppr = routeType === 'ppr'
 	const collection = new Metadata.Collection(baseMetadata)
 	const metadata = collection
 		.add(
@@ -421,6 +424,7 @@ export function createHandler(
 
 		const requestPathname = new URL(request.url).pathname
 		const requestLookupPath = normaliseTrailingSlash(requestPathname, prerenderPathMode)
+		const effectivePrerenderMode = runtimeManifest?.artifacts[requestLookupPath]?.mode
 		const {
 			stream: rscStream,
 			status,
@@ -437,6 +441,7 @@ export function createHandler(
 			temporaryReferences: opts.temporaryReferences,
 			nonce,
 			clientCssByRoute,
+			effectivePrerenderMode,
 		})
 
 		const stream = await rscStream
@@ -499,6 +504,7 @@ export function createHandler(
 					temporaryReferences: opts.temporaryReferences,
 					nonce,
 					clientCssByRoute,
+					effectivePrerenderMode,
 				})
 
 				const retriedStream = await retriedRscStream

@@ -153,7 +153,7 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 
 `prefetch={false}` is the default. `intent` prefetches on focus or touch, `hover` after a short mouse hover, `viewport` when the link enters the viewport, and `auto` uses hover on hover-capable devices and intent otherwise. Prefetches are skipped for hidden pages, save-data connections and 2G/slow-2G. Nothing is prefetched unless you opt in with `Link` or call `router.prefetch(...)`.
 
-Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. Direct navigations to dynamic routes that were not prefetched are fetched fresh. PPR shell prefetching is not implemented yet: PPR prefetches return `204` and are not cached, so navigating to that route still makes a request.
+Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. Direct navigations to dynamic routes that were not prefetched are fetched fresh. PPR shell prefetching is not implemented yet: PPR prefetches return `204` and are not cached, so navigating to that route still makes a request. A route declared as PPR that produced a full prerender artifact is treated as full for prefetching and caching.
 
 The router cache is enabled by default in production and disabled in development. Set `router.cache.enabled` to `true` to exercise prefetching and caching in development, or to `false` to disable them in production.
 

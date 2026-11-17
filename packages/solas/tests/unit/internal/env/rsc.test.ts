@@ -82,4 +82,31 @@ describe('createHandler', () => {
 
 		enhance.mockRestore()
 	})
+
+	it('uses a full artifact mode for a declared PPR route', async () => {
+		const handler = createHandler(
+			config,
+			{ '/writing': createSegment('/writing', { prerender: 'ppr' }) },
+			{ 'p_/writing': { middlewares: [] } },
+			{
+				runtimeManifest: {
+					artifacts: { '/writing': { mode: 'full' } },
+					publicFiles: new Set(),
+				},
+			},
+		)
+
+		const response = await handler.fetch(
+			new Request('http://localhost/writing', {
+				headers: {
+					accept: 'text/x-component',
+					[`x-${Config.SLUG}-prefetch`]: '1',
+				},
+			}),
+		)
+
+		expect(response.status).toBe(200)
+		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('full')
+		expect(response.body).not.toBeNull()
+	})
 })
