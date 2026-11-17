@@ -369,19 +369,27 @@ export async function getStaticFlag(filePath: string, buildContext: BuildContext
  * in the route module and calling it to get the list of parameter objects.
  */
 export async function getStaticParams(filePath: string, buildContext: BuildContext) {
-	const params = await buildContext.exportReader.value<() => Promise<unknown> | unknown>(
-		filePath,
-		'staticParams',
-		(v): v is () => Promise<unknown> | unknown => typeof v === 'function',
-	)
+	try {
+		const params = await buildContext.exportReader.value<
+			() => Promise<unknown> | unknown
+		>(filePath, 'staticParams', (v): v is () => Promise<unknown> | unknown => {
+			return typeof v === 'function'
+		})
 
-	if (!params) return []
+		if (!params) return []
 
-	const resolved = await Promise.resolve().then(() => params())
+		const resolved = await Promise.resolve().then(() => params())
 
-	if (!Array.isArray(resolved)) return []
+		if (!Array.isArray(resolved)) return []
 
-	return resolved as Record<string, string | number | (string | number)[]>[]
+		return resolved as Record<string, string | number | (string | number)[]>[]
+	} catch (err) {
+		// a route that cannot be evaluated here should still remain in the route
+		// graph and render at request time
+		logger.error(`[prerender:staticParams] ${filePath}`, err)
+
+		return []
+	}
 }
 
 /**

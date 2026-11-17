@@ -8,6 +8,7 @@ import {
 	getArtifactRootPath,
 	getConcurrency,
 	getDynamicRouteList,
+	getStaticParams,
 	isCompatible,
 	isPostponed,
 	loadMetadata,
@@ -413,6 +414,20 @@ describe('Prerender', () => {
 			it('returns default for invalid values', () => {
 				vi.stubEnv('SOLAS_PRERENDER_CONCURRENCY', 'invalid')
 				expect(getConcurrency()).toBe(4)
+			})
+		})
+
+		describe('getStaticParams', () => {
+			it('returns an empty list when the route cannot be evaluated', async () => {
+				const context = {
+					exportReader: {
+						value: vi.fn().mockRejectedValue(new Error('failed to load')),
+					},
+				}
+
+				const result = await getStaticParams('/app/page.tsx', context as never)
+
+				expect(result).toEqual([])
 			})
 		})
 
