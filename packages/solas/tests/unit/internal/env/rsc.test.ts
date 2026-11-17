@@ -14,6 +14,7 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 import type { RuntimeConfig } from '../../../../src/types.js'
 import * as Config from '../../../../src/config.js'
 import { createHandler } from '../../../../src/internal/env/rsc.js'
+import { Resolver } from '../../../../src/internal/resolver.js'
 import { createSegment } from '../../../utils.js'
 
 const config = {
@@ -60,5 +61,25 @@ describe('createHandler', () => {
 		expect(response.status).toBe(204)
 		expect(response.body).toBeNull()
 		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('ppr')
+	})
+
+	it('does not enhance a route for a PPR prefetch', async () => {
+		const enhance = vi.spyOn(Resolver.prototype, 'enhance')
+		const handler = createHandler(
+			config,
+			{ '/writing': createSegment('/writing', { prerender: 'ppr' }) },
+			{ 'p_/writing': { middlewares: [] } },
+		)
+
+		const response = await handler.fetch(
+			new Request('http://localhost/writing', {
+				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
+			}),
+		)
+
+		expect(response.status).toBe(204)
+		expect(enhance).not.toHaveBeenCalled()
+
+		enhance.mockRestore()
 	})
 })

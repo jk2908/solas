@@ -132,25 +132,16 @@ async function createPayload({
 	const pathname =
 		routedPath.endsWith('/') && routedPath !== '/' ? routedPath.slice(0, -1) : routedPath
 
-	const match = resolver.enhance(
-		resolver.reconcile(
-			pathname,
-			request[Config.REQUEST_META_KEY].match,
-			request[Config.REQUEST_META_KEY].error,
-		),
+	const reconciled = resolver.reconcile(
+		pathname,
+		request[Config.REQUEST_META_KEY].match,
+		request[Config.REQUEST_META_KEY].error,
 	)
-	const routeType: Route.PrerenderMode | 'dynamic' =
-		match?.prerender === 'full' ? 'full' : match?.prerender === 'ppr' ? 'ppr' : 'dynamic'
-
-	// build-time prerender requests have no request nonce, and full routes are
-	// served from static HTML. PPR responses are dynamic: the cached prelude uses
-	// hashes, while the resumed holes need the request nonce.
-	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
 	const prefetch = request.headers.get(`x-${Config.SLUG}-prefetch`) === '1'
 
 	// ppr shells are not implemented yet; dynamic routes can be prefetched in
 	// full, just like fully prerendered routes
-	if (prefetch && match && match.prerender === 'ppr') {
+	if (prefetch && reconciled?.prerender === 'ppr') {
 		return {
 			stream: new ReadableStream<Uint8Array>({
 				start(controller) {
@@ -160,9 +151,20 @@ async function createPayload({
 			status: 204,
 			ppr: false,
 			nonce: undefined,
-			type: routeType,
+			type: 'ppr',
 		}
 	}
+
+	// do not enhance a route for a PPR prefetch: resolving its lazy components
+	// would cache UI that was never rendered by this request
+	const match = resolver.enhance(reconciled)
+	const routeType: Route.PrerenderMode | 'dynamic' =
+		match?.prerender === 'full' ? 'full' : match?.prerender === 'ppr' ? 'ppr' : 'dynamic'
+
+	// build-time prerender requests have no request nonce, and full routes are
+	// served from static HTML. PPR responses are dynamic: the cached prelude uses
+	// hashes, while the resumed holes need the request nonce.
+	const effectiveNonce = prerender || match?.prerender === 'full' ? undefined : nonce
 
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
 
