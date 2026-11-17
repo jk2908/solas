@@ -14,6 +14,8 @@ describe('writeRSCEntry', () => {
 		expect(result).toContain(
 			"import { createRuntimeHandler } from '@jk2908/solas/env/rsc'",
 		)
+		expect(result).toContain("import { config } from './config.js'")
+		expect(result).not.toContain("import { config } from './browser-config.js'")
 	})
 
 	it('includes hmr accept', () => {
@@ -62,6 +64,8 @@ describe('writeCloudflareEntry', () => {
 		expect(result).toContain(
 			'createWorker({ config, manifest, importMap, devClientCssByRoute })',
 		)
+		expect(result).toContain("import { config } from './config.js'")
+		expect(result).not.toContain("import { config } from './browser-config.js'")
 		expect(result).not.toContain('Runtime')
 	})
 
