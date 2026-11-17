@@ -59,6 +59,11 @@ export type Adapter = {
 export type RouterConfig = {
 	cache?: {
 		/**
+		 * Whether the client route cache and prefetching are enabled. Defaults to
+		 * true in production and false in development.
+		 */
+		enabled?: boolean
+		/**
 		 * Maximum bytes retained by the client route cache. Defaults to 8 MiB.
 		 */
 		maxBytes?: number

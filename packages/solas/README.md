@@ -155,6 +155,8 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 
 Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. Direct navigations to dynamic routes that were not prefetched are fetched fresh. PPR shell prefetching is not implemented yet: PPR prefetches return `204` and are not cached, so navigating to that route still makes a request.
 
+The router cache is enabled by default in production and disabled in development. Set `router.cache.enabled` to `true` to exercise prefetching and caching in development, or to `false` to disable them in production.
+
 Use `useRouter()` inside client components for programmatic navigation, prefetching, and refreshing the current route:
 
 ```tsx
@@ -301,6 +303,28 @@ export default defineConfig({
 	],
 })
 ```
+
+### `router.cache.enabled`
+
+Use `router.cache.enabled` to control the client-side route cache and prefetching. It is enabled in production and disabled in development by default. Enabling it in development is useful when you want to exercise the production cache paths locally.
+
+Default: `true` in production, `false` in development
+
+```ts
+export default defineConfig({
+	plugins: [
+		solas({
+			router: {
+				cache: {
+					enabled: true,
+				},
+			},
+		}),
+	],
+})
+```
+
+`enabled` must be a boolean.
 
 ### `router.cache.maxBytes`
 

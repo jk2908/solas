@@ -96,4 +96,16 @@ describe('RouterCache', () => {
 
 		expect(cache.has('/about')).toBe(false)
 	})
+
+	it('does not retain entries when disabled', async () => {
+		const cache = new RouterCache({ enabled: false })
+
+		cache.set('/about', Promise.resolve(stream('/about', 10)))
+		cache.setReady('/test', 'full', cached('/test', 10))
+		await settle()
+
+		expect(cache.has('/about')).toBe(false)
+		expect(cache.get('/about')).toBeUndefined()
+		expect(cache.has('/test')).toBe(false)
+	})
 })

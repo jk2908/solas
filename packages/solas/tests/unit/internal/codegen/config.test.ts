@@ -26,6 +26,12 @@ describe('writeBrowserConfig', () => {
 		expect(result).toContain('ttl: 500')
 	})
 
+	it('includes the router cache enabled flag', () => {
+		const result = writeBrowserConfig({ router: { cache: { enabled: false } } })
+
+		expect(result).toContain('enabled: false')
+	})
+
 	it('omits router config when cache settings are unset', () => {
 		const result = writeBrowserConfig({})
 

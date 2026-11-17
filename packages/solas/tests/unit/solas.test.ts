@@ -139,6 +139,19 @@ describe('Solas', () => {
 				)
 			})
 
+			it('accepts a router cache enabled flag', () => {
+				expect(Config.validate({ router: { cache: { enabled: false } } })).toHaveProperty(
+					'router.cache.enabled',
+					false,
+				)
+			})
+
+			it('rejects invalid router cache enabled flags', () => {
+				expect(() => Config.validate({ router: { cache: { enabled: 'yes' } } })).toThrow(
+					'router.cache.enabled must be a boolean',
+				)
+			})
+
 			it('rejects invalid router cache ttl', () => {
 				expect(() => Config.validate({ router: { cache: { ttl: 0 } } })).toThrow(
 					'router.cache.ttl must be a positive integer',

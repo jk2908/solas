@@ -55,22 +55,27 @@ export class RouterCache {
 	#cache = new Map<string, RouterCache.Entry>()
 	#bytes = 0
 
+	enabled = true
 	maxBytes = 8 * 1024 * 1024
 	ttl = 60_000
 
 	constructor({
+		enabled = true,
 		maxBytes = 8 * 1024 * 1024,
 		ttl = 60_000,
-	}: { maxBytes?: number; ttl?: number } = {}) {
+	}: { enabled?: boolean; maxBytes?: number; ttl?: number } = {}) {
+		this.enabled = enabled
 		this.maxBytes = maxBytes
 		this.ttl = ttl
 	}
 
 	has(key: string) {
-		return this.#cache.has(key)
+		return this.enabled && this.#cache.has(key)
 	}
 
 	get(key: string) {
+		if (!this.enabled) return
+
 		const entry = this.#cache.get(key)
 		if (!entry) return
 
@@ -84,6 +89,8 @@ export class RouterCache {
 	}
 
 	set(key: string, response: Promise<RouterCache.DecodedStream | null>) {
+		if (!this.enabled) return
+
 		this.#delete(key)
 
 		const entry: RouterCache.Entry = { status: 'pending', response }
@@ -133,6 +140,8 @@ export class RouterCache {
 	}
 
 	setReady(key: string, type: RouterCache.Type, value: RouterCache.CachedPayload) {
+		if (!this.enabled) return
+
 		this.#delete(key)
 
 		const ready: RouterCache.Entry = {
@@ -148,6 +157,7 @@ export class RouterCache {
 	}
 
 	remove(key: string) {
+		if (!this.enabled) return
 		this.#delete(key)
 	}
 

@@ -100,9 +100,11 @@ const LOGGER_KEYS = new Set(['level'])
  * Select the configuration fields that are safe and useful in the browser.
  */
 export function parseBrowserConfig(config: PluginConfig): BrowserConfig {
+	const enabled = config.router?.cache?.enabled
 	const maxBytes = config.router?.cache?.maxBytes
 	const ttl = config.router?.cache?.ttl
 	const cache = {
+		...(enabled === undefined ? {} : { enabled }),
 		...(maxBytes === undefined ? {} : { maxBytes }),
 		...(ttl === undefined ? {} : { ttl }),
 	}
@@ -186,9 +188,14 @@ export function validate(input: unknown, envUrl?: string) {
 					errors.push('router.cache must be an object')
 				} else {
 					for (const key of Object.keys(input.router.cache)) {
-						if (key !== 'maxBytes' && key !== 'ttl') {
+						if (key !== 'enabled' && key !== 'maxBytes' && key !== 'ttl') {
 							errors.push(`Unknown router.cache key: ${key}`)
 						}
+					}
+
+					const enabled = input.router.cache.enabled
+					if (enabled !== undefined && typeof enabled !== 'boolean') {
+						errors.push('router.cache.enabled must be a boolean')
 					}
 
 					const maxBytes = input.router.cache.maxBytes

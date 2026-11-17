@@ -46,14 +46,6 @@ const DEFAULT_GO_CONFIG = {
 } satisfies BrowserRouter.GoOptions
 
 const logger = new Logger()
-let clearActiveCache = () => {}
-
-/**
- * Clear the active router cache after a mutation or HMR update.
- */
-export function clearNavigationCache() {
-	clearActiveCache()
-}
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
@@ -254,6 +246,7 @@ export function BrowserRouterProvider({
 	const routerCache = useMemo(
 		() =>
 			new RouterCache({
+				enabled: config.router?.cache?.enabled ?? !import.meta.env.DEV,
 				maxBytes: config.router?.cache?.maxBytes,
 				ttl: config.router?.cache?.ttl,
 			}),
@@ -261,10 +254,16 @@ export function BrowserRouterProvider({
 	)
 
 	useEffect(() => {
-		clearActiveCache = () => routerCache.clear()
+		const hot = import.meta.hot
+
+		if (!hot) return
+
+		const clear = () => routerCache.clear()
+
+		hot.on('rsc:update', clear)
 
 		return () => {
-			clearActiveCache = () => {}
+			hot.off?.('rsc:update', clear)
 		}
 	}, [routerCache])
 
@@ -477,6 +476,8 @@ export function BrowserRouterProvider({
 	 */
 	const prefetch = useCallback(
 		(path: string) => {
+			if (!routerCache.enabled) return
+
 			const key = BrowserRouter.toCacheKey(path, window.location.origin)
 			if (!key) return
 

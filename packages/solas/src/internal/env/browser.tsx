@@ -20,7 +20,7 @@ import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 
 import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from './rsc.js'
-import { BrowserRouterProvider, clearNavigationCache } from '../browser-router/router.js'
+import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
@@ -125,7 +125,6 @@ export async function browser(config: BrowserConfig = {}) {
 					fetch(window.location.href, { headers }),
 				)
 				payloadSetter.current(p)
-				clearNavigationCache()
 			} catch (err) {
 				console.error('[hmr] failed to refresh rsc payload', err)
 			}
