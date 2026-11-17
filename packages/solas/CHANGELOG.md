@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.2
+
+### Fixes
+
+- PPR prefetches no longer enhance the route before returning `204`. Resolving the route UI cached lazy components that had never rendered, which could break the following RSC navigation with a server component error.
+
 ## 0.22.1
 
 ### Features
