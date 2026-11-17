@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.3
+
+### Fixes
+
+- Generated RSC and Cloudflare entries now import the full runtime config instead of the browser-safe config. This restores config metadata such as titles and favicon links, along with CSP, headers, URL and other runtime options.
+
 ## 0.22.2
 
 ### Fixes
