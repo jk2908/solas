@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.22.0
+
+### Features
+
+- The client router cache retains fully prerendered route payloads for the lifetime of the document and evicts them by a byte budget. Dynamic prefetch payloads remain reusable until `router.cache.ttl` expires, which defaults to 60 seconds. Direct dynamic navigations stay fresh.
+- `router.cache.maxBytes` and `router.cache.ttl` are configurable through the Solas plugin.
+- `router.invalidate(path)` removes a cached route payload without navigating or refreshing the current page.
+- Dynamic routes are prefetched in full, so a later navigation can reuse the prefetched payload. PPR routes still return `204` because shell prefetching is not implemented yet.
+- Typed browser router, route target and HTTP router errors are exported from `@jk2908/solas/router` and `@jk2908/solas/server`.
+
+### Fixes
+
+- Navigations commit streamed RSC payloads as soon as the root is ready while the response continues in the background, so streaming routes are not blocked by byte accounting.
+- Pending prefetches can stream directly into navigation instead of being dropped or fetched again.
+
+### Changed
+
+- `prefetch="auto"` now uses intent on devices without hover instead of viewport. Use `prefetch="viewport"` to opt into viewport prefetching explicitly.
+- Dynamic prefetches remain reusable until their TTL expires instead of being consumed after one navigation.
+- Client cache invalidation is explicit. Server actions no longer clear the router cache; HMR still clears it. Use `router.refresh()` for the current route or `router.invalidate(path)` for a specific path.
+
 ## 0.21.2
 
 ### Fixes
