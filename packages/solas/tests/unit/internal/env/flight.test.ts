@@ -2,6 +2,7 @@ import { describe, it, expect, afterAll } from 'vitest'
 
 import {
 	captureBuffered,
+	completeShellPayload,
 	injectPayload,
 	rscStream,
 } from '../../../../src/internal/env/flight.js'
@@ -49,6 +50,27 @@ describe('captureBuffered', () => {
 		}
 
 		expect(chunks.length).toBe(0)
+	})
+})
+
+describe('completeShellPayload', () => {
+	it('resolves postponed lazy references to their suspense fallback', () => {
+		const payload = [
+			'3:I["module",[],"Link",1]',
+			'8:"$Sreact.suspense"',
+			'0:{"root":["$","div",null,{"children":[["$","$L3",null,{}],["$","$8",null,{"fallback":["$","p",null,{"children":"Loading"}],"children":"$L9"}]]}]}',
+		].join('\n')
+
+		const result = completeShellPayload(payload)
+
+		expect(result).toContain('9:["$","p",null,{"children":"Loading"}]')
+		expect(result).not.toContain('3:null')
+	})
+
+	it('returns the payload unchanged when there are no missing references', () => {
+		const payload = '0:{"root":["$","div",null,{"children":"ready"}]}'
+
+		expect(completeShellPayload(payload)).toBe(payload)
 	})
 })
 

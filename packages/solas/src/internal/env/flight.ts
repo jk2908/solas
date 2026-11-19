@@ -12,6 +12,8 @@ declare global {
 
 const encoder = new TextEncoder()
 const HTML_TRAIL = '</body></html>'
+const shellRowId = /^[0-9a-f]+$/
+const lazyReference = /\$L([0-9a-f]+)/g
 
 /**
  * Capture only the payload rows that are already buffered in a stream.
@@ -44,6 +46,91 @@ export async function captureBuffered(stream: ReadableStream<Uint8Array>) {
 			controller.close()
 		},
 	})
+}
+
+/**
+ * Complete a buffered ppr payload by resolving postponed lazy references to
+ * their nearest suspense fallback. The result can be used as a standalone
+ * prefetch shell without keeping the render stream open.
+ */
+export function completeShellPayload(payload: string) {
+	const rowIds = new Set<string>()
+	const rows = new Map<string, unknown>()
+
+	for (const line of payload.split('\n')) {
+		const separator = line.indexOf(':')
+		if (separator <= 0) continue
+
+		const id = line.slice(0, separator)
+		if (!shellRowId.test(id)) continue
+
+		rowIds.add(id)
+
+		try {
+			rows.set(id, JSON.parse(line.slice(separator + 1)))
+		} catch {
+			// non-json rows still count as present, but cannot be traversed
+		}
+	}
+
+	if (rowIds.size === 0) return payload
+
+	const suspenseRows = new Set(
+		[...rows].filter(([, value]) => value === '$Sreact.suspense').map(([id]) => id),
+	)
+	const missing = new Map<string, unknown>()
+
+	function visit(value: unknown, fallback: unknown = null) {
+		if (typeof value === 'string') {
+			for (const match of value.matchAll(lazyReference)) {
+				const id = match[1]
+				if (!rowIds.has(id) && !missing.has(id)) missing.set(id, fallback)
+			}
+			return
+		}
+
+		if (Array.isArray(value)) {
+			const [tag, type, , props] = value
+
+			if (
+				tag === '$' &&
+				typeof type === 'string' &&
+				type.startsWith('$') &&
+				props &&
+				typeof props === 'object'
+			) {
+				const propsRecord = props as Record<string, unknown>
+				const child = propsRecord.children
+				const typeId = type.slice(1)
+				const isSuspense = type === '$Sreact.suspense' || suspenseRows.has(typeId)
+
+				if (isSuspense && typeof child === 'string' && child.startsWith('$L')) {
+					const id = child.slice(2)
+					if (!rowIds.has(id)) {
+						missing.set(id, propsRecord.fallback ?? null)
+						visit(propsRecord.fallback)
+					}
+				}
+			}
+
+			for (const item of value) visit(item)
+			return
+		}
+
+		if (value && typeof value === 'object') {
+			for (const item of Object.values(value)) visit(item)
+		}
+	}
+
+	for (const value of rows.values()) visit(value)
+
+	if (missing.size === 0) return payload
+
+	const additions = [...missing]
+		.map(([id, value]) => `${id}:${JSON.stringify(value)}`)
+		.join('\n')
+
+	return `${payload}${payload.endsWith('\n') ? '' : '\n'}${additions}\n`
 }
 
 /**

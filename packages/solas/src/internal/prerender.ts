@@ -19,7 +19,7 @@ const logger = new Logger()
 const DEFAULT_CONCURRENCY = 4
 
 export type Mode = 'full' | 'ppr'
-export type File = 'html' | 'prelude' | 'postponed' | 'metadata'
+export type File = 'html' | 'prelude' | 'postponed' | 'metadata' | 'shell'
 
 export type Value = {
 	schema: string
@@ -27,6 +27,7 @@ export type Value = {
 	createdAt: number
 	mode: Mode
 	html: string
+	shell?: string
 	postponed?: unknown
 }
 
@@ -153,6 +154,35 @@ export async function loadPrelude(pathname: string, assets: Assets = nodeAssets)
 	} catch (err) {
 		logger.warn(
 			`[prerender:artifacts] rejected prelude path for ${pathname}`,
+			Logger.print(err),
+		)
+		return null
+	}
+
+	if (!(await assets.exists(asset))) return null
+
+	try {
+		return await assets.readText(asset)
+	} catch {
+		return null
+	}
+}
+
+/**
+ * Load the prefetchable RSC shell for a given route from the file system, if it
+ * exists.
+ */
+export async function loadShell(pathname: string, assets: Assets = nodeAssets) {
+	let asset: AssetRef
+
+	try {
+		asset = {
+			namespace: 'artifact',
+			path: getArtifactAssetPath(pathname, 'shell.rsc'),
+		}
+	} catch (err) {
+		logger.warn(
+			`[prerender:artifacts] rejected shell path for ${pathname}`,
 			Logger.print(err),
 		)
 		return null

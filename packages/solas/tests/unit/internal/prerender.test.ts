@@ -14,6 +14,7 @@ import {
 	loadMetadata,
 	loadPostponedState,
 	loadPrelude,
+	loadShell,
 	Postponed,
 	staticRoutePath,
 	type Metadata,
@@ -211,6 +212,30 @@ describe('Prerender', () => {
 
 			it('returns null when file path is invalid', async () => {
 				const result = await loadPrelude('/../escape')
+				expect(result).toBeNull()
+			})
+		})
+
+		describe('loadShell', () => {
+			beforeEach(() => {
+				vi.clearAllMocks()
+			})
+
+			it('returns null when file does not exist', async () => {
+				vi.mocked(nodeAssets.exists).mockResolvedValue(false)
+				const result = await loadShell('/about')
+				expect(result).toBeNull()
+			})
+
+			it('returns the shell payload when it exists', async () => {
+				vi.mocked(nodeAssets.exists).mockResolvedValue(true)
+				vi.mocked(nodeAssets.readText).mockResolvedValue('0:{"root":null}')
+				const result = await loadShell('/about')
+				expect(result).toBe('0:{"root":null}')
+			})
+
+			it('returns null when the file path is invalid', async () => {
+				const result = await loadShell('/../escape')
 				expect(result).toBeNull()
 			})
 		})

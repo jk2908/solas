@@ -160,6 +160,12 @@ export async function postbuild(
 							),
 						]
 
+						if (artifact.shell !== undefined) {
+							writes.push(
+								fs.writeFile(path.join(artifactDir, 'shell.rsc'), artifact.shell),
+							)
+						}
+
 						if (artifact.postponed !== undefined) {
 							writes.push(
 								fs.writeFile(
@@ -173,10 +179,12 @@ export async function postbuild(
 
 						artfifactManifest[route] = {
 							mode: artifact.mode,
-							files:
-								artifact.postponed !== undefined
-									? ['metadata', 'prelude', 'postponed']
-									: ['metadata', 'prelude'],
+							files: [
+								'metadata',
+								'prelude',
+								...(artifact.shell !== undefined ? (['shell'] as const) : []),
+								...(artifact.postponed !== undefined ? (['postponed'] as const) : []),
+							],
 							...hashes,
 						}
 

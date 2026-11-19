@@ -14,7 +14,7 @@ import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import * as Prerender from '../prerender.js'
 import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
-import { captureBuffered, injectPayload } from './flight.js'
+import { captureBuffered, completeShellPayload, injectPayload } from './flight.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
 type Opts = {
@@ -165,6 +165,8 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		// save the static payload rows in the cached prelude and leave the
 		// postponed work for the later resume response
 		const partialPayload = await captureBuffered(s2)
+		const [htmlPayload, shellPayload] = partialPayload.tee()
+		const shell = completeShellPayload(await new Response(shellPayload).text())
 
 		return {
 			schema,
@@ -172,8 +174,9 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 			createdAt: Date.now(),
 			mode: 'ppr',
 			html: await new Response(
-				prelude.pipeThrough(injectPayload(partialPayload, { nonce })),
+				prelude.pipeThrough(injectPayload(htmlPayload, { nonce })),
 			).text(),
+			shell,
 			postponed,
 		}
 	}

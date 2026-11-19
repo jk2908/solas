@@ -150,6 +150,7 @@ function isArtifactFile(value: unknown): value is Prerender.File {
 		value === 'html' ||
 		value === 'prelude' ||
 		value === 'postponed' ||
-		value === 'metadata'
+		value === 'metadata' ||
+		value === 'shell'
 	)
 }
