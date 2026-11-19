@@ -138,6 +138,8 @@ function isInlineValue(value: unknown) {
  * Emit readable ts source for generated config and manifest data.
  */
 export function toSourceLiteral(value: unknown, level = 0): string {
+	if (value === undefined) return 'undefined'
+
 	if (value === null) return 'null'
 
 	if (typeof value === 'string') return toStringLiteral(value)
@@ -162,7 +164,11 @@ export function toSourceLiteral(value: unknown, level = 0): string {
 	}
 
 	if (typeof value === 'object') {
-		const entries = Object.entries(value)
+		// an explicitly undefined property is equivalent to an absent one, and
+		// emitting `key: undefined` makes generated config noisy
+		const entries = Object.entries(value).filter(
+			([, entryValue]) => entryValue !== undefined,
+		)
 
 		if (entries.length === 0) return '{}'
 
