@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.22.4
+
+### Fixes
+
+- Generated source no longer throws when a config value is explicitly `undefined`. Undefined object properties are omitted from generated config and manifest output.
+
 ## 0.22.3
 
 ### Fixes
