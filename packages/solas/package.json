@@ -87,7 +87,7 @@
 		}
 	},
 	"scripts": {
-		"build": "rm -rf dist && tsgo && node scripts/copy-non-ts-files.mjs",
+		"build": "node -e \"require('node:fs').rmSync('dist',{recursive:true,force:true})\" && tsgo && node scripts/copy-non-ts-files.mjs",
 		"postbuild": "node scripts/measure.mjs",
 		"test": "vitest run",
 		"test:browser": "vitest run --config vitest.browser.config.ts",
