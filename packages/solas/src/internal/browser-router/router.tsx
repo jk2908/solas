@@ -143,15 +143,6 @@ function performNavigationFetch(path: string, init?: RequestInit) {
 
 const MAX_HASH_ATTEMPTS = 20
 
-function nextFrame(callback: () => void) {
-	if (typeof requestAnimationFrame === 'function') {
-		requestAnimationFrame(callback)
-		return
-	}
-
-	setTimeout(callback, 0)
-}
-
 /**
  * Scroll to the element a hash points at, retrying for a few frames because the
  * incoming tree may still be committing when the navigation resolves.
@@ -179,7 +170,7 @@ function scrollToHash(hash: string, attempts = MAX_HASH_ATTEMPTS) {
 
 	if (attempts <= 0) return
 
-	nextFrame(() => scrollToHash(hash, attempts - 1))
+	requestAnimationFrame(() => scrollToHash(hash, attempts - 1))
 }
 
 /**
@@ -208,7 +199,9 @@ function applyScroll(intent: BrowserRouter.ScrollIntent, hash: string) {
 
 	if (typeof intent === 'object') {
 		// wait for the restored tree to commit so it has its full height
-		nextFrame(() => nextFrame(() => window.scrollTo(0, intent.restore)))
+		requestAnimationFrame(() =>
+			requestAnimationFrame(() => window.scrollTo(0, intent.restore)),
+		)
 		return
 	}
 
@@ -559,7 +552,7 @@ export function BrowserRouterProvider({
 
 			pending = true
 
-			nextFrame(() => {
+			requestAnimationFrame(() => {
 				pending = false
 				history.current.saveScroll()
 			})
