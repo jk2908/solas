@@ -71,6 +71,17 @@ describe('RouterCache', () => {
 		vi.useRealTimers()
 	})
 
+	it('keeps ppr shells until the cache is cleared', () => {
+		vi.useFakeTimers()
+		const cache = new RouterCache({ ttl: 1000 })
+		cache.setReady('/shell', 'ppr', cached('/shell', 10))
+
+		vi.advanceTimersByTime(5000)
+
+		expect(cache.has('/shell')).toBe(true)
+		vi.useRealTimers()
+	})
+
 	it('evicts LRU entries when the byte budget is exceeded', async () => {
 		const cache = new RouterCache({ maxBytes: 120 })
 

@@ -114,6 +114,8 @@ async function createPayload({
 	nonce,
 	clientCssByRoute,
 	effectivePrerenderMode,
+	assets = nodeAssets,
+	lookupPath,
 }: {
 	request: SolasRequest
 	manifest: Manifest
@@ -125,6 +127,8 @@ async function createPayload({
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
+	assets?: Assets
+	lookupPath?: string
 }) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -144,9 +148,26 @@ async function createPayload({
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
 
-	// ppr shells are not implemented yet; dynamic routes can be prefetched in
+	// ppr routes prefetch their static RSC shell; dynamic routes prefetch in
 	// full, just like fully prerendered routes
 	if (prefetch && prerenderMode === 'ppr') {
+		const shell = lookupPath ? await Prerender.loadShell(lookupPath, assets) : null
+
+		if (shell !== null) {
+			return {
+				stream: new ReadableStream<Uint8Array>({
+					start(controller) {
+						controller.enqueue(new TextEncoder().encode(shell))
+						controller.close()
+					},
+				}),
+				status: 200,
+				ppr: true,
+				nonce: undefined,
+				type: routeType,
+			}
+		}
+
 		return {
 			stream: new ReadableStream<Uint8Array>({
 				start(controller) {
@@ -442,6 +463,8 @@ export function createHandler(
 			nonce,
 			clientCssByRoute,
 			effectivePrerenderMode,
+			assets,
+			lookupPath: requestLookupPath,
 		})
 
 		const stream = await rscStream
@@ -505,6 +528,8 @@ export function createHandler(
 					nonce,
 					clientCssByRoute,
 					effectivePrerenderMode,
+					assets,
+					lookupPath: requestLookupPath,
 				})
 
 				const retriedStream = await retriedRscStream

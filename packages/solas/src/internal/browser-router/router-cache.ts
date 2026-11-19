@@ -171,7 +171,7 @@ export class RouterCache {
 	}
 
 	#timer(key: string, type: RouterCache.Type) {
-		if (type === 'full') return
+		if (type !== 'dynamic') return
 		return setTimeout(() => this.#delete(key), this.ttl)
 	}
 
