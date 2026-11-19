@@ -71,6 +71,27 @@ describe('RouterCache', () => {
 		vi.useRealTimers()
 	})
 
+	it('stores page segments in the same cache', () => {
+		const cache = new RouterCache()
+		cache.setSegment('/page:/about', 'static', cached('/about', 10))
+
+		expect(cache.getSegment('/page:/about')?.value.payload.url.pathname).toBe('/about')
+		expect(cache.hasSegment('/page:/about')).toBe(true)
+		expect(cache.get('/page:/about')).toBeUndefined()
+	})
+
+	it('expires dynamic page segments after the ttl', () => {
+		vi.useFakeTimers()
+		const cache = new RouterCache({ ttl: 1000 })
+		cache.setSegment('/page:/about', 'dynamic', cached('/about', 10))
+
+		vi.advanceTimersByTime(999)
+		expect(cache.hasSegment('/page:/about')).toBe(true)
+		vi.advanceTimersByTime(1)
+		expect(cache.hasSegment('/page:/about')).toBe(false)
+		vi.useRealTimers()
+	})
+
 	it('keeps ppr shells until the cache is cleared', () => {
 		vi.useFakeTimers()
 		const cache = new RouterCache({ ttl: 1000 })

@@ -9,12 +9,15 @@ export function isRouterCacheEntryType(
 
 export namespace RouterCache {
 	export type Type = Route.PrerenderMode | 'dynamic'
+	export type SegmentType = 'static' | 'dynamic'
 
 	export type CachedPayload = {
 		payload: RscPayload
 		url: string
 		bytes: number
 	}
+
+	export type CachedSegment = CachedPayload
 
 	export type DecodedStream = {
 		payload: Promise<RscPayload>
@@ -31,19 +34,29 @@ export namespace RouterCache {
 	}
 
 	type PendingEntry = {
+		kind: 'route'
 		status: 'pending'
 		response: Promise<DecodedStream | null>
 		timer?: ReturnType<typeof setTimeout>
 	}
 
 	type ReadyEntry = {
+		kind: 'route'
 		status: 'ready'
 		type: Type
 		value: CachedPayload
 		timer?: ReturnType<typeof setTimeout>
 	}
 
-	export type Entry = PendingEntry | ReadyEntry
+	type SegmentEntry = {
+		kind: 'segment'
+		status: 'ready'
+		type: SegmentType
+		value: CachedSegment
+		timer?: ReturnType<typeof setTimeout>
+	}
+
+	export type Entry = PendingEntry | ReadyEntry | SegmentEntry
 }
 
 /**
@@ -70,19 +83,19 @@ export class RouterCache {
 	}
 
 	has(key: string) {
-		return this.enabled && this.#cache.has(key)
+		return this.enabled && this.#cache.has(this.#routeKey(key))
 	}
 
 	get(key: string) {
 		if (!this.enabled) return
 
-		const entry = this.#cache.get(key)
-		if (!entry) return
+		const entry = this.#cache.get(this.#routeKey(key))
+		if (!entry || entry.kind !== 'route') return
 
 		if (entry.status === 'ready') {
 			// refresh the LRU position for ready entries
-			this.#cache.delete(key)
-			this.#cache.set(key, entry)
+			this.#cache.delete(this.#routeKey(key))
+			this.#cache.set(this.#routeKey(key), entry)
 		}
 
 		return entry
@@ -91,28 +104,30 @@ export class RouterCache {
 	set(key: string, response: Promise<RouterCache.DecodedStream | null>) {
 		if (!this.enabled) return
 
-		this.#delete(key)
+		const cacheKey = this.#routeKey(key)
+		this.#delete(cacheKey)
 
-		const entry: RouterCache.Entry = { status: 'pending', response }
-		this.#cache.set(key, entry)
+		const entry: RouterCache.Entry = { kind: 'route', status: 'pending', response }
+		this.#cache.set(cacheKey, entry)
 
 		void response.then(
 			stream => {
-				if (this.#cache.get(key) !== entry) return
+				if (this.#cache.get(cacheKey) !== entry) return
 
 				if (!stream) {
-					this.#delete(key)
+					this.#delete(cacheKey)
 					return
 				}
 
 				void Promise.all([stream.payload, stream.bytes]).then(
 					([payload, bytes]) => {
-						if (this.#cache.get(key) !== entry) return
+						if (this.#cache.get(cacheKey) !== entry) return
 
 						const type =
 							stream.type ?? payload.type ?? ('dynamic' satisfies RouterCache.Type)
 
 						const ready: RouterCache.Entry = {
+							kind: 'route',
 							status: 'ready',
 							type,
 							value: {
@@ -120,21 +135,21 @@ export class RouterCache {
 								url: stream.url,
 								bytes,
 							},
-							timer: this.#timer(key, type),
+							timer: this.#timer(cacheKey, type),
 						}
 
-						this.#cache.set(key, ready)
+						this.#cache.set(cacheKey, ready)
 						this.#bytes += ready.value.bytes
 
-						this.#evict(key)
+						this.#evict(cacheKey)
 					},
 					() => {
-						if (this.#cache.get(key) === entry) this.#delete(key)
+						if (this.#cache.get(cacheKey) === entry) this.#delete(cacheKey)
 					},
 				)
 			},
 			() => {
-				if (this.#cache.get(key) === entry) this.#delete(key)
+				if (this.#cache.get(cacheKey) === entry) this.#delete(cacheKey)
 			},
 		)
 	}
@@ -142,23 +157,73 @@ export class RouterCache {
 	setReady(key: string, type: RouterCache.Type, value: RouterCache.CachedPayload) {
 		if (!this.enabled) return
 
-		this.#delete(key)
+		const cacheKey = this.#routeKey(key)
+		this.#delete(cacheKey)
 
 		const ready: RouterCache.Entry = {
+			kind: 'route',
 			status: 'ready',
 			type,
 			value,
-			timer: this.#timer(key, type),
+			timer: this.#timer(cacheKey, type),
 		}
 
-		this.#cache.set(key, ready)
+		this.#cache.set(cacheKey, ready)
 		this.#bytes += value.bytes
-		this.#evict(key)
+		this.#evict(cacheKey)
+	}
+
+	getSegment(key: string) {
+		if (!this.enabled) return
+
+		const cacheKey = this.#segmentKey(key)
+		const entry = this.#cache.get(cacheKey)
+		if (!entry || entry.kind !== 'segment') return
+
+		this.#cache.delete(cacheKey)
+		this.#cache.set(cacheKey, entry)
+
+		return entry
+	}
+
+	hasSegment(key: string) {
+		if (!this.enabled) return false
+
+		const entry = this.#cache.get(this.#segmentKey(key))
+		return entry?.kind === 'segment'
+	}
+
+	setSegment(
+		key: string,
+		type: RouterCache.SegmentType,
+		value: RouterCache.CachedSegment,
+	) {
+		if (!this.enabled) return
+
+		const cacheKey = this.#segmentKey(key)
+		this.#delete(cacheKey)
+
+		const entry: RouterCache.Entry = {
+			kind: 'segment',
+			status: 'ready',
+			type,
+			value,
+			timer: this.#timer(cacheKey, type),
+		}
+
+		this.#cache.set(cacheKey, entry)
+		this.#bytes += value.bytes
+		this.#evict(cacheKey)
+	}
+
+	removeSegment(key: string) {
+		if (!this.enabled) return
+		this.#delete(this.#segmentKey(key))
 	}
 
 	remove(key: string) {
 		if (!this.enabled) return
-		this.#delete(key)
+		this.#delete(this.#routeKey(key))
 	}
 
 	clear() {
@@ -170,7 +235,15 @@ export class RouterCache {
 		this.#bytes = 0
 	}
 
-	#timer(key: string, type: RouterCache.Type) {
+	#routeKey(key: string) {
+		return `route:${key}`
+	}
+
+	#segmentKey(key: string) {
+		return `segment:${key}`
+	}
+
+	#timer(key: string, type: RouterCache.Type | RouterCache.SegmentType) {
 		if (type !== 'dynamic') return
 		return setTimeout(() => this.#delete(key), this.ttl)
 	}
