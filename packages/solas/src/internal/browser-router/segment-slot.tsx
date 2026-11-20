@@ -21,14 +21,20 @@ export const SegmentContext = createContext<SegmentState | null>(null)
 /**
  * Render the page segment fetched after a shell navigation.
  */
-export function SegmentSlot({ fallback }: { fallback?: ReactNode }) {
+export function SegmentSlot({
+	fallback,
+	children,
+}: {
+	fallback?: ReactNode
+	children?: ReactNode
+}) {
 	const segment = useContext(SegmentContext)
 	const page = segment?.page
 
-	if (!page) return fallback ?? null
+	if (!page) return children ?? fallback ?? null
 
 	return (
-		<Suspense fallback={fallback ?? null}>
+		<Suspense fallback={fallback ?? children ?? null}>
 			<Head metadata={page.metadata} url={page.url} clientCss={page.clientCss} />
 			{page.root}
 		</Suspense>

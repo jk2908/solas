@@ -91,7 +91,9 @@ function readRouteType(res: Response) {
  */
 function decodeRscResponse(res: Response) {
 	const type = readRouteType(res)
-	const segment = res.headers.get(`x-${Config.SLUG}-segment`) === 'page'
+	const segmentHeader = res.headers.get(`x-${Config.SLUG}-segment`)
+	const segment =
+		segmentHeader === 'page' || segmentHeader === 'shell' ? segmentHeader : null
 
 	// null-body responses have nothing to decode or cache
 	if (res.status === 204 || !res.ok || !res.body) return null
@@ -118,8 +120,15 @@ function decodeRscResponse(res: Response) {
 	)
 
 	// the parser consumes the counted stream and can resolve the payload before
-	// the stream closes
-	const payload = createFromReadableStream<RscPayload>(body)
+	// the stream closes. Shell artifacts were produced as prerender results, so
+	// mark them as segmentable when they are used for client navigation.
+	const payload = (async () => {
+		const payload = await createFromReadableStream<RscPayload>(body)
+
+		if (segment === 'shell') payload.segmentable = true
+
+		return payload
+	})()
 
 	return { payload, bytes, url: res.url, type, segment }
 }
@@ -464,7 +473,7 @@ export function BrowserRouterProvider({
 								try {
 									await loadPageSegment()
 								} catch {
-									payload = undefined
+									// keep the static shell rendered if the page segment fails
 									setSegmentPage(null)
 								}
 							} else {
@@ -488,7 +497,7 @@ export function BrowserRouterProvider({
 									try {
 										await loadPageSegment()
 									} catch {
-										payload = undefined
+										// keep the static shell rendered if the page segment fails
 										setSegmentPage(null)
 									}
 								} else {
@@ -510,7 +519,10 @@ export function BrowserRouterProvider({
 					const ctrl = new AbortController()
 					controller.current = ctrl
 
-					const promise = performNavigationFetch(path, { signal: ctrl.signal })
+					const promise = performNavigationFetch(path, {
+						signal: ctrl.signal,
+						headers: { [`x-${Config.SLUG}-segment`]: 'shell' },
+					})
 
 					if (navigationId !== id.current) return path
 
@@ -525,6 +537,20 @@ export function BrowserRouterProvider({
 
 					const navigationType =
 						decoded.type ?? loadedPayload.type ?? (STATIC ? 'full' : 'dynamic')
+					const isShell =
+						decoded.segment === 'shell' ||
+						(navigationType === 'ppr' && loadedPayload.segmentable)
+
+					if (isShell) {
+						setPayload?.(loadedPayload)
+
+						try {
+							await loadPageSegment()
+						} catch {
+							// keep the static shell rendered if the page segment fails
+							setSegmentPage(null)
+						}
+					}
 
 					resolvedPath = STATIC
 						? path

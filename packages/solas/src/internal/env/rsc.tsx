@@ -164,6 +164,7 @@ async function createPayload({
 	nonce,
 	clientCssByRoute,
 	effectivePrerenderMode,
+	assets,
 }: {
 	request: SolasRequest
 	manifest: Manifest
@@ -175,6 +176,7 @@ async function createPayload({
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
+	assets?: Assets
 }) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -200,6 +202,7 @@ async function createPayload({
 	const pageOnly =
 		routerState !== null && sameNonPageSegments(routerState.segments, targetSegments)
 	const layoutSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'layouts'
+	const shellSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'shell'
 	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
@@ -207,7 +210,7 @@ async function createPayload({
 	// ppr prefetches render the static layout shell with a page slot; dynamic
 	// routes still prefetch in full
 	const shell =
-		(prefetch || layoutSegment) &&
+		(prefetch || layoutSegment || shellSegment) &&
 		!pageOnly &&
 		prerenderMode === 'ppr' &&
 		!reconciled?.error
@@ -220,6 +223,31 @@ async function createPayload({
 	const effectiveNonce = prerender || routeType === 'full' ? undefined : nonce
 
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
+
+	// completed build shells already contain the static layouts, page content
+	// and suspended fallbacks, so navigations can commit them immediately
+	const shellArtifact =
+		match && shell && !layoutSegment && (prefetch || shellSegment)
+			? await Prerender.loadShell(pathname, assets)
+			: null
+
+	if (shellArtifact) {
+		const encoder = new TextEncoder()
+
+		return {
+			stream: new ReadableStream<Uint8Array>({
+				start(controller) {
+					controller.enqueue(encoder.encode(shellArtifact))
+					controller.close()
+				},
+			}),
+			status: 200,
+			ppr: true,
+			nonce: effectiveNonce,
+			type: 'ppr' as const,
+			segment: 'shell' as const,
+		}
+	}
 
 	// if there's no match then no user supplied error boundary
 	// has been found, and we should server render a default
@@ -358,7 +386,7 @@ async function createPayload({
 			ppr,
 			nonce: effectiveNonce,
 			type: routeType,
-			segment: pageOnly,
+			segment: pageOnly ? ('page' as const) : false,
 		}
 	} catch (err) {
 		logger.error('[rsc:render]', err)
@@ -523,6 +551,7 @@ export function createHandler(
 			nonce,
 			clientCssByRoute,
 			effectivePrerenderMode,
+			assets,
 		})
 
 		const stream = await rscStream
@@ -542,7 +571,7 @@ export function createHandler(
 			return new Response(stream, {
 				headers: {
 					[`x-${Config.SLUG}-route-type`]: type,
-					...(segment ? { [`x-${Config.SLUG}-segment`]: 'page' } : {}),
+					...(segment ? { [`x-${Config.SLUG}-segment`]: segment } : {}),
 					'Cache-Control': 'private, no-store',
 					'Content-Type': 'text/x-component; charset=utf-8',
 					Vary: 'accept',
@@ -587,6 +616,7 @@ export function createHandler(
 					nonce,
 					clientCssByRoute,
 					effectivePrerenderMode,
+					assets,
 				})
 
 				const retriedStream = await retriedRscStream

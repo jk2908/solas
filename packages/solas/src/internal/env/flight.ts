@@ -27,10 +27,11 @@ export async function captureBuffered(stream: ReadableStream<Uint8Array>) {
 	try {
 		while (true) {
 			// only take what is already queued. anything still pending belongs
-			// to the later resume step, not the cached prelude
+			// to the later resume step, not the cached prelude. allow one short
+			// turn for child rows behind client slots to reach the stream.
 			const result = await Promise.race([
 				reader.read(),
-				new Promise<null>(r => setTimeout(r, 0, null)),
+				new Promise<null>(r => setTimeout(r, 10, null)),
 			])
 
 			if (result === null || result.done) break

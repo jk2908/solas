@@ -113,7 +113,11 @@ export function Tree({
 			</>
 		)
 	} else if (Page) {
-		inner = <Page params={params} />
+		inner = (
+			<SegmentSlot>
+				<Page params={params} />
+			</SegmentSlot>
+		)
 	}
 
 	// wrap from innermost to layouts[1] (skip shell)
