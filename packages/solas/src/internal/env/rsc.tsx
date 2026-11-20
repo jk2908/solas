@@ -99,21 +99,6 @@ const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 const nullBodyStatuses = new Set([101, 204, 205, 304])
 const DEFAULT_PAGE_STALE_MS = 30_000
 
-function sameNonPageSegments(
-	current: RscSegmentDescriptor[],
-	target: RscSegmentDescriptor[],
-) {
-	const a = current.filter(segment => segment.kind !== 'page')
-	const b = target.filter(segment => segment.kind !== 'page')
-
-	return (
-		a.length === b.length &&
-		a.every(
-			(segment, index) => segment.id === b[index]?.id && segment.kind === b[index]?.kind,
-		)
-	)
-}
-
 function normaliseParams(params: Record<string, unknown> | undefined) {
 	return params === undefined
 		? {}
@@ -297,16 +282,8 @@ async function createPayload({
 		page: reconciled?.paths.page ?? null,
 	})
 	const segmentType = request.headers.get(`x-${Config.SLUG}-segment`)
-	const pageSegment = segmentType === 'page'
-	const layoutSegment = segmentType === 'layouts'
 	const shellSegment = segmentType === 'shell'
 	const patchSegment = segmentType === 'patch'
-	const pageOnly =
-		!layoutSegment &&
-		!shellSegment &&
-		!patchSegment &&
-		(pageSegment ||
-			(routerState !== null && sameNonPageSegments(routerState.segments, targetSegments)))
 	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
@@ -314,10 +291,7 @@ async function createPayload({
 	// ppr prefetches render the static layout shell with a page slot; dynamic
 	// routes still prefetch in full
 	const shell =
-		(prefetch || layoutSegment || shellSegment) &&
-		!pageOnly &&
-		prerenderMode === 'ppr' &&
-		!reconciled?.error
+		(prefetch || shellSegment) && prerenderMode === 'ppr' && !reconciled?.error
 
 	const match = resolver.enhance(reconciled)
 
@@ -339,7 +313,7 @@ async function createPayload({
 	// completed build shells already contain the static layouts, page content
 	// and suspended fallbacks, so navigations can commit them immediately
 	const shellArtifact =
-		match && shell && !layoutSegment && (prefetch || shellSegment)
+		match && shell && (prefetch || shellSegment)
 			? await Prerender.loadShell(pathname, assets)
 			: null
 
@@ -437,27 +411,18 @@ async function createPayload({
 		.run()
 	const error = match.error ? toHttpExceptionLike(match.error) : undefined
 
-	const Page = match.ui.Page
-	const root =
-		pageOnly && !match.error ? (
-			Page ? (
-				<Page params={match.params} />
-			) : null
-		) : (
-			<>
-				<Tree
-					depth={match.__depth}
-					params={match.params}
-					error={error}
-					ui={match.ui}
-					layoutIds={match.paths.layouts}
-					shell={shell && !layoutSegment && !patchSegment}
-					layoutOnly={layoutSegment}
-					patch={patchSegment}
-					layoutFilter={patchLayouts}
-				/>
-			</>
-		)
+	const root = (
+		<Tree
+			depth={match.__depth}
+			params={match.params}
+			error={error}
+			ui={match.ui}
+			layoutIds={match.paths.layouts}
+			shell={shell && !patchSegment}
+			patch={patchSegment}
+			layoutFilter={patchLayouts}
+		/>
+	)
 
 	const rscPayload: RscPayload = {
 		root,
@@ -507,7 +472,7 @@ async function createPayload({
 			ppr,
 			nonce: effectiveNonce,
 			type: routeType,
-			segment: patchSegment ? ('patch' as const) : pageOnly ? ('page' as const) : false,
+			segment: patchSegment ? ('patch' as const) : false,
 		}
 	} catch (err) {
 		logger.error('[rsc:render]', err)

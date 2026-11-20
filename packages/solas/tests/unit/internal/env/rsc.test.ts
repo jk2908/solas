@@ -65,7 +65,7 @@ describe('createHandler', () => {
 		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('ppr')
 	})
 
-	it('returns only the page for a page-segment request', async () => {
+	it('returns a page/layout patch for a patch request', async () => {
 		const handler = createHandler(
 			config,
 			{ '/writing': createSegment('/writing', { prerender: 'ppr' }) },
@@ -76,6 +76,7 @@ describe('createHandler', () => {
 			new Request('http://localhost/writing', {
 				headers: {
 					accept: 'text/x-component',
+					[`x-${Config.SLUG}-segment`]: 'patch',
 					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 						segments: [],
 					}),
@@ -86,7 +87,7 @@ describe('createHandler', () => {
 		expect(response.status).toBe(200)
 		expect(response.body).not.toBeNull()
 		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('ppr')
-		expect(response.headers.get(`x-${Config.SLUG}-segment`)).toBe('page')
+		expect(response.headers.get(`x-${Config.SLUG}-segment`)).toBe('patch')
 	})
 
 	it('uses a full artifact mode for a declared PPR route', async () => {

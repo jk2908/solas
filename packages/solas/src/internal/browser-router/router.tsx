@@ -482,7 +482,7 @@ export function BrowserRouterProvider({
 					return values
 				}
 
-				async function loadPageSegment() {
+				async function loadSegmentPatch() {
 					const cachedPage = routerCache.getSegment(path)
 
 					if (cachedPage) {
@@ -577,7 +577,7 @@ export function BrowserRouterProvider({
 								payload = cachedPayload
 								setPayload?.(cachedPayload)
 								try {
-									await loadPageSegment()
+									await loadSegmentPatch()
 								} catch {
 									// keep the static shell rendered if the page segment fails
 									setSegmentPage(null)
@@ -601,7 +601,7 @@ export function BrowserRouterProvider({
 									payload = cachedPayload
 									setPayload?.(cachedPayload)
 									try {
-										await loadPageSegment()
+										await loadSegmentPatch()
 									} catch {
 										// keep the static shell rendered if the page segment fails
 										setSegmentPage(null)
@@ -651,7 +651,7 @@ export function BrowserRouterProvider({
 						setPayload?.(loadedPayload)
 
 						try {
-							await loadPageSegment()
+							await loadSegmentPatch()
 						} catch {
 							// keep the static shell rendered if the page segment fails
 							setSegmentPage(null)

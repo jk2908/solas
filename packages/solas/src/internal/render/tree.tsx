@@ -64,7 +64,6 @@ export function Tree({
 	ui,
 	layoutIds = [],
 	shell = false,
-	layoutOnly = false,
 	patch = false,
 	layoutFilter,
 }: {
@@ -74,7 +73,6 @@ export function Tree({
 	ui: Match['ui']
 	layoutIds?: (string | null)[]
 	shell?: boolean
-	layoutOnly?: boolean
 	patch?: boolean
 	layoutFilter?: string[]
 }) {
@@ -91,7 +89,7 @@ export function Tree({
 	const Shell = layouts[0]
 	if (!Shell) throw new Error('Shell layout is required in the route tree')
 
-	if (layoutOnly || patch) {
+	if (patch) {
 		// one independent node per layout. The target subtree is supplied by
 		// the layout slot that applies the node.
 		const nodes: React.ReactNode[] = []
