@@ -1,7 +1,12 @@
 import { Suspense } from 'react'
 
 import type { Resolver } from '../resolver.js'
-import { ChildSlot, LayoutSlot, SegmentSlot } from '../browser-router/segment-slot.js'
+import {
+	ChildSlot,
+	LayoutSlot,
+	PageMarker,
+	SegmentSlot,
+} from '../browser-router/segment-slot.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import {
 	HttpException,
@@ -60,6 +65,7 @@ export function Tree({
 	layoutIds = [],
 	shell = false,
 	layoutOnly = false,
+	patch = false,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
@@ -68,6 +74,7 @@ export function Tree({
 	layoutIds?: (string | null)[]
 	shell?: boolean
 	layoutOnly?: boolean
+	patch?: boolean
 }) {
 	const {
 		layouts,
@@ -82,7 +89,7 @@ export function Tree({
 	const Shell = layouts[0]
 	if (!Shell) throw new Error('Shell layout is required in the route tree')
 
-	if (layoutOnly) {
+	if (layoutOnly || patch) {
 		// one independent node per layout. The target subtree is supplied by
 		// the layout slot that applies the node.
 		const nodes: React.ReactNode[] = []
@@ -104,6 +111,14 @@ export function Tree({
 						<ChildSlot />
 					</Layout>
 				),
+			)
+		}
+
+		if (patch && Page) {
+			nodes.push(
+				<PageMarker key="page" pprPage>
+					<Page params={params} />
+				</PageMarker>,
 			)
 		}
 

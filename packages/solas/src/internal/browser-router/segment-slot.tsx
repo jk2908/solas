@@ -28,6 +28,13 @@ export function ChildSlot() {
 }
 
 /**
+ * Marks the page root inside a combined page/layout segment patch.
+ */
+export function PageMarker({ children }: { pprPage?: true; children?: ReactNode }) {
+	return children
+}
+
+/**
  * Render the page segment fetched after a shell navigation.
  */
 export function SegmentSlot({
@@ -73,6 +80,35 @@ export function LayoutSlot(props: {
 	}
 
 	return props.children ?? props.fallback ?? null
+}
+
+/**
+ * Find the page root inside a combined page/layout segment patch.
+ */
+export function collectPageSegment(root: ReactNode) {
+	let page: ReactNode = null
+
+	function visit(value: unknown) {
+		if (Array.isArray(value)) {
+			for (const child of value) visit(child)
+			return
+		}
+
+		if (!isValidElement(value)) return
+
+		const props = value.props as { pprPage?: true; children?: ReactNode }
+
+		if (props.pprPage === true) {
+			page = props.children ?? null
+			return
+		}
+
+		visit(props.children)
+	}
+
+	visit(root)
+
+	return page
 }
 
 /**

@@ -22,7 +22,11 @@ import { BrowserRouterHistory } from './history.js'
 import { layoutSegmentKey } from './layout-cache-key.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
-import { collectLayoutSegments, SegmentContext } from './segment-slot.js'
+import {
+	collectLayoutSegments,
+	collectPageSegment,
+	SegmentContext,
+} from './segment-slot.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -93,7 +97,9 @@ function decodeRscResponse(res: Response) {
 	const type = readRouteType(res)
 	const segmentHeader = res.headers.get(`x-${Config.SLUG}-segment`)
 	const segment =
-		segmentHeader === 'page' || segmentHeader === 'shell' ? segmentHeader : null
+		segmentHeader === 'page' || segmentHeader === 'shell' || segmentHeader === 'patch'
+			? segmentHeader
+			: null
 
 	// null-body responses have nothing to decode or cache
 	if (res.status === 204 || !res.ok || !res.body) return null
@@ -367,79 +373,61 @@ export function BrowserRouterProvider({
 				setSegmentPage(null)
 				setLayoutValues(new Map())
 
-				async function loadLayoutSegments(
-					layoutIds?: (string | null)[],
-					params?: Record<string, string | string[]>,
+				function getCachedLayouts(
+					layoutIds: (string | null)[] | undefined,
+					params: Record<string, string | string[]> | undefined,
 				) {
 					const targetIds = (layoutIds ?? []).filter(
 						(id): id is string => typeof id === 'string',
 					)
 					const now = Date.now()
-					const cachedValues = new Map<string, React.ReactNode>()
+					const values = new Map<string, React.ReactNode>()
 					let missing = false
 
 					for (const id of targetIds) {
 						const cached = layoutCache.current.get(layoutSegmentKey(id, params))
 
 						if (cached && cached.expiresAt > now) {
-							cachedValues.set(id, cached.value)
+							values.set(id, cached.value)
 						} else {
 							missing = true
 						}
 					}
 
-					if (targetIds.length > 0 && !missing) {
-						setLayoutValues(cachedValues)
-						return
-					}
+					return { targetIds, values, missing }
+				}
 
-					if (cachedValues.size > 0) setLayoutValues(cachedValues)
+				function applyLayoutSegments(
+					layouts: Map<string, React.ReactNode>,
+					targetIds: string[],
+					params?: Record<string, string | string[]>,
+				) {
+					const now = Date.now()
+					const expiresAt = now + routerCache.ttl
+					const values = new Map<string, React.ReactNode>()
 
-					const ctrl = new AbortController()
-					controller.current = ctrl
+					for (const id of targetIds) {
+						const cached = layoutCache.current.get(layoutSegmentKey(id, params))
 
-					try {
-						const response = await performNavigationFetch(path, {
-							signal: ctrl.signal,
-							headers: { [`x-${Config.SLUG}-segment`]: 'layouts' },
+						if (cached && cached.expiresAt > now) {
+							values.set(id, cached.value)
+							continue
+						}
+
+						const value = layouts.get(id)
+
+						if (value === undefined) continue
+
+						values.set(id, value)
+						layoutCache.current.set(layoutSegmentKey(id, params), {
+							value,
+							expiresAt,
 						})
-						const decoded = decodeRscResponse(response)
-
-						if (!decoded) return
-
-						const full = await decoded.payload
-						await decoded.bytes
-
-						if (navigationId !== id.current) return
-
-						const layouts = collectLayoutSegments(full.root)
-						const values = new Map<string, React.ReactNode>()
-						const expiresAt = Date.now() + routerCache.ttl
-
-						for (const [id, value] of layouts) {
-							if (!targetIds.includes(id)) continue
-
-							const cached = layoutCache.current.get(layoutSegmentKey(id, params))
-
-							if (cached && cached.expiresAt > now) {
-								values.set(id, cached.value)
-								continue
-							}
-
-							values.set(id, value)
-							layoutCache.current.set(layoutSegmentKey(id, params), {
-								value,
-								expiresAt,
-							})
-						}
-
-						if (values.size > 0) {
-							setLayoutValues(values)
-						}
-					} catch (err) {
-						if (err instanceof Error && err.name === 'AbortError') return
-						logger.error('[ppr:layouts]', err)
 					}
+
+					if (values.size > 0) setLayoutValues(values)
+
+					return values
 				}
 
 				async function loadPageSegment() {
@@ -447,9 +435,19 @@ export function BrowserRouterProvider({
 
 					if (cachedPage) {
 						const cachedPayload = cachedPage.value.payload
+						const { values, missing } = getCachedLayouts(
+							cachedPayload.segments?.layouts,
+							cachedPayload.params,
+						)
+
 						setSegmentPage(cachedPayload)
-						void loadLayoutSegments(cachedPayload.segments?.layouts, cachedPayload.params)
-						return
+
+						if (!missing) {
+							if (values.size > 0) setLayoutValues(values)
+							return
+						}
+
+						if (values.size > 0) setLayoutValues(values)
 					}
 
 					const ctrl = new AbortController()
@@ -457,7 +455,7 @@ export function BrowserRouterProvider({
 
 					const res = await performNavigationFetch(path, {
 						headers: {
-							[`x-${Config.SLUG}-segment`]: 'page',
+							[`x-${Config.SLUG}-segment`]: 'patch',
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 								segments: payload?.segments ? describeSegments(payload.segments) : [],
 							}),
@@ -466,28 +464,33 @@ export function BrowserRouterProvider({
 					})
 					const decoded = decodeRscResponse(res)
 
-					if (!decoded || !decoded.segment) {
+					if (!decoded || decoded.segment !== 'patch') {
 						throw new InvalidNavigationPayloadError()
 					}
 
-					const pagePayload = await decoded.payload
+					const patch = await decoded.payload
 
 					if (navigationId !== id.current) return
 
-					// render the page root before its deferred Suspense content
-					// finishes streaming, so client navigations show the same
-					// fallbacks as a first load
-					setSegmentPage(pagePayload)
+					const targetIds = (patch.segments?.layouts ?? []).filter(
+						(id): id is string => typeof id === 'string',
+					)
+					const layouts = collectLayoutSegments(patch.root)
+					const pageRoot = collectPageSegment(patch.root)
+					const pagePayload = { ...patch, root: pageRoot }
 
-					void loadLayoutSegments(pagePayload.segments?.layouts, pagePayload.params)
+					applyLayoutSegments(layouts, targetIds, patch.params)
+					setSegmentPage(pageRoot ? pagePayload : null)
 
 					const bytes = await decoded.bytes
 
-					routerCache.setSegment(path, 'dynamic', {
-						payload: pagePayload,
-						url: decoded.url,
-						bytes,
-					})
+					if (pageRoot) {
+						routerCache.setSegment(path, 'dynamic', {
+							payload: pagePayload,
+							url: decoded.url,
+							bytes,
+						})
+					}
 				}
 
 				const cached = routerCache.get(path)

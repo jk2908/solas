@@ -199,12 +199,17 @@ async function createPayload({
 		layouts: reconciled?.paths.layouts ?? [],
 		page: reconciled?.paths.page ?? null,
 	})
-	const pageSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'page'
+	const segmentType = request.headers.get(`x-${Config.SLUG}-segment`)
+	const pageSegment = segmentType === 'page'
+	const layoutSegment = segmentType === 'layouts'
+	const shellSegment = segmentType === 'shell'
+	const patchSegment = segmentType === 'patch'
 	const pageOnly =
-		pageSegment ||
-		(routerState !== null && sameNonPageSegments(routerState.segments, targetSegments))
-	const layoutSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'layouts'
-	const shellSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'shell'
+		!layoutSegment &&
+		!shellSegment &&
+		!patchSegment &&
+		(pageSegment ||
+			(routerState !== null && sameNonPageSegments(routerState.segments, targetSegments)))
 	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
@@ -341,8 +346,9 @@ async function createPayload({
 					error={error}
 					ui={match.ui}
 					layoutIds={match.paths.layouts}
-					shell={shell && !layoutSegment}
+					shell={shell && !layoutSegment && !patchSegment}
 					layoutOnly={layoutSegment}
+					patch={patchSegment}
 				/>
 			</>
 		)
@@ -389,7 +395,7 @@ async function createPayload({
 			ppr,
 			nonce: effectiveNonce,
 			type: routeType,
-			segment: pageOnly ? ('page' as const) : false,
+			segment: patchSegment ? ('patch' as const) : pageOnly ? ('page' as const) : false,
 		}
 	} catch (err) {
 		logger.error('[rsc:render]', err)
