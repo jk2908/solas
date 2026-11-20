@@ -19,6 +19,7 @@ import {
 	isRouteTargetError,
 } from './errors.js'
 import { BrowserRouterHistory } from './history.js'
+import { layoutCacheKey } from './layout-cache-key.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
 import { collectLayoutSegments, SegmentContext } from './segment-slot.js'
@@ -357,8 +358,8 @@ export function BrowserRouterProvider({
 				setSegmentPage(null)
 				setLayoutValues(new Map())
 
-				async function loadLayoutSegments() {
-					const cached = layoutCache.current.get(path)
+				async function loadLayoutSegments(cacheKey = path) {
+					const cached = layoutCache.current.get(cacheKey)
 
 					if (cached && cached.expiresAt > Date.now()) {
 						setLayoutValues(cached.values)
@@ -386,7 +387,7 @@ export function BrowserRouterProvider({
 
 						if (layouts.size > 0) {
 							setLayoutValues(layouts)
-							layoutCache.current.set(path, {
+							layoutCache.current.set(cacheKey, {
 								values: layouts,
 								expiresAt: Date.now() + routerCache.ttl,
 							})
@@ -401,7 +402,11 @@ export function BrowserRouterProvider({
 					const cachedPage = routerCache.getSegment(path)
 
 					if (cachedPage) {
-						setSegmentPage(cachedPage.value.payload)
+						const cachedPayload = cachedPage.value.payload
+						setSegmentPage(cachedPayload)
+						void loadLayoutSegments(
+							layoutCacheKey(cachedPayload.segments, cachedPayload.params),
+						)
 						return
 					}
 
@@ -426,6 +431,10 @@ export function BrowserRouterProvider({
 
 					if (navigationId !== id.current) return
 
+					void loadLayoutSegments(
+						layoutCacheKey(pagePayload.segments, pagePayload.params),
+					)
+
 					const bytes = await decoded.bytes
 
 					routerCache.setSegment(path, 'dynamic', {
@@ -448,7 +457,6 @@ export function BrowserRouterProvider({
 							if (isShell) {
 								payload = cachedPayload
 								setPayload?.(cachedPayload)
-								void loadLayoutSegments()
 								try {
 									await loadPageSegment()
 								} catch {
@@ -473,7 +481,6 @@ export function BrowserRouterProvider({
 								if (isShell) {
 									payload = cachedPayload
 									setPayload?.(cachedPayload)
-									void loadLayoutSegments()
 									try {
 										await loadPageSegment()
 									} catch {
@@ -635,7 +642,7 @@ export function BrowserRouterProvider({
 
 		routerCache.remove(key)
 		routerCache.removeSegment(key)
-		layoutCache.current.delete(currentPath)
+		layoutCache.current.clear()
 		setSegmentPage(null)
 
 		// a refresh stays exactly where the user is

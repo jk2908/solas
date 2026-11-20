@@ -78,6 +78,7 @@ export type RscPayload = {
 	type?: Route.PrerenderMode | 'dynamic'
 	segments?: RscSegment
 	segmentable?: boolean
+	params?: Record<string, string | string[]>
 	url: {
 		pathname: string
 		search?: string
@@ -327,6 +328,7 @@ async function createPayload({
 			page: match.paths.page ?? null,
 		},
 		segmentable: shell,
+		params: match.params,
 		url: {
 			pathname: url.pathname,
 			search: url.search,
