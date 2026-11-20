@@ -431,6 +431,11 @@ export function BrowserRouterProvider({
 
 					if (navigationId !== id.current) return
 
+					// render the page root before its deferred Suspense content
+					// finishes streaming, so client navigations show the same
+					// fallbacks as a first load
+					setSegmentPage(pagePayload)
+
 					void loadLayoutSegments(
 						layoutCacheKey(pagePayload.segments, pagePayload.params),
 					)
@@ -442,7 +447,6 @@ export function BrowserRouterProvider({
 						url: decoded.url,
 						bytes,
 					})
-					setSegmentPage(pagePayload)
 				}
 
 				const cached = routerCache.get(path)
