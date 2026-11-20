@@ -304,6 +304,7 @@ async function createPayload({
 					params={match.params}
 					error={error}
 					ui={match.ui}
+					layoutIds={match.paths.layouts}
 					shell={shell}
 				/>
 			</>

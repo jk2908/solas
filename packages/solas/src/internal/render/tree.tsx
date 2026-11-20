@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 
 import type { Resolver } from '../resolver.js'
-import { SegmentSlot } from '../browser-router/segment-slot.js'
+import { LayoutSlot, SegmentSlot } from '../browser-router/segment-slot.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import {
 	HttpException,
@@ -57,12 +57,14 @@ export function Tree({
 	params,
 	error,
 	ui,
+	layoutIds = [],
 	shell = false,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
 	error?: HttpExceptionLike
 	ui: Match['ui']
+	layoutIds?: (string | null)[]
 	shell?: boolean
 }) {
 	const {
@@ -125,7 +127,13 @@ export function Tree({
 
 		// wrap in layout
 		if (Layout) {
-			inner = (
+			const id = layoutIds[idx]
+
+			inner = id ? (
+				<LayoutSlot key={`l:${idx}`} id={id} pprLayout>
+					<Layout params={params}>{inner}</Layout>
+				</LayoutSlot>
+			) : (
 				<Layout key={`l:${idx}`} params={params}>
 					{inner}
 				</Layout>
@@ -160,7 +168,14 @@ export function Tree({
 	const ShellNotFound = notFounds[0]
 	const ShellServerError = serverErrors[0]
 
-	const tree = <Shell params={params}>{inner}</Shell>
+	const shellId = layoutIds[0]
+	const tree = shellId ? (
+		<LayoutSlot id={shellId} pprLayout>
+			<Shell params={params}>{inner}</Shell>
+		</LayoutSlot>
+	) : (
+		<Shell params={params}>{inner}</Shell>
+	)
 
 	return (
 		<HttpExceptionBoundary

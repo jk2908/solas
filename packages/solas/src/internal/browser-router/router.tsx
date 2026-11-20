@@ -21,7 +21,7 @@ import {
 import { BrowserRouterHistory } from './history.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
-import { SegmentContext } from './segment-slot.js'
+import { collectLayoutSegments, SegmentContext } from './segment-slot.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -249,6 +249,9 @@ export function BrowserRouterProvider({
 		[config],
 	)
 	const [segmentPage, setSegmentPage] = useState<RscPayload | null>(null)
+	const [layoutValues, setLayoutValues] = useState<Map<string, React.ReactNode>>(
+		() => new Map(),
+	)
 
 	useEffect(() => {
 		const hot = import.meta.hot
@@ -258,6 +261,7 @@ export function BrowserRouterProvider({
 		const clear = () => {
 			routerCache.clear()
 			setSegmentPage(null)
+			setLayoutValues(new Map())
 		}
 
 		hot.on('rsc:update', clear)
@@ -347,6 +351,31 @@ export function BrowserRouterProvider({
 				let resolvedPath = path
 
 				setSegmentPage(null)
+				setLayoutValues(new Map())
+
+				async function loadLayoutSegments() {
+					const ctrl = new AbortController()
+					controller.current = ctrl
+
+					try {
+						const response = await performNavigationFetch(path, { signal: ctrl.signal })
+						const decoded = decodeRscResponse(response)
+
+						if (!decoded) return
+
+						const full = await decoded.payload
+						await decoded.bytes
+
+						if (navigationId !== id.current) return
+
+						const layouts = collectLayoutSegments(full.root)
+
+						if (layouts.size > 0) setLayoutValues(layouts)
+					} catch (err) {
+						if (err instanceof Error && err.name === 'AbortError') return
+						logger.error('[ppr:layouts]', err)
+					}
+				}
 
 				async function loadPageSegment() {
 					const cachedPage = routerCache.getSegment(path)
@@ -398,8 +427,10 @@ export function BrowserRouterProvider({
 
 							if (isShell) {
 								payload = cachedPayload
+								setPayload?.(cachedPayload)
 								try {
 									await loadPageSegment()
+									void loadLayoutSegments()
 								} catch {
 									payload = undefined
 									setSegmentPage(null)
@@ -421,8 +452,10 @@ export function BrowserRouterProvider({
 
 								if (isShell) {
 									payload = cachedPayload
+									setPayload?.(cachedPayload)
 									try {
 										await loadPageSegment()
+										void loadLayoutSegments()
 									} catch {
 										payload = undefined
 										setSegmentPage(null)
@@ -667,7 +700,7 @@ export function BrowserRouterProvider({
 
 	return (
 		<PrefetchObserverProvider>
-			<SegmentContext value={{ page: segmentPage }}>
+			<SegmentContext value={{ page: segmentPage, layouts: layoutValues }}>
 				<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
 			</SegmentContext>
 		</PrefetchObserverProvider>
