@@ -269,11 +269,25 @@ export function BrowserRouterProvider({
 		() => new Map(),
 	)
 	const layoutCache = useRef(
-		new Map<string, { value: React.ReactNode; expiresAt: number }>(),
+		new Map<string, { value: React.ReactNode; expiresAt: number; tags?: string[] }>(),
 	)
 
 	useEffect(() => {
-		const clear = () => {
+		const clear = (event?: Event) => {
+			const tags = (event as CustomEvent<{ tags?: string[] }> | undefined)?.detail?.tags
+
+			if (tags && tags.length > 0) {
+				routerCache.invalidateTags(tags)
+
+				for (const [key, entry] of layoutCache.current) {
+					if (!entry.tags || entry.tags.some(tag => tags.includes(tag))) {
+						layoutCache.current.delete(key)
+					}
+				}
+
+				return
+			}
+
 			routerCache.clear()
 			layoutCache.current.clear()
 			setSegmentPage(null)
@@ -281,11 +295,12 @@ export function BrowserRouterProvider({
 		}
 
 		const hot = import.meta.hot
-		hot?.on('rsc:update', clear)
+		const onHot = () => clear()
+		hot?.on('rsc:update', onHot)
 		window.addEventListener(Events.REVALIDATE, clear)
 
 		return () => {
-			hot?.off?.('rsc:update', clear)
+			hot?.off?.('rsc:update', onHot)
 			window.removeEventListener(Events.REVALIDATE, clear)
 		}
 	}, [routerCache])
@@ -425,6 +440,7 @@ export function BrowserRouterProvider({
 						layoutCache.current.set(layoutSegmentKey(id, params), {
 							value,
 							expiresAt,
+							tags: cache?.tags,
 						})
 					}
 
@@ -505,6 +521,7 @@ export function BrowserRouterProvider({
 							payload: pagePayload,
 							url: decoded.url,
 							bytes,
+							tags: pagePayload.cache?.tags,
 						})
 					}
 				}

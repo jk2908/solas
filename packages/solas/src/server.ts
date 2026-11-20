@@ -11,3 +11,5 @@ export {
 	isHttpRouterError,
 } from './internal/http-router/errors.js'
 export type { HttpRouterErrorCode } from './internal/http-router/errors.js'
+
+export { revalidateTag } from './internal/server/revalidate.js'

@@ -44,6 +44,7 @@ import {
 } from '../route-segments.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
+import { drainRevalidatedTags } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -79,7 +80,12 @@ export type RscPayload = {
 	segments?: RscSegment
 	segmentable?: boolean
 	params?: Record<string, string | string[]>
-	cache?: { layouts?: number | null; page?: number | null }
+	cache?: {
+		layouts?: number | null
+		page?: number | null
+		tags?: string[]
+		invalidatedTags?: string[]
+	}
 	url: {
 		pathname: string
 		search?: string
@@ -250,6 +256,7 @@ async function createPayload({
 	clientCssByRoute,
 	effectivePrerenderMode,
 	assets,
+	invalidatedTags,
 }: {
 	request: SolasRequest
 	manifest: Manifest
@@ -262,6 +269,7 @@ async function createPayload({
 	clientCssByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
 	assets?: Assets
+	invalidatedTags?: string[]
 }) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -315,6 +323,10 @@ async function createPayload({
 	const effectiveNonce = prerender || routeType === 'full' ? undefined : nonce
 
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
+	const cacheTags = [
+		...targetSegments.map(segment => `segment:${segment.id}`),
+		`path:${pathname}`,
+	]
 	const patchLayouts =
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params)
@@ -456,7 +468,11 @@ async function createPayload({
 		},
 		segmentable: shell,
 		params: match.params,
-		cache: patchSegment ? { layouts: null } : undefined,
+		cache: {
+			...(patchSegment ? { layouts: null } : {}),
+			tags: cacheTags,
+			...(invalidatedTags && invalidatedTags.length > 0 ? { invalidatedTags } : {}),
+		},
 		url: {
 			pathname: url.pathname,
 			search: url.search,
@@ -611,6 +627,10 @@ export function createHandler(
 			})
 		}
 
+		const invalidatedTags = request[Config.REQUEST_META_KEY].action
+			? drainRevalidatedTags()
+			: undefined
+
 		const requestCsp = request.headers.get('content-security-policy')
 		const configuredHeaders = await resolveHeaders(request)
 
@@ -652,6 +672,7 @@ export function createHandler(
 			clientCssByRoute,
 			effectivePrerenderMode,
 			assets,
+			invalidatedTags,
 		})
 
 		const stream = await rscStream
@@ -717,6 +738,7 @@ export function createHandler(
 					clientCssByRoute,
 					effectivePrerenderMode,
 					assets,
+					invalidatedTags,
 				})
 
 				const retriedStream = await retriedRscStream

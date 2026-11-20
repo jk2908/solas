@@ -92,7 +92,11 @@ export async function browser(config: BrowserConfig = {}) {
 			{ temporaryReferences },
 		)
 
-		window.dispatchEvent(new CustomEvent(Events.REVALIDATE))
+		window.dispatchEvent(
+			new CustomEvent(Events.REVALIDATE, {
+				detail: { tags: payload.cache?.invalidatedTags },
+			}),
+		)
 		payloadSetter.current(payload)
 
 		const { ok, data } = payload.returnValue ?? {}

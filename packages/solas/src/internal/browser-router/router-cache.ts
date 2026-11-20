@@ -15,6 +15,7 @@ export namespace RouterCache {
 		payload: RscPayload
 		url: string
 		bytes: number
+		tags?: string[]
 	}
 
 	export type CachedSegment = CachedPayload
@@ -219,6 +220,27 @@ export class RouterCache {
 	removeSegment(key: string) {
 		if (!this.enabled) return
 		this.#delete(this.#segmentKey(key))
+	}
+
+	invalidateTags(tags: string[]) {
+		if (!this.enabled || tags.length === 0) return
+
+		const invalidated = new Set(tags)
+
+		for (const [key, entry] of this.#cache) {
+			if (
+				entry.kind !== 'segment' &&
+				!(entry.kind === 'route' && entry.status === 'ready')
+			) {
+				continue
+			}
+
+			const entryTags = entry.value.tags
+
+			if (!entryTags || entryTags.some((tag: string) => invalidated.has(tag))) {
+				this.#delete(key)
+			}
+		}
 	}
 
 	remove(key: string) {
