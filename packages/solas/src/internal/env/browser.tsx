@@ -20,6 +20,7 @@ import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 
 import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from './rsc.js'
+import * as Events from '../../events.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { Head } from '../render/head.js'
@@ -91,6 +92,7 @@ export async function browser(config: BrowserConfig = {}) {
 			{ temporaryReferences },
 		)
 
+		window.dispatchEvent(new CustomEvent(Events.REVALIDATE))
 		payloadSetter.current(payload)
 
 		const { ok, data } = payload.returnValue ?? {}

@@ -273,10 +273,6 @@ export function BrowserRouterProvider({
 	)
 
 	useEffect(() => {
-		const hot = import.meta.hot
-
-		if (!hot) return
-
 		const clear = () => {
 			routerCache.clear()
 			layoutCache.current.clear()
@@ -284,10 +280,13 @@ export function BrowserRouterProvider({
 			setLayoutValues(new Map())
 		}
 
-		hot.on('rsc:update', clear)
+		const hot = import.meta.hot
+		hot?.on('rsc:update', clear)
+		window.addEventListener(Events.REVALIDATE, clear)
 
 		return () => {
-			hot.off?.('rsc:update', clear)
+			hot?.off?.('rsc:update', clear)
+			window.removeEventListener(Events.REVALIDATE, clear)
 		}
 	}, [routerCache])
 
