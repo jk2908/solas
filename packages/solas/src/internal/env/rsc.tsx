@@ -79,6 +79,7 @@ export type RscPayload = {
 	segments?: RscSegment
 	segmentable?: boolean
 	params?: Record<string, string | string[]>
+	cache?: { layouts?: number | null; page?: number | null }
 	url: {
 		pathname: string
 		search?: string
@@ -105,11 +106,32 @@ function sameNonPageSegments(
 	)
 }
 
+function normaliseParams(params: Record<string, unknown> | undefined) {
+	return params === undefined
+		? {}
+		: Object.fromEntries(
+				Object.keys(params)
+					.sort()
+					.map(key => [key, params[key]]),
+			)
+}
+
+function sameParams(
+	a: Record<string, unknown> | undefined,
+	b: Record<string, unknown> | undefined,
+) {
+	return JSON.stringify(normaliseParams(a)) === JSON.stringify(normaliseParams(b))
+}
+
 function parseRouterState(value: string | null) {
 	if (!value) return null
 
 	try {
-		const parsed = JSON.parse(value) as { segments?: unknown }
+		const parsed = JSON.parse(value) as {
+			segments?: unknown
+			params?: unknown
+			cachedLayouts?: unknown
+		}
 		if (!Array.isArray(parsed.segments)) return null
 
 		const segments: RscSegmentDescriptor[] = []
@@ -124,10 +146,73 @@ function parseRouterState(value: string | null) {
 			segments.push({ id, kind })
 		}
 
-		return { segments }
+		let params: Record<string, string | string[]> | undefined
+		if (parsed.params !== undefined) {
+			if (!parsed.params || typeof parsed.params !== 'object') return null
+			params = {}
+
+			for (const [key, value] of Object.entries(parsed.params)) {
+				if (typeof value === 'string') {
+					params[key] = value
+					continue
+				}
+
+				if (Array.isArray(value) && value.every(item => typeof item === 'string')) {
+					params[key] = value
+					continue
+				}
+
+				return null
+			}
+		}
+
+		let cachedLayouts: string[] | undefined
+		if (parsed.cachedLayouts !== undefined) {
+			if (
+				!Array.isArray(parsed.cachedLayouts) ||
+				!parsed.cachedLayouts.every(id => typeof id === 'string')
+			) {
+				return null
+			}
+
+			cachedLayouts = parsed.cachedLayouts
+		}
+
+		return { segments, params, cachedLayouts }
 	} catch {
 		return null
 	}
+}
+
+function requiredLayoutIds(
+	state: ReturnType<typeof parseRouterState>,
+	layoutIds: (string | null)[],
+	params: Record<string, string | string[]> | undefined,
+) {
+	const target = layoutIds.filter((id): id is string => typeof id === 'string')
+
+	if (!state) return target
+
+	const current = state.segments
+		.filter(segment => segment.kind !== 'page')
+		.map(segment => segment.id)
+	const paramsChanged = !sameParams(state.params, params)
+	const cached = new Set(state.cachedLayouts ?? [])
+
+	let firstChanged = target.length
+
+	if (!paramsChanged) {
+		for (let index = 0; index < target.length; index++) {
+			if (current[index] !== target[index]) {
+				firstChanged = index
+				break
+			}
+		}
+	}
+
+	return target.filter(
+		(id, index) => paramsChanged || index >= firstChanged || !cached.has(id),
+	)
 }
 
 /**
@@ -230,6 +315,10 @@ async function createPayload({
 	const effectiveNonce = prerender || routeType === 'full' ? undefined : nonce
 
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
+	const patchLayouts =
+		patchSegment && match
+			? requiredLayoutIds(routerState, match.paths.layouts, match.params)
+			: undefined
 
 	// completed build shells already contain the static layouts, page content
 	// and suspended fallbacks, so navigations can commit them immediately
@@ -349,6 +438,7 @@ async function createPayload({
 					shell={shell && !layoutSegment && !patchSegment}
 					layoutOnly={layoutSegment}
 					patch={patchSegment}
+					layoutFilter={patchLayouts}
 				/>
 			</>
 		)
@@ -366,6 +456,7 @@ async function createPayload({
 		},
 		segmentable: shell,
 		params: match.params,
+		cache: patchSegment ? { layouts: null } : undefined,
 		url: {
 			pathname: url.pathname,
 			search: url.search,

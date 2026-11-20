@@ -66,6 +66,7 @@ export function Tree({
 	shell = false,
 	layoutOnly = false,
 	patch = false,
+	layoutFilter,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
@@ -75,6 +76,7 @@ export function Tree({
 	shell?: boolean
 	layoutOnly?: boolean
 	patch?: boolean
+	layoutFilter?: string[]
 }) {
 	const {
 		layouts,
@@ -98,6 +100,7 @@ export function Tree({
 			const id = layoutIds[idx]
 
 			if (!Layout) continue
+			if (layoutFilter && (id === null || !layoutFilter.includes(id))) continue
 
 			const node = <Layout params={params}>{<ChildSlot />}</Layout>
 

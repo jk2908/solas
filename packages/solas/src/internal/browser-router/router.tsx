@@ -401,9 +401,13 @@ export function BrowserRouterProvider({
 					layouts: Map<string, React.ReactNode>,
 					targetIds: string[],
 					params?: Record<string, string | string[]>,
+					cache?: RscPayload['cache'],
 				) {
 					const now = Date.now()
-					const expiresAt = now + routerCache.ttl
+					const expiresAt =
+						cache?.layouts === null
+							? Number.POSITIVE_INFINITY
+							: now + (cache?.layouts ?? routerCache.ttl)
 					const values = new Map<string, React.ReactNode>()
 
 					for (const id of targetIds) {
@@ -453,11 +457,24 @@ export function BrowserRouterProvider({
 					const ctrl = new AbortController()
 					controller.current = ctrl
 
+					const cachedLayouts = new Set<string>()
+
+					for (const key of layoutCache.current.keys()) {
+						try {
+							const [id] = JSON.parse(key) as [unknown]
+							if (typeof id === 'string') cachedLayouts.add(id)
+						} catch {
+							// ignore malformed cache keys
+						}
+					}
+
 					const res = await performNavigationFetch(path, {
 						headers: {
 							[`x-${Config.SLUG}-segment`]: 'patch',
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 								segments: payload?.segments ? describeSegments(payload.segments) : [],
+								params: payload?.params,
+								cachedLayouts: [...cachedLayouts],
 							}),
 						},
 						signal: ctrl.signal,
@@ -479,7 +496,7 @@ export function BrowserRouterProvider({
 					const pageRoot = collectPageSegment(patch.root)
 					const pagePayload = { ...patch, root: pageRoot }
 
-					applyLayoutSegments(layouts, targetIds, patch.params)
+					applyLayoutSegments(layouts, targetIds, patch.params, patch.cache)
 					setSegmentPage(pageRoot ? pagePayload : null)
 
 					const bytes = await decoded.bytes
@@ -694,7 +711,11 @@ export function BrowserRouterProvider({
 	const invalidate = useCallback(
 		(path: string) => {
 			const key = BrowserRouter.toCacheKey(path, window.location.origin)
-			if (key) routerCache.remove(key)
+			if (key) {
+				routerCache.remove(key)
+				routerCache.removeSegment(key)
+			}
+			layoutCache.current.clear()
 		},
 		[routerCache],
 	)
