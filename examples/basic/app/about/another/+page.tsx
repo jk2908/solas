@@ -26,8 +26,13 @@ export default function Page() {
 	)
 }
 
+async function demoDelay() {
+	await new Promise(resolve => setTimeout(resolve, 1500))
+}
+
 async function D1() {
 	await dynamic()
+	await demoDelay()
 
 	return <div>{Date.now()}</div>
 }
@@ -37,6 +42,7 @@ function D2() {
 }
 
 async function D3() {
+	await demoDelay()
 	const h = await headers()
 	const u = await url()
 
