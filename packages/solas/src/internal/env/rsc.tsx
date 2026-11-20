@@ -198,13 +198,18 @@ async function createPayload({
 	})
 	const pageOnly =
 		routerState !== null && sameNonPageSegments(routerState.segments, targetSegments)
+	const layoutSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'layouts'
 	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
 
 	// ppr prefetches render the static layout shell with a page slot; dynamic
 	// routes still prefetch in full
-	const shell = prefetch && !pageOnly && prerenderMode === 'ppr' && !reconciled?.error
+	const shell =
+		(prefetch || layoutSegment) &&
+		!pageOnly &&
+		prerenderMode === 'ppr' &&
+		!reconciled?.error
 
 	const match = resolver.enhance(reconciled)
 

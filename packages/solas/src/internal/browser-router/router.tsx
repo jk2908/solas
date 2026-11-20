@@ -358,7 +358,10 @@ export function BrowserRouterProvider({
 					controller.current = ctrl
 
 					try {
-						const response = await performNavigationFetch(path, { signal: ctrl.signal })
+						const response = await performNavigationFetch(path, {
+							signal: ctrl.signal,
+							headers: { [`x-${Config.SLUG}-segment`]: 'layouts' },
+						})
 						const decoded = decodeRscResponse(response)
 
 						if (!decoded) return
