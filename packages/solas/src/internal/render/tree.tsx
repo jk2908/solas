@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 
 import type { Resolver } from '../resolver.js'
+import { SegmentSlot } from '../browser-router/segment-slot.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import {
 	HttpException,
@@ -56,11 +57,13 @@ export function Tree({
 	params,
 	error,
 	ui,
+	shell = false,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
 	error?: HttpExceptionLike
 	ui: Match['ui']
+	shell?: boolean
 }) {
 	const {
 		layouts,
@@ -92,7 +95,11 @@ export function Tree({
 		500: serverErrors,
 	}
 
-	if (error && isHttpException(error)) {
+	if (shell) {
+		const Loading = loaders[loaders.length - 1] ?? loaders[0] ?? null
+
+		inner = <SegmentSlot fallback={Loading ? <Loading /> : null} />
+	} else if (error && isHttpException(error)) {
 		const Exception =
 			httpExceptionMap[error.status].slice(0, depth + 1).findLast(e => e !== null) ??
 			DefaultErr
@@ -153,7 +160,7 @@ export function Tree({
 	const ShellNotFound = notFounds[0]
 	const ShellServerError = serverErrors[0]
 
-	const shell = <Shell params={params}>{inner}</Shell>
+	const tree = <Shell params={params}>{inner}</Shell>
 
 	return (
 		<HttpExceptionBoundary
@@ -163,7 +170,7 @@ export function Tree({
 				404: ShellNotFound ? <ShellNotFound error={NOT_FOUND_ERROR} /> : null,
 				500: ShellServerError ? <ShellServerError error={SERVER_ERROR} /> : null,
 			}}>
-			{ShellLoading ? <Suspense fallback={<ShellLoading />}>{shell}</Suspense> : shell}
+			{ShellLoading ? <Suspense fallback={<ShellLoading />}>{tree}</Suspense> : tree}
 		</HttpExceptionBoundary>
 	)
 }

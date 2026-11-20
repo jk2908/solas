@@ -1,5 +1,5 @@
 'use client'
-import { createContext, useCallback, useEffect, useMemo, useRef } from 'react'
+import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
 
@@ -20,6 +20,7 @@ import {
 import { BrowserRouterHistory } from './history.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
+import { SegmentContext } from './segment-slot.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -88,6 +89,7 @@ function readRouteType(res: Response) {
  */
 function decodeRscResponse(res: Response) {
 	const type = readRouteType(res)
+	const segment = res.headers.get(`x-${Config.SLUG}-segment`) === 'page'
 
 	// null-body responses have nothing to decode or cache
 	if (res.status === 204 || !res.ok || !res.body) return null
@@ -117,7 +119,7 @@ function decodeRscResponse(res: Response) {
 	// the stream closes
 	const payload = createFromReadableStream<RscPayload>(body)
 
-	return { payload, bytes, url: res.url, type }
+	return { payload, bytes, url: res.url, type, segment }
 }
 
 /**
@@ -245,13 +247,17 @@ export function BrowserRouterProvider({
 			}),
 		[config],
 	)
+	const [segmentPage, setSegmentPage] = useState<RscPayload | null>(null)
 
 	useEffect(() => {
 		const hot = import.meta.hot
 
 		if (!hot) return
 
-		const clear = () => routerCache.clear()
+		const clear = () => {
+			routerCache.clear()
+			setSegmentPage(null)
+		}
 
 		hot.on('rsc:update', clear)
 
@@ -339,13 +345,67 @@ export function BrowserRouterProvider({
 				let payload: RscPayload | undefined
 				let resolvedPath = path
 
+				setSegmentPage(null)
+
+				async function loadPageSegment() {
+					const cachedPage = routerCache.getSegment(path)
+
+					if (cachedPage) {
+						setSegmentPage(cachedPage.value.payload)
+						return
+					}
+
+					const ctrl = new AbortController()
+					controller.current = ctrl
+
+					const res = await performNavigationFetch(path, {
+						headers: {
+							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
+								layouts: payload?.segments?.layouts ?? [],
+							}),
+						},
+						signal: ctrl.signal,
+					})
+					const decoded = decodeRscResponse(res)
+
+					if (!decoded || !decoded.segment) {
+						throw new InvalidNavigationPayloadError()
+					}
+
+					const pagePayload = await decoded.payload
+
+					if (navigationId !== id.current) return
+
+					const bytes = await decoded.bytes
+
+					routerCache.setSegment(path, 'dynamic', {
+						payload: pagePayload,
+						url: decoded.url,
+						bytes,
+					})
+					setSegmentPage(pagePayload)
+				}
+
 				const cached = routerCache.get(path)
 
 				// ready entries are complete; pending entries can stream their payload
 				if (cached) {
 					try {
 						if (cached.status === 'ready') {
-							payload = cached.value.payload
+							const cachedPayload = cached.value.payload
+							const isShell = cached.type === 'ppr' && cachedPayload.segmentable
+
+							if (isShell) {
+								payload = cachedPayload
+								try {
+									await loadPageSegment()
+								} catch {
+									payload = undefined
+									setSegmentPage(null)
+								}
+							} else {
+								payload = cachedPayload
+							}
 
 							resolvedPath = STATIC
 								? path
@@ -355,7 +415,20 @@ export function BrowserRouterProvider({
 							const stream = await cached.response
 
 							if (stream) {
-								payload = await stream.payload
+								const cachedPayload = await stream.payload
+								const isShell = stream.type === 'ppr' && cachedPayload.segmentable
+
+								if (isShell) {
+									payload = cachedPayload
+									try {
+										await loadPageSegment()
+									} catch {
+										payload = undefined
+										setSegmentPage(null)
+									}
+								} else {
+									payload = cachedPayload
+								}
 
 								resolvedPath = STATIC
 									? path
@@ -507,6 +580,8 @@ export function BrowserRouterProvider({
 		if (!key) return Promise.resolve(currentPath)
 
 		routerCache.remove(key)
+		routerCache.removeSegment(key)
+		setSegmentPage(null)
 
 		// a refresh stays exactly where the user is
 		return go(currentPath, { replace: true, scroll: 'none' })
@@ -591,7 +666,9 @@ export function BrowserRouterProvider({
 
 	return (
 		<PrefetchObserverProvider>
-			<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
+			<SegmentContext value={{ page: segmentPage }}>
+				<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
+			</SegmentContext>
 		</PrefetchObserverProvider>
 	)
 }

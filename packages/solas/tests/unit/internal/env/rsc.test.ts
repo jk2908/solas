@@ -11,11 +11,9 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 	),
 }))
 
-import type { Assets } from '../../../../src/internal/assets.js'
 import type { RuntimeConfig } from '../../../../src/types.js'
 import * as Config from '../../../../src/config.js'
 import { createHandler } from '../../../../src/internal/env/rsc.js'
-import { Resolver } from '../../../../src/internal/resolver.js'
 import { createSegment } from '../../../utils.js'
 
 const config = {
@@ -46,35 +44,11 @@ describe('createHandler', () => {
 		expect(response.body).not.toBeNull()
 	})
 
-	it('returns a bodyless prefetch response for routes that are not fully prerendered', async () => {
+	it('returns a segmentable shell for PPR prefetches', async () => {
 		const handler = createHandler(
 			config,
 			{ '/writing': createSegment('/writing', { prerender: 'ppr' }) },
 			{ 'p_/writing': { middlewares: [] } },
-		)
-
-		const response = await handler.fetch(
-			new Request('http://localhost/writing', {
-				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
-			}),
-		)
-
-		expect(response.status).toBe(204)
-		expect(response.body).toBeNull()
-		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('ppr')
-	})
-
-	it('returns the ppr shell when a shell artifact exists', async () => {
-		const shell = '0:["$","div",null,{"children":"shell"}]'
-		const assets = {
-			exists: vi.fn(async () => true),
-			readText: vi.fn(async () => shell),
-		} as unknown as Assets
-		const handler = createHandler(
-			config,
-			{ '/writing': createSegment('/writing', { prerender: 'ppr' }) },
-			{ 'p_/writing': { middlewares: [] } },
-			{ assets },
 		)
 
 		const response = await handler.fetch(
@@ -87,12 +61,11 @@ describe('createHandler', () => {
 		)
 
 		expect(response.status).toBe(200)
+		expect(response.body).not.toBeNull()
 		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('ppr')
-		expect(await response.text()).toBe(shell)
 	})
 
-	it('does not enhance a route for a PPR prefetch', async () => {
-		const enhance = vi.spyOn(Resolver.prototype, 'enhance')
+	it('returns only the page for a page-segment request', async () => {
 		const handler = createHandler(
 			config,
 			{ '/writing': createSegment('/writing', { prerender: 'ppr' }) },
@@ -101,14 +74,19 @@ describe('createHandler', () => {
 
 		const response = await handler.fetch(
 			new Request('http://localhost/writing', {
-				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
+				headers: {
+					accept: 'text/x-component',
+					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
+						layouts: [],
+					}),
+				},
 			}),
 		)
 
-		expect(response.status).toBe(204)
-		expect(enhance).not.toHaveBeenCalled()
-
-		enhance.mockRestore()
+		expect(response.status).toBe(200)
+		expect(response.body).not.toBeNull()
+		expect(response.headers.get(`x-${Config.SLUG}-route-type`)).toBe('ppr')
+		expect(response.headers.get(`x-${Config.SLUG}-segment`)).toBe('page')
 	})
 
 	it('uses a full artifact mode for a declared PPR route', async () => {

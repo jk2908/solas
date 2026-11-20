@@ -62,6 +62,11 @@ export type HandlerOptions = {
 	devClientCssByRoute?: Record<string, string[]>
 }
 
+export type RscSegment = {
+	layouts: (string | null)[]
+	page: string | null
+}
+
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
@@ -69,6 +74,8 @@ export type RscPayload = {
 	clientCss?: string[]
 	metadata?: Promise<Metadata.Item>
 	type?: Route.PrerenderMode | 'dynamic'
+	segments?: RscSegment
+	segmentable?: boolean
 	url: {
 		pathname: string
 		search?: string
@@ -79,6 +86,21 @@ export type RscPayload = {
 const logger = new Logger()
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 const nullBodyStatuses = new Set([101, 204, 205, 304])
+
+function parseRouterState(value: string | null) {
+	if (!value) return null
+
+	try {
+		const parsed = JSON.parse(value) as { layouts?: unknown }
+		if (!Array.isArray(parsed.layouts)) return null
+
+		return {
+			layouts: parsed.layouts as (string | null)[],
+		}
+	} catch {
+		return null
+	}
+}
 
 /**
  * Resolve a client asset request path to a logical asset reference, rejecting
@@ -114,8 +136,6 @@ async function createPayload({
 	nonce,
 	clientCssByRoute,
 	effectivePrerenderMode,
-	assets = nodeAssets,
-	lookupPath,
 }: {
 	request: SolasRequest
 	manifest: Manifest
@@ -127,8 +147,6 @@ async function createPayload({
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
-	assets?: Assets
-	lookupPath?: string
 }) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -144,45 +162,20 @@ async function createPayload({
 		request[Config.REQUEST_META_KEY].error,
 	)
 	const prefetch = request.headers.get(`x-${Config.SLUG}-prefetch`) === '1'
+	const routerState = parseRouterState(
+		request.headers.get(`x-${Config.SLUG}-router-state`),
+	)
+	const pageOnly =
+		routerState !== null &&
+		JSON.stringify(routerState.layouts) === JSON.stringify(reconciled?.paths.layouts)
 	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
 
-	// ppr routes prefetch their static RSC shell; dynamic routes prefetch in
-	// full, just like fully prerendered routes
-	if (prefetch && prerenderMode === 'ppr') {
-		const shell = lookupPath ? await Prerender.loadShell(lookupPath, assets) : null
+	// ppr prefetches render the static layout shell with a page slot; dynamic
+	// routes still prefetch in full
+	const shell = prefetch && !pageOnly && prerenderMode === 'ppr' && !reconciled?.error
 
-		if (shell !== null) {
-			return {
-				stream: new ReadableStream<Uint8Array>({
-					start(controller) {
-						controller.enqueue(new TextEncoder().encode(shell))
-						controller.close()
-					},
-				}),
-				status: 200,
-				ppr: true,
-				nonce: undefined,
-				type: routeType,
-			}
-		}
-
-		return {
-			stream: new ReadableStream<Uint8Array>({
-				start(controller) {
-					controller.close()
-				},
-			}),
-			status: 204,
-			ppr: false,
-			nonce: undefined,
-			type: routeType,
-		}
-	}
-
-	// do not enhance a route for a PPR prefetch: resolving its lazy components
-	// would cache UI that was never rendered by this request
 	const match = resolver.enhance(reconciled)
 
 	// build-time prerender requests have no request nonce, and full routes are
@@ -251,6 +244,7 @@ async function createPayload({
 			ppr: false,
 			nonce: effectiveNonce,
 			type: routeType,
+			segment: false,
 		}
 	}
 
@@ -267,17 +261,36 @@ async function createPayload({
 		.run()
 	const error = match.error ? toHttpExceptionLike(match.error) : undefined
 
-	const rscPayload: RscPayload = {
-		root: (
+	const Page = match.ui.Page
+	const root =
+		pageOnly && !match.error ? (
+			Page ? (
+				<Page params={match.params} />
+			) : null
+		) : (
 			<>
-				<Tree depth={match.__depth} params={match.params} error={error} ui={match.ui} />
+				<Tree
+					depth={match.__depth}
+					params={match.params}
+					error={error}
+					ui={match.ui}
+					shell={shell}
+				/>
 			</>
-		),
+		)
+
+	const rscPayload: RscPayload = {
+		root,
 		returnValue,
 		formState,
 		clientCss: matchedClientCss,
 		metadata,
 		type: routeType,
+		segments: {
+			layouts: match.paths.layouts,
+			page: match.paths.page ?? null,
+		},
+		segmentable: shell,
 		url: {
 			pathname: url.pathname,
 			search: url.search,
@@ -301,7 +314,14 @@ async function createPayload({
 				}),
 		)
 
-		return { stream, status, ppr, nonce: effectiveNonce, type: routeType }
+		return {
+			stream,
+			status,
+			ppr,
+			nonce: effectiveNonce,
+			type: routeType,
+			segment: pageOnly,
+		}
 	} catch (err) {
 		logger.error('[rsc:render]', err)
 
@@ -367,6 +387,7 @@ async function createPayload({
 			ppr: false,
 			nonce: effectiveNonce,
 			type: routeType,
+			segment: false,
 		}
 	}
 }
@@ -452,6 +473,7 @@ export function createHandler(
 			ppr,
 			nonce: effectiveNonce,
 			type,
+			segment,
 		} = await createPayload({
 			request,
 			manifest,
@@ -463,8 +485,6 @@ export function createHandler(
 			nonce,
 			clientCssByRoute,
 			effectivePrerenderMode,
-			assets,
-			lookupPath: requestLookupPath,
 		})
 
 		const stream = await rscStream
@@ -484,6 +504,7 @@ export function createHandler(
 			return new Response(stream, {
 				headers: {
 					[`x-${Config.SLUG}-route-type`]: type,
+					...(segment ? { [`x-${Config.SLUG}-segment`]: 'page' } : {}),
 					'Cache-Control': 'private, no-store',
 					'Content-Type': 'text/x-component; charset=utf-8',
 					Vary: 'accept',
@@ -528,8 +549,6 @@ export function createHandler(
 					nonce,
 					clientCssByRoute,
 					effectivePrerenderMode,
-					assets,
-					lookupPath: requestLookupPath,
 				})
 
 				const retriedStream = await retriedRscStream
