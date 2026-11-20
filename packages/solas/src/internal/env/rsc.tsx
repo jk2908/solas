@@ -37,6 +37,11 @@ import { isRedirect, toRedirect } from '../navigation/redirect.js'
 import * as Prerender from '../prerender.js'
 import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
+import {
+	describeSegments,
+	type RscSegment,
+	type RscSegmentDescriptor,
+} from '../route-segments.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
 import DefaultErr from '../ui/defaults/error.js'
@@ -62,10 +67,7 @@ export type HandlerOptions = {
 	devClientCssByRoute?: Record<string, string[]>
 }
 
-export type RscSegment = {
-	layouts: (string | null)[]
-	page: string | null
-}
+export type { RscSegment, RscSegmentDescriptor } from '../route-segments.js'
 
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -87,16 +89,41 @@ const logger = new Logger()
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 const nullBodyStatuses = new Set([101, 204, 205, 304])
 
+function sameNonPageSegments(
+	current: RscSegmentDescriptor[],
+	target: RscSegmentDescriptor[],
+) {
+	const a = current.filter(segment => segment.kind !== 'page')
+	const b = target.filter(segment => segment.kind !== 'page')
+
+	return (
+		a.length === b.length &&
+		a.every(
+			(segment, index) => segment.id === b[index]?.id && segment.kind === b[index]?.kind,
+		)
+	)
+}
+
 function parseRouterState(value: string | null) {
 	if (!value) return null
 
 	try {
-		const parsed = JSON.parse(value) as { layouts?: unknown }
-		if (!Array.isArray(parsed.layouts)) return null
+		const parsed = JSON.parse(value) as { segments?: unknown }
+		if (!Array.isArray(parsed.segments)) return null
 
-		return {
-			layouts: parsed.layouts as (string | null)[],
+		const segments: RscSegmentDescriptor[] = []
+
+		for (const segment of parsed.segments) {
+			if (!segment || typeof segment !== 'object') return null
+
+			const { id, kind } = segment as { id?: unknown; kind?: unknown }
+			if (typeof id !== 'string') return null
+			if (kind !== 'shell' && kind !== 'layout' && kind !== 'page') return null
+
+			segments.push({ id, kind })
 		}
+
+		return { segments }
 	} catch {
 		return null
 	}
@@ -165,9 +192,12 @@ async function createPayload({
 	const routerState = parseRouterState(
 		request.headers.get(`x-${Config.SLUG}-router-state`),
 	)
+	const targetSegments = describeSegments({
+		layouts: reconciled?.paths.layouts ?? [],
+		page: reconciled?.paths.page ?? null,
+	})
 	const pageOnly =
-		routerState !== null &&
-		JSON.stringify(routerState.layouts) === JSON.stringify(reconciled?.paths.layouts)
+		routerState !== null && sameNonPageSegments(routerState.segments, targetSegments)
 	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'

@@ -10,6 +10,7 @@ import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
 import * as Config from '../../config.js'
 import * as Events from '../../events.js'
+import { describeSegments } from '../route-segments.js'
 import {
 	ExternalUrlError,
 	InvalidNavigationPayloadError,
@@ -361,7 +362,7 @@ export function BrowserRouterProvider({
 					const res = await performNavigationFetch(path, {
 						headers: {
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
-								layouts: payload?.segments?.layouts ?? [],
+								segments: payload?.segments ? describeSegments(payload.segments) : [],
 							}),
 						},
 						signal: ctrl.signal,

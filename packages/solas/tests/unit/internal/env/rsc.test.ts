@@ -77,7 +77,7 @@ describe('createHandler', () => {
 				headers: {
 					accept: 'text/x-component',
 					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
-						layouts: [],
+						segments: [],
 					}),
 				},
 			}),
