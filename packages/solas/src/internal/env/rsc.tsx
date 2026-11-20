@@ -291,7 +291,10 @@ async function createPayload({
 	// ppr prefetches render the static layout shell with a page slot; dynamic
 	// routes still prefetch in full
 	const shell =
-		(prefetch || shellSegment) && prerenderMode === 'ppr' && !reconciled?.error
+		(prefetch || shellSegment) &&
+		!patchSegment &&
+		prerenderMode === 'ppr' &&
+		!reconciled?.error
 
 	const match = resolver.enhance(reconciled)
 

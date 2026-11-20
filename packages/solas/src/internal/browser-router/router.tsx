@@ -732,6 +732,86 @@ export function BrowserRouterProvider({
 		[routerCache, setPayload],
 	)
 
+	const prefetchSegmentPatch = useCallback(
+		async (key: string, shell: RscPayload) => {
+			if (routerCache.getSegment(key)) return
+
+			const cachedLayouts = new Set<string>()
+
+			for (const cacheKey of layoutCache.current.keys()) {
+				try {
+					const [id] = JSON.parse(cacheKey) as [unknown]
+					if (typeof id === 'string') cachedLayouts.add(id)
+				} catch {
+					// ignore malformed cache keys
+				}
+			}
+
+			const res = await performNavigationFetch(key, {
+				headers: {
+					[`x-${Config.SLUG}-segment`]: 'patch',
+					[`x-${Config.SLUG}-prefetch`]: '1',
+					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
+						segments: shell.segments ? describeSegments(shell.segments) : [],
+						params: shell.params,
+						cachedLayouts: [...cachedLayouts],
+					}),
+				},
+			})
+			const decoded = decodeRscResponse(res)
+
+			if (!decoded || decoded.segment !== 'patch') return
+
+			const patch = await decoded.payload
+			const targetIds = (patch.segments?.layouts ?? []).filter(
+				(id): id is string => typeof id === 'string',
+			)
+			const layouts = collectLayoutSegments(patch.root)
+			const now = Date.now()
+			const expiresAt =
+				patch.cache?.layouts === null
+					? Number.POSITIVE_INFINITY
+					: now + (patch.cache?.layouts ?? routerCache.ttl)
+
+			for (const id of targetIds) {
+				const cacheKey = layoutSegmentKey(id, patch.params)
+				const cached = layoutCache.current.get(cacheKey)
+
+				if (cached && cached.expiresAt > now) continue
+
+				const value = layouts.get(id)
+				if (value === undefined) continue
+
+				layoutCache.current.set(cacheKey, {
+					value,
+					expiresAt,
+					tags: patch.cache?.tags,
+				})
+			}
+
+			const pageRoot = collectPageSegment(patch.root)
+
+			if (!pageRoot) return
+
+			const pagePayload = { ...patch, root: pageRoot }
+
+			routerCache.setSegment(
+				key,
+				'dynamic',
+				{
+					payload: pagePayload,
+					url: decoded.url,
+					// the patch root is enough to reuse the page; byte accounting
+					// is intentionally deferred until the stream completes
+					bytes: 0,
+					tags: pagePayload.cache?.tags,
+				},
+				{ ttl: pagePayload.cache?.page },
+			)
+		},
+		[routerCache],
+	)
+
 	/**
 	 * Prefetches the RSC response for a given path and caches it for later navigation.
 	 * Does nothing if a cached response already exists for the path.
@@ -752,11 +832,25 @@ export function BrowserRouterProvider({
 			// prefetches use the normal decode path but are never committed by this call
 			const response = performNavigationFetch(key, {
 				headers: { [`x-${Config.SLUG}-prefetch`]: '1' },
-			}).then(decodeRscResponse)
+			})
+				.then(decodeRscResponse)
+				.then(decoded => {
+					if (decoded?.segment === 'shell') {
+						void decoded.payload
+							.then(payload => {
+								if (payload.segmentable) {
+									return prefetchSegmentPatch(key, payload)
+								}
+							})
+							.catch(() => {})
+					}
+
+					return decoded
+				})
 
 			routerCache.set(key, response)
 		},
-		[routerCache],
+		[prefetchSegmentPatch, routerCache],
 	)
 
 	/**
