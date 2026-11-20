@@ -1,7 +1,7 @@
 import { Suspense } from 'react'
 
 import type { Resolver } from '../resolver.js'
-import { LayoutSlot, SegmentSlot } from '../browser-router/segment-slot.js'
+import { ChildSlot, LayoutSlot, SegmentSlot } from '../browser-router/segment-slot.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import {
 	HttpException,
@@ -59,6 +59,7 @@ export function Tree({
 	ui,
 	layoutIds = [],
 	shell = false,
+	layoutOnly = false,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
@@ -66,6 +67,7 @@ export function Tree({
 	ui: Match['ui']
 	layoutIds?: (string | null)[]
 	shell?: boolean
+	layoutOnly?: boolean
 }) {
 	const {
 		layouts,
@@ -79,6 +81,34 @@ export function Tree({
 
 	const Shell = layouts[0]
 	if (!Shell) throw new Error('Shell layout is required in the route tree')
+
+	if (layoutOnly) {
+		// one independent node per layout. The target subtree is supplied by
+		// the layout slot that applies the node.
+		const nodes: React.ReactNode[] = []
+
+		for (const [idx, Layout] of layouts.entries()) {
+			const id = layoutIds[idx]
+
+			if (!Layout) continue
+
+			const node = <Layout params={params}>{<ChildSlot />}</Layout>
+
+			nodes.push(
+				id ? (
+					<LayoutSlot key={`l:${idx}`} id={id} pprLayout>
+						{node}
+					</LayoutSlot>
+				) : (
+					<Layout key={`l:${idx}`} params={params}>
+						<ChildSlot />
+					</Layout>
+				),
+			)
+		}
+
+		return <>{nodes}</>
+	}
 
 	// build the inner inner (everything after shell)
 	let inner: React.ReactNode = null
@@ -134,7 +164,7 @@ export function Tree({
 			const id = layoutIds[idx]
 
 			inner = id ? (
-				<LayoutSlot key={`l:${idx}`} id={id} pprLayout>
+				<LayoutSlot key={`l:${idx}`} id={id} pprLayout child={inner}>
 					<Layout params={params}>{inner}</Layout>
 				</LayoutSlot>
 			) : (
@@ -174,7 +204,7 @@ export function Tree({
 
 	const shellId = layoutIds[0]
 	const tree = shellId ? (
-		<LayoutSlot id={shellId} pprLayout>
+		<LayoutSlot id={shellId} pprLayout child={inner}>
 			<Shell params={params}>{inner}</Shell>
 		</LayoutSlot>
 	) : (

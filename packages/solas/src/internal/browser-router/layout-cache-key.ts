@@ -9,6 +9,23 @@ export type LayoutCacheParams = Record<string, string | string[]>
  * they use the same layout chain and the same params. Params are sorted so the
  * key is independent of insertion order.
  */
+function normaliseParams(params: LayoutCacheParams | undefined) {
+	return params === undefined
+		? {}
+		: Object.fromEntries(
+				Object.keys(params)
+					.sort()
+					.map(key => [key, params[key]]),
+			)
+}
+
+/**
+ * Build a cache key for one independently cached layout node.
+ */
+export function layoutSegmentKey(id: string, params: LayoutCacheParams | undefined) {
+	return JSON.stringify([id, normaliseParams(params)])
+}
+
 export function layoutCacheKey(
 	segments: RscSegment | undefined,
 	params: LayoutCacheParams | undefined,
@@ -16,14 +33,6 @@ export function layoutCacheKey(
 	const layouts = (segments?.layouts ?? []).filter(
 		(id): id is string => typeof id === 'string',
 	)
-	const sortedParams =
-		params === undefined
-			? {}
-			: Object.fromEntries(
-					Object.keys(params)
-						.sort()
-						.map(key => [key, params[key]]),
-				)
 
-	return JSON.stringify([layouts, sortedParams])
+	return JSON.stringify([layouts, normaliseParams(params)])
 }

@@ -199,8 +199,10 @@ async function createPayload({
 		layouts: reconciled?.paths.layouts ?? [],
 		page: reconciled?.paths.page ?? null,
 	})
+	const pageSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'page'
 	const pageOnly =
-		routerState !== null && sameNonPageSegments(routerState.segments, targetSegments)
+		pageSegment ||
+		(routerState !== null && sameNonPageSegments(routerState.segments, targetSegments))
 	const layoutSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'layouts'
 	const shellSegment = request.headers.get(`x-${Config.SLUG}-segment`) === 'shell'
 	const prerenderMode = effectivePrerenderMode ?? reconciled?.prerender
@@ -339,7 +341,8 @@ async function createPayload({
 					error={error}
 					ui={match.ui}
 					layoutIds={match.paths.layouts}
-					shell={shell}
+					shell={shell && !layoutSegment}
+					layoutOnly={layoutSegment}
 				/>
 			</>
 		)

@@ -19,7 +19,7 @@ import {
 	isRouteTargetError,
 } from './errors.js'
 import { BrowserRouterHistory } from './history.js'
-import { layoutCacheKey } from './layout-cache-key.js'
+import { layoutSegmentKey } from './layout-cache-key.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
 import { collectLayoutSegments, SegmentContext } from './segment-slot.js'
@@ -263,7 +263,7 @@ export function BrowserRouterProvider({
 		() => new Map(),
 	)
 	const layoutCache = useRef(
-		new Map<string, { values: Map<string, React.ReactNode>; expiresAt: number }>(),
+		new Map<string, { value: React.ReactNode; expiresAt: number }>(),
 	)
 
 	useEffect(() => {
@@ -367,13 +367,33 @@ export function BrowserRouterProvider({
 				setSegmentPage(null)
 				setLayoutValues(new Map())
 
-				async function loadLayoutSegments(cacheKey = path) {
-					const cached = layoutCache.current.get(cacheKey)
+				async function loadLayoutSegments(
+					layoutIds?: (string | null)[],
+					params?: Record<string, string | string[]>,
+				) {
+					const targetIds = (layoutIds ?? []).filter(
+						(id): id is string => typeof id === 'string',
+					)
+					const now = Date.now()
+					const cachedValues = new Map<string, React.ReactNode>()
+					let missing = false
 
-					if (cached && cached.expiresAt > Date.now()) {
-						setLayoutValues(cached.values)
+					for (const id of targetIds) {
+						const cached = layoutCache.current.get(layoutSegmentKey(id, params))
+
+						if (cached && cached.expiresAt > now) {
+							cachedValues.set(id, cached.value)
+						} else {
+							missing = true
+						}
+					}
+
+					if (targetIds.length > 0 && !missing) {
+						setLayoutValues(cachedValues)
 						return
 					}
+
+					if (cachedValues.size > 0) setLayoutValues(cachedValues)
 
 					const ctrl = new AbortController()
 					controller.current = ctrl
@@ -393,13 +413,28 @@ export function BrowserRouterProvider({
 						if (navigationId !== id.current) return
 
 						const layouts = collectLayoutSegments(full.root)
+						const values = new Map<string, React.ReactNode>()
+						const expiresAt = Date.now() + routerCache.ttl
 
-						if (layouts.size > 0) {
-							setLayoutValues(layouts)
-							layoutCache.current.set(cacheKey, {
-								values: layouts,
-								expiresAt: Date.now() + routerCache.ttl,
+						for (const [id, value] of layouts) {
+							if (!targetIds.includes(id)) continue
+
+							const cached = layoutCache.current.get(layoutSegmentKey(id, params))
+
+							if (cached && cached.expiresAt > now) {
+								values.set(id, cached.value)
+								continue
+							}
+
+							values.set(id, value)
+							layoutCache.current.set(layoutSegmentKey(id, params), {
+								value,
+								expiresAt,
 							})
+						}
+
+						if (values.size > 0) {
+							setLayoutValues(values)
 						}
 					} catch (err) {
 						if (err instanceof Error && err.name === 'AbortError') return
@@ -413,9 +448,7 @@ export function BrowserRouterProvider({
 					if (cachedPage) {
 						const cachedPayload = cachedPage.value.payload
 						setSegmentPage(cachedPayload)
-						void loadLayoutSegments(
-							layoutCacheKey(cachedPayload.segments, cachedPayload.params),
-						)
+						void loadLayoutSegments(cachedPayload.segments?.layouts, cachedPayload.params)
 						return
 					}
 
@@ -424,6 +457,7 @@ export function BrowserRouterProvider({
 
 					const res = await performNavigationFetch(path, {
 						headers: {
+							[`x-${Config.SLUG}-segment`]: 'page',
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 								segments: payload?.segments ? describeSegments(payload.segments) : [],
 							}),
@@ -445,9 +479,7 @@ export function BrowserRouterProvider({
 					// fallbacks as a first load
 					setSegmentPage(pagePayload)
 
-					void loadLayoutSegments(
-						layoutCacheKey(pagePayload.segments, pagePayload.params),
-					)
+					void loadLayoutSegments(pagePayload.segments?.layouts, pagePayload.params)
 
 					const bytes = await decoded.bytes
 

@@ -19,6 +19,15 @@ export type SegmentState = {
 export const SegmentContext = createContext<SegmentState | null>(null)
 
 /**
+ * Supplies the target subtree for an independently cached layout node.
+ */
+const ChildContext = createContext<ReactNode>(null)
+
+export function ChildSlot() {
+	return useContext(ChildContext)
+}
+
+/**
  * Render the page segment fetched after a shell navigation.
  */
 export function SegmentSlot({
@@ -49,12 +58,21 @@ export function LayoutSlot(props: {
 	id: string
 	pprLayout?: true
 	fallback?: ReactNode
+	child?: ReactNode
 	children?: ReactNode
 }) {
 	const segment = useContext(SegmentContext)
 	const patched = segment?.layouts.get(props.id)
 
-	return patched ?? props.children ?? props.fallback ?? null
+	if (patched) {
+		// Request-time layout nodes have a child slot. The target subtree is
+		// passed separately so the cached node does not own its descendants.
+		return (
+			<ChildContext.Provider value={props.child ?? null}>{patched}</ChildContext.Provider>
+		)
+	}
+
+	return props.children ?? props.fallback ?? null
 }
 
 /**

@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
 
-import { layoutCacheKey } from '../../../../src/internal/browser-router/layout-cache-key.js'
+import {
+	layoutCacheKey,
+	layoutSegmentKey,
+} from '../../../../src/internal/browser-router/layout-cache-key.js'
 
 const layoutSegments = {
 	layouts: ['$S:shell', '$L:users/+layout'],
@@ -46,5 +49,22 @@ describe('layoutCacheKey', () => {
 				{},
 			),
 		).toBe(layoutCacheKey(layoutSegments, {}))
+	})
+})
+
+describe('layoutSegmentKey', () => {
+	it('keys one layout node by id and params', () => {
+		expect(layoutSegmentKey('$L:users/+layout', { id: '1' })).toBe(
+			layoutSegmentKey('$L:users/+layout', { id: '1' }),
+		)
+		expect(layoutSegmentKey('$L:users/+layout', { id: '1' })).not.toBe(
+			layoutSegmentKey('$L:users/+layout', { id: '2' }),
+		)
+	})
+
+	it('allows different layout nodes to share params', () => {
+		expect(layoutSegmentKey('$S:shell', { id: '1' })).not.toBe(
+			layoutSegmentKey('$L:users/+layout', { id: '1' }),
+		)
 	})
 })
