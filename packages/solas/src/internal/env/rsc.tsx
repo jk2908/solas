@@ -44,7 +44,7 @@ import {
 } from '../route-segments.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import { drainRevalidatedTags } from '../server/revalidate.js'
+import { drainRevalidatedPaths, drainRevalidatedTags } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -85,6 +85,7 @@ export type RscPayload = {
 		page?: number | null
 		tags?: string[]
 		invalidatedTags?: string[]
+		invalidatedPaths?: { path: string; scope: 'page' | 'layout' }[]
 	}
 	url: {
 		pathname: string
@@ -96,6 +97,7 @@ export type RscPayload = {
 const logger = new Logger()
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 const nullBodyStatuses = new Set([101, 204, 205, 304])
+const DEFAULT_PAGE_STALE_MS = 30_000
 
 function sameNonPageSegments(
 	current: RscSegmentDescriptor[],
@@ -257,6 +259,7 @@ async function createPayload({
 	effectivePrerenderMode,
 	assets,
 	invalidatedTags,
+	invalidatedPaths,
 }: {
 	request: SolasRequest
 	manifest: Manifest
@@ -270,6 +273,7 @@ async function createPayload({
 	effectivePrerenderMode?: Route.PrerenderMode
 	assets?: Assets
 	invalidatedTags?: string[]
+	invalidatedPaths?: { path: string; scope: 'page' | 'layout' }[]
 }) {
 	const resolver = new Resolver(manifest, importMap)
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -469,9 +473,10 @@ async function createPayload({
 		segmentable: shell,
 		params: match.params,
 		cache: {
-			...(patchSegment ? { layouts: null } : {}),
+			...(patchSegment ? { layouts: null, page: DEFAULT_PAGE_STALE_MS } : {}),
 			tags: cacheTags,
 			...(invalidatedTags && invalidatedTags.length > 0 ? { invalidatedTags } : {}),
+			...(invalidatedPaths && invalidatedPaths.length > 0 ? { invalidatedPaths } : {}),
 		},
 		url: {
 			pathname: url.pathname,
@@ -630,6 +635,9 @@ export function createHandler(
 		const invalidatedTags = request[Config.REQUEST_META_KEY].action
 			? drainRevalidatedTags()
 			: undefined
+		const invalidatedPaths = request[Config.REQUEST_META_KEY].action
+			? drainRevalidatedPaths()
+			: undefined
 
 		const requestCsp = request.headers.get('content-security-policy')
 		const configuredHeaders = await resolveHeaders(request)
@@ -673,6 +681,7 @@ export function createHandler(
 			effectivePrerenderMode,
 			assets,
 			invalidatedTags,
+			invalidatedPaths,
 		})
 
 		const stream = await rscStream
@@ -739,6 +748,7 @@ export function createHandler(
 					effectivePrerenderMode,
 					assets,
 					invalidatedTags,
+					invalidatedPaths,
 				})
 
 				const retriedStream = await retriedRscStream

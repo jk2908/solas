@@ -12,4 +12,4 @@ export {
 } from './internal/http-router/errors.js'
 export type { HttpRouterErrorCode } from './internal/http-router/errors.js'
 
-export { revalidateTag } from './internal/server/revalidate.js'
+export { revalidatePath, revalidateTag } from './internal/server/revalidate.js'

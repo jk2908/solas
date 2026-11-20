@@ -198,6 +198,7 @@ export class RouterCache {
 		key: string,
 		type: RouterCache.SegmentType,
 		value: RouterCache.CachedSegment,
+		options?: { ttl?: number | null },
 	) {
 		if (!this.enabled) return
 
@@ -209,7 +210,7 @@ export class RouterCache {
 			status: 'ready',
 			type,
 			value,
-			timer: this.#timer(cacheKey, type),
+			timer: this.#timer(cacheKey, type, options?.ttl),
 		}
 
 		this.#cache.set(cacheKey, entry)
@@ -220,6 +221,35 @@ export class RouterCache {
 	removeSegment(key: string) {
 		if (!this.enabled) return
 		this.#delete(this.#segmentKey(key))
+	}
+
+	invalidatePath(path: string, scope: 'page' | 'layout' = 'page') {
+		if (!this.enabled) return
+
+		const target = path.split('?')[0] || '/'
+		const prefix = `path:${target}`
+
+		for (const [key, entry] of this.#cache) {
+			if (
+				entry.kind !== 'segment' &&
+				!(entry.kind === 'route' && entry.status === 'ready')
+			) {
+				continue
+			}
+
+			const entryTags = entry.value.tags ?? []
+			const matches = entryTags.some(tag => {
+				if (scope === 'page') return tag === prefix
+				return tag === prefix || tag.startsWith(`${prefix}/`)
+			})
+
+			const keyMatches =
+				key === this.#routeKey(target) ||
+				key === this.#segmentKey(target) ||
+				(scope === 'layout' && key.startsWith(`route:${target}/`))
+
+			if (matches || keyMatches) this.#delete(key)
+		}
 	}
 
 	invalidateTags(tags: string[]) {
@@ -265,9 +295,14 @@ export class RouterCache {
 		return `segment:${key}`
 	}
 
-	#timer(key: string, type: RouterCache.Type | RouterCache.SegmentType) {
+	#timer(
+		key: string,
+		type: RouterCache.Type | RouterCache.SegmentType,
+		ttl?: number | null,
+	) {
 		if (type !== 'dynamic') return
-		return setTimeout(() => this.#delete(key), this.ttl)
+		if (ttl === null) return
+		return setTimeout(() => this.#delete(key), ttl ?? this.ttl)
 	}
 
 	#evict(evictionKey: string) {

@@ -274,7 +274,17 @@ export function BrowserRouterProvider({
 
 	useEffect(() => {
 		const clear = (event?: Event) => {
-			const tags = (event as CustomEvent<{ tags?: string[] }> | undefined)?.detail?.tags
+			const detail = (
+				event as
+					| CustomEvent<{
+							tags?: string[]
+							paths?: { path: string; scope: 'page' | 'layout' }[]
+					  }>
+					| undefined
+			)?.detail
+			const tags = detail?.tags
+			const paths = detail?.paths
+			let handled = false
 
 			if (tags && tags.length > 0) {
 				routerCache.invalidateTags(tags)
@@ -285,8 +295,31 @@ export function BrowserRouterProvider({
 					}
 				}
 
-				return
+				handled = true
 			}
+
+			if (paths && paths.length > 0) {
+				for (const item of paths) {
+					routerCache.invalidatePath(item.path, item.scope)
+
+					if (item.scope === 'layout') {
+						const prefix = `path:${item.path}`
+
+						for (const [key, entry] of layoutCache.current) {
+							if (
+								!entry.tags ||
+								entry.tags.some(tag => tag === prefix || tag.startsWith(`${prefix}/`))
+							) {
+								layoutCache.current.delete(key)
+							}
+						}
+					}
+				}
+
+				handled = true
+			}
+
+			if (handled) return
 
 			routerCache.clear()
 			layoutCache.current.clear()
@@ -517,12 +550,17 @@ export function BrowserRouterProvider({
 					const bytes = await decoded.bytes
 
 					if (pageRoot) {
-						routerCache.setSegment(path, 'dynamic', {
-							payload: pagePayload,
-							url: decoded.url,
-							bytes,
-							tags: pagePayload.cache?.tags,
-						})
+						routerCache.setSegment(
+							path,
+							'dynamic',
+							{
+								payload: pagePayload,
+								url: decoded.url,
+								bytes,
+								tags: pagePayload.cache?.tags,
+							},
+							{ ttl: pagePayload.cache?.page },
+						)
 					}
 				}
 
