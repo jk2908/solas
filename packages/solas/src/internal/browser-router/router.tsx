@@ -252,6 +252,9 @@ export function BrowserRouterProvider({
 	const [layoutValues, setLayoutValues] = useState<Map<string, React.ReactNode>>(
 		() => new Map(),
 	)
+	const layoutCache = useRef(
+		new Map<string, { values: Map<string, React.ReactNode>; expiresAt: number }>(),
+	)
 
 	useEffect(() => {
 		const hot = import.meta.hot
@@ -260,6 +263,7 @@ export function BrowserRouterProvider({
 
 		const clear = () => {
 			routerCache.clear()
+			layoutCache.current.clear()
 			setSegmentPage(null)
 			setLayoutValues(new Map())
 		}
@@ -354,6 +358,13 @@ export function BrowserRouterProvider({
 				setLayoutValues(new Map())
 
 				async function loadLayoutSegments() {
+					const cached = layoutCache.current.get(path)
+
+					if (cached && cached.expiresAt > Date.now()) {
+						setLayoutValues(cached.values)
+						return
+					}
+
 					const ctrl = new AbortController()
 					controller.current = ctrl
 
@@ -373,7 +384,13 @@ export function BrowserRouterProvider({
 
 						const layouts = collectLayoutSegments(full.root)
 
-						if (layouts.size > 0) setLayoutValues(layouts)
+						if (layouts.size > 0) {
+							setLayoutValues(layouts)
+							layoutCache.current.set(path, {
+								values: layouts,
+								expiresAt: Date.now() + routerCache.ttl,
+							})
+						}
 					} catch (err) {
 						if (err instanceof Error && err.name === 'AbortError') return
 						logger.error('[ppr:layouts]', err)
@@ -431,9 +448,9 @@ export function BrowserRouterProvider({
 							if (isShell) {
 								payload = cachedPayload
 								setPayload?.(cachedPayload)
+								void loadLayoutSegments()
 								try {
 									await loadPageSegment()
-									void loadLayoutSegments()
 								} catch {
 									payload = undefined
 									setSegmentPage(null)
@@ -456,9 +473,9 @@ export function BrowserRouterProvider({
 								if (isShell) {
 									payload = cachedPayload
 									setPayload?.(cachedPayload)
+									void loadLayoutSegments()
 									try {
 										await loadPageSegment()
-										void loadLayoutSegments()
 									} catch {
 										payload = undefined
 										setSegmentPage(null)
@@ -618,6 +635,7 @@ export function BrowserRouterProvider({
 
 		routerCache.remove(key)
 		routerCache.removeSegment(key)
+		layoutCache.current.delete(currentPath)
 		setSegmentPage(null)
 
 		// a refresh stays exactly where the user is
