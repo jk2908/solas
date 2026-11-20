@@ -441,7 +441,22 @@ export function BrowserRouterProvider({
 						}
 					}
 
-					return { targetIds, values, missing }
+					return { values, missing }
+				}
+
+				function getCachedLayoutIds() {
+					const ids = new Set<string>()
+
+					for (const key of layoutCache.current.keys()) {
+						try {
+							const [id] = JSON.parse(key) as [unknown]
+							if (typeof id === 'string') ids.add(id)
+						} catch {
+							// ignore malformed cache keys
+						}
+					}
+
+					return [...ids]
 				}
 
 				function applyLayoutSegments(
@@ -478,8 +493,6 @@ export function BrowserRouterProvider({
 					}
 
 					if (values.size > 0) setLayoutValues(values)
-
-					return values
 				}
 
 				async function loadSegmentPatch() {
@@ -505,24 +518,13 @@ export function BrowserRouterProvider({
 					const ctrl = new AbortController()
 					controller.current = ctrl
 
-					const cachedLayouts = new Set<string>()
-
-					for (const key of layoutCache.current.keys()) {
-						try {
-							const [id] = JSON.parse(key) as [unknown]
-							if (typeof id === 'string') cachedLayouts.add(id)
-						} catch {
-							// ignore malformed cache keys
-						}
-					}
-
 					const res = await performNavigationFetch(path, {
 						headers: {
 							[`x-${Config.SLUG}-segment`]: 'patch',
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 								segments: payload?.segments ? describeSegments(payload.segments) : [],
 								params: payload?.params,
-								cachedLayouts: [...cachedLayouts],
+								cachedLayouts: getCachedLayoutIds(),
 							}),
 						},
 						signal: ctrl.signal,

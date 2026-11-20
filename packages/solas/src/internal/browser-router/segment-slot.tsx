@@ -64,7 +64,6 @@ export function SegmentSlot({
 export function LayoutSlot(props: {
 	id: string
 	pprLayout?: true
-	fallback?: ReactNode
 	child?: ReactNode
 	children?: ReactNode
 }) {
@@ -79,7 +78,7 @@ export function LayoutSlot(props: {
 		)
 	}
 
-	return props.children ?? props.fallback ?? null
+	return props.children ?? null
 }
 
 /**
