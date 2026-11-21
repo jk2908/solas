@@ -171,6 +171,10 @@ function parseRouterState(value: string | null) {
 	}
 }
 
+/**
+ * Work out which layout nodes a patch still needs. The client supplies its
+ * current tree and cached layout IDs; unchanged cached nodes are omitted.
+ */
 function requiredLayoutIds(
 	state: ReturnType<typeof parseRouterState>,
 	layoutIds: (string | null)[],

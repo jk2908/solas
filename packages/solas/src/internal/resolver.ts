@@ -382,6 +382,9 @@ export class Resolver {
 		const segmentMetadataSources: { id: string; sources: Metadata.Source[] }[] = []
 		const segmentSourceStack: Metadata.Source[] = []
 
+		/**
+		 * Keep a running metadata source stack for each layout/page segment.
+		 */
 		function addMetadataSource(source: Metadata.Source, id?: string | null) {
 			metadataSources.push(source)
 

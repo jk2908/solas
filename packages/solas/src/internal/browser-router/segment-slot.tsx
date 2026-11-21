@@ -20,7 +20,6 @@ export type SegmentMeta = {
 }
 
 export type SegmentReference = {
-	kind: 'layout' | 'page'
 	id: string
 	meta?: SegmentMeta
 }
@@ -111,6 +110,9 @@ export function LayoutSlot(props: {
 	return props.children ?? null
 }
 
+/**
+ * Walk a decoded RSC tree, including arrays and nested segment children.
+ */
 function walkSegments(
 	root: ReactNode,
 	visit: (
@@ -135,13 +137,15 @@ function walkSegments(
 }
 
 /**
- * Find the page root inside a combined page/layout segment patch.
+ * Find the page root in a patch payload.
  */
-export function collectPageSegment(root: ReactNode) {
+export function collectPageSegment(root: ReactNode, pageId?: string | null) {
+	if (!pageId) return null
+
 	let page: ReactNode = null
 
 	walkSegments(root, value => {
-		if (value.props.segment?.kind !== 'page') return
+		if (value.props.segment?.id !== pageId) return
 
 		page = value.props.children ?? null
 		return false
@@ -151,7 +155,7 @@ export function collectPageSegment(root: ReactNode) {
 }
 
 /**
- * Collect loading/error/head metadata attached to segment patch nodes.
+ * Collect loading/error/head metadata from segment nodes in a patch.
  */
 export function collectSegmentMeta(root: ReactNode) {
 	const meta = new Map<string, SegmentMeta>()
@@ -165,14 +169,17 @@ export function collectSegmentMeta(root: ReactNode) {
 }
 
 /**
- * Collect layout nodes from a decoded RSC tree.
+ * Collect layout nodes by their target layout IDs.
  */
-export function collectLayoutSegments(root: ReactNode) {
+export function collectLayoutSegments(root: ReactNode, layoutIds: string[]) {
 	const layouts = new Map<string, ReactNode>()
+	const targets = new Set(layoutIds)
 
 	walkSegments(root, value => {
 		const segment = value.props.segment
-		if (segment?.kind === 'layout') layouts.set(segment.id, value.props.children)
+		if (segment && targets.has(segment.id)) {
+			layouts.set(segment.id, value.props.children)
+		}
 	})
 
 	return layouts

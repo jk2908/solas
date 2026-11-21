@@ -430,6 +430,10 @@ export function BrowserRouterProvider({
 				setLayoutValues(new Map())
 				setSegmentMeta(new Map())
 
+				/**
+				 * Read cached layout nodes for a target chain and report whether
+				 * any are missing.
+				 */
 				function getCachedLayouts(
 					layoutIds: (string | null)[] | undefined,
 					params: Record<string, string | string[]> | undefined,
@@ -454,6 +458,9 @@ export function BrowserRouterProvider({
 					return { values, missing }
 				}
 
+				/**
+				 * List cached layout IDs so the server can diff the target tree.
+				 */
 				function getCachedLayoutIds() {
 					const ids = new Set<string>()
 
@@ -469,6 +476,9 @@ export function BrowserRouterProvider({
 					return [...ids]
 				}
 
+				/**
+				 * Store layout nodes from a patch and expose them to the slots.
+				 */
 				function applyLayoutSegments(
 					layouts: Map<string, React.ReactNode>,
 					targetIds: string[],
@@ -505,6 +515,9 @@ export function BrowserRouterProvider({
 					if (values.size > 0) setLayoutValues(values)
 				}
 
+				/**
+				 * Fetch one page/layout patch, cache its nodes and commit the page.
+				 */
 				async function loadSegmentPatch() {
 					const cachedPage = routerCache.getSegment(path)
 
@@ -555,8 +568,8 @@ export function BrowserRouterProvider({
 					const targetIds = (patch.segments?.layouts ?? []).filter(
 						(id): id is string => typeof id === 'string',
 					)
-					const layouts = collectLayoutSegments(patch.root)
-					const pageRoot = collectPageSegment(patch.root)
+					const layouts = collectLayoutSegments(patch.root, targetIds)
+					const pageRoot = collectPageSegment(patch.root, patch.segments?.page)
 					const meta = collectSegmentMeta(patch.root)
 					const pagePayload = { ...patch, root: pageRoot }
 
@@ -749,6 +762,9 @@ export function BrowserRouterProvider({
 		[routerCache, setPayload],
 	)
 
+	/**
+	 * Fetch a page/layout patch in the background and warm the segment caches.
+	 */
 	const prefetchSegmentPatch = useCallback(
 		async (key: string, shell: RscPayload) => {
 			if (routerCache.getSegment(key)) return
@@ -783,7 +799,7 @@ export function BrowserRouterProvider({
 			const targetIds = (patch.segments?.layouts ?? []).filter(
 				(id): id is string => typeof id === 'string',
 			)
-			const layouts = collectLayoutSegments(patch.root)
+			const layouts = collectLayoutSegments(patch.root, targetIds)
 			const now = Date.now()
 			const expiresAt =
 				patch.cache?.layouts === null
@@ -806,7 +822,7 @@ export function BrowserRouterProvider({
 				})
 			}
 
-			const pageRoot = collectPageSegment(patch.root)
+			const pageRoot = collectPageSegment(patch.root, patch.segments?.page)
 			const meta = collectSegmentMeta(patch.root)
 
 			if (meta.size > 0) segmentMetaCache.current.set(key, meta)

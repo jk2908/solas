@@ -125,7 +125,6 @@ export function Tree({
 						key={`l:${idx}`}
 						id={id}
 						segment={{
-							kind: 'layout',
 							id,
 							meta: {
 								loading: Loading ? <Loading /> : undefined,
@@ -156,7 +155,6 @@ export function Tree({
 				<PageMarker
 					key="page"
 					segment={{
-						kind: 'page',
 						id,
 						meta: {
 							loading: Loading ? <Loading /> : undefined,
