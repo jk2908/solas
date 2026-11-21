@@ -1,5 +1,6 @@
 import type { Route } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
+import type { SegmentMeta } from './segment-slot.js'
 
 export function isRouterCacheEntryType(
 	value: string | null | undefined,
@@ -15,6 +16,7 @@ export namespace RouterCache {
 		payload: RscPayload
 		url: string
 		bytes: number
+		meta?: Map<string, SegmentMeta>
 	}
 
 	export type CachedSegment = CachedPayload

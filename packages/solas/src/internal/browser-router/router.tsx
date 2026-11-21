@@ -31,13 +31,7 @@ import { BrowserRouterHistory } from './history.js'
 import { layoutSegmentKey } from './layout-cache-key.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
-import {
-	collectLayoutSegments,
-	collectPageSegment,
-	collectSegmentMeta,
-	SegmentContext,
-	type SegmentMeta,
-} from './segment-slot.js'
+import { collectSegments, SegmentContext, type SegmentMeta } from './segment-slot.js'
 import * as BrowserRouter from './shared.js'
 
 export * as BrowserRouter from './shared.js'
@@ -286,7 +280,6 @@ export function BrowserRouterProvider({
 	const [segmentMeta, setSegmentMeta] = useState<Map<string, SegmentMeta>>(
 		() => new Map(),
 	)
-	const segmentMetaCache = useRef(new Map<string, Map<string, SegmentMeta>>())
 	const layoutCache = useRef(
 		new Map<string, { value: React.ReactNode; expiresAt: number; path?: string }>(),
 	)
@@ -306,7 +299,6 @@ export function BrowserRouterProvider({
 			if (paths && paths.length > 0) {
 				for (const item of paths) {
 					routerCache.invalidatePath(item.path, item.scope)
-					segmentMetaCache.current.delete(item.path)
 
 					if (item.scope === 'layout') {
 						const prefix = item.path
@@ -330,7 +322,6 @@ export function BrowserRouterProvider({
 
 			routerCache.clear()
 			layoutCache.current.clear()
-			segmentMetaCache.current.clear()
 			setSegmentPage(null)
 			setLayoutValues(new Map())
 			setSegmentMeta(new Map())
@@ -530,8 +521,7 @@ export function BrowserRouterProvider({
 
 						setSegmentPage(cachedPayload)
 
-						const cachedMeta = segmentMetaCache.current.get(path)
-						if (cachedMeta) setSegmentMeta(cachedMeta)
+						if (cachedPage.value.meta) setSegmentMeta(cachedPage.value.meta)
 
 						if (!missing) {
 							if (values.size > 0) setLayoutValues(values)
@@ -568,21 +558,16 @@ export function BrowserRouterProvider({
 					const targetIds = (patch.segments?.layouts ?? []).filter(
 						(id): id is string => typeof id === 'string',
 					)
-					const layouts = collectLayoutSegments(patch.root, targetIds)
-					const pageRoot = collectPageSegment(patch.root, patch.segments?.page)
-					const meta = collectSegmentMeta(patch.root)
-					const pagePayload = { ...patch, root: pageRoot }
+					const collected = collectSegments(patch.root, targetIds, patch.segments?.page)
+					const pagePayload = { ...patch, root: collected.page }
 
-					if (meta.size > 0) {
-						setSegmentMeta(meta)
-						segmentMetaCache.current.set(path, meta)
-					}
-					applyLayoutSegments(layouts, targetIds, patch.params, patch.cache)
-					setSegmentPage(pageRoot ? pagePayload : null)
+					if (collected.meta.size > 0) setSegmentMeta(collected.meta)
+					applyLayoutSegments(collected.layouts, targetIds, patch.params, patch.cache)
+					setSegmentPage(collected.page ? pagePayload : null)
 
 					const bytes = await decoded.bytes
 
-					if (pageRoot) {
+					if (collected.page) {
 						routerCache.setSegment(
 							path,
 							'dynamic',
@@ -590,6 +575,7 @@ export function BrowserRouterProvider({
 								payload: pagePayload,
 								url: decoded.url,
 								bytes,
+								meta: collected.meta,
 							},
 							{ ttl: pagePayload.cache?.page },
 						)
@@ -799,7 +785,7 @@ export function BrowserRouterProvider({
 			const targetIds = (patch.segments?.layouts ?? []).filter(
 				(id): id is string => typeof id === 'string',
 			)
-			const layouts = collectLayoutSegments(patch.root, targetIds)
+			const collected = collectSegments(patch.root, targetIds, patch.segments?.page)
 			const now = Date.now()
 			const expiresAt =
 				patch.cache?.layouts === null
@@ -812,7 +798,7 @@ export function BrowserRouterProvider({
 
 				if (cached && cached.expiresAt > now) continue
 
-				const value = layouts.get(id)
+				const value = collected.layouts.get(id)
 				if (value === undefined) continue
 
 				layoutCache.current.set(cacheKey, {
@@ -822,14 +808,9 @@ export function BrowserRouterProvider({
 				})
 			}
 
-			const pageRoot = collectPageSegment(patch.root, patch.segments?.page)
-			const meta = collectSegmentMeta(patch.root)
+			if (!collected.page) return
 
-			if (meta.size > 0) segmentMetaCache.current.set(key, meta)
-
-			if (!pageRoot) return
-
-			const pagePayload = { ...patch, root: pageRoot }
+			const pagePayload = { ...patch, root: collected.page }
 
 			routerCache.setSegment(
 				key,
@@ -840,6 +821,7 @@ export function BrowserRouterProvider({
 					// the patch root is enough to reuse the page; byte accounting
 					// is intentionally deferred until the stream completes
 					bytes: 0,
+					meta: collected.meta,
 				},
 				{ ttl: pagePayload.cache?.page },
 			)
@@ -901,7 +883,6 @@ export function BrowserRouterProvider({
 				routerCache.removeSegment(key)
 			}
 			layoutCache.current.clear()
-			segmentMetaCache.current.clear()
 		},
 		[routerCache],
 	)
@@ -915,7 +896,6 @@ export function BrowserRouterProvider({
 		routerCache.remove(key)
 		routerCache.removeSegment(key)
 		layoutCache.current.clear()
-		segmentMetaCache.current.clear()
 		setSegmentPage(null)
 
 		// a refresh stays exactly where the user is

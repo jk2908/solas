@@ -137,50 +137,33 @@ function walkSegments(
 }
 
 /**
- * Find the page root in a patch payload.
+ * Collect the page, layout nodes and segment metadata from one patch payload.
  */
-export function collectPageSegment(root: ReactNode, pageId?: string | null) {
-	if (!pageId) return null
-
+export function collectSegments(
+	root: ReactNode,
+	layoutIds: string[],
+	pageId?: string | null,
+) {
+	const layouts = new Map<string, ReactNode>()
+	const meta = new Map<string, SegmentMeta>()
+	const targets = new Set(layoutIds)
 	let page: ReactNode = null
 
 	walkSegments(root, value => {
-		if (value.props.segment?.id !== pageId) return
-
-		page = value.props.children ?? null
-		return false
-	})
-
-	return page
-}
-
-/**
- * Collect loading/error/head metadata from segment nodes in a patch.
- */
-export function collectSegmentMeta(root: ReactNode) {
-	const meta = new Map<string, SegmentMeta>()
-
-	walkSegments(root, value => {
 		const segment = value.props.segment
-		if (segment?.meta) meta.set(segment.id, segment.meta)
-	})
+		if (!segment) return
 
-	return meta
-}
+		if (segment.meta) meta.set(segment.id, segment.meta)
 
-/**
- * Collect layout nodes by their target layout IDs.
- */
-export function collectLayoutSegments(root: ReactNode, layoutIds: string[]) {
-	const layouts = new Map<string, ReactNode>()
-	const targets = new Set(layoutIds)
+		if (segment.id === pageId) {
+			page = value.props.children ?? null
+			return false
+		}
 
-	walkSegments(root, value => {
-		const segment = value.props.segment
-		if (segment && targets.has(segment.id)) {
+		if (targets.has(segment.id)) {
 			layouts.set(segment.id, value.props.children)
 		}
 	})
 
-	return layouts
+	return { page, layouts, meta }
 }
