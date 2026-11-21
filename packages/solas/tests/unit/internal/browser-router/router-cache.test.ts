@@ -133,11 +133,9 @@ describe('RouterCache', () => {
 		const cache = new RouterCache()
 		cache.setSegment('/about', 'dynamic', {
 			...cached('/about', 10),
-			tags: ['path:/about'],
 		})
 		cache.setSegment('/other', 'dynamic', {
 			...cached('/other', 10),
-			tags: ['path:/other'],
 		})
 
 		cache.invalidatePath('/about')
@@ -150,7 +148,6 @@ describe('RouterCache', () => {
 		const cache = new RouterCache()
 		cache.setSegment('/about/another', 'dynamic', {
 			...cached('/about/another', 10),
-			tags: ['path:/about/another'],
 		})
 
 		cache.invalidatePath('/about', 'layout')

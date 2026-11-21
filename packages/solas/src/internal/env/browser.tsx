@@ -91,10 +91,7 @@ export async function browser(config: BrowserConfig = {}) {
 
 		window.dispatchEvent(
 			new CustomEvent(Events.REVALIDATE, {
-				detail: {
-					tags: payload.cache?.invalidatedTags,
-					paths: payload.cache?.invalidatedPaths,
-				},
+				detail: { paths: payload.cache?.invalidatedPaths },
 			}),
 		)
 		payloadSetter.current(payload)

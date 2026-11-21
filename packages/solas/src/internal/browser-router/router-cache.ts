@@ -15,7 +15,6 @@ export namespace RouterCache {
 		payload: RscPayload
 		url: string
 		bytes: number
-		tags?: string[]
 	}
 
 	export type CachedSegment = CachedPayload
@@ -227,7 +226,6 @@ export class RouterCache {
 		if (!this.enabled) return
 
 		const target = path.split('?')[0] || '/'
-		const prefix = `path:${target}`
 
 		for (const [key, entry] of this.#cache) {
 			if (
@@ -236,40 +234,14 @@ export class RouterCache {
 			) {
 				continue
 			}
-
-			const entryTags = entry.value.tags ?? []
-			const matches = entryTags.some(tag => {
-				if (scope === 'page') return tag === prefix
-				return tag === prefix || tag.startsWith(`${prefix}/`)
-			})
 
 			const keyMatches =
 				key === this.#routeKey(target) ||
 				key === this.#segmentKey(target) ||
-				(scope === 'layout' && key.startsWith(`route:${target}/`))
+				(scope === 'layout' &&
+					(key.startsWith(`route:${target}/`) || key.startsWith(`segment:${target}/`)))
 
-			if (matches || keyMatches) this.#delete(key)
-		}
-	}
-
-	invalidateTags(tags: string[]) {
-		if (!this.enabled || tags.length === 0) return
-
-		const invalidated = new Set(tags)
-
-		for (const [key, entry] of this.#cache) {
-			if (
-				entry.kind !== 'segment' &&
-				!(entry.kind === 'route' && entry.status === 'ready')
-			) {
-				continue
-			}
-
-			const entryTags = entry.value.tags
-
-			if (!entryTags || entryTags.some((tag: string) => invalidated.has(tag))) {
-				this.#delete(key)
-			}
+			if (keyMatches) this.#delete(key)
 		}
 	}
 

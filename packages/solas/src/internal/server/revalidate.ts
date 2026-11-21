@@ -1,16 +1,8 @@
-const invalidatedTags = new Set<string>()
 const invalidatedPaths: RevalidatedPath[] = []
 
 export type RevalidatedPath = {
 	path: string
 	scope: 'page' | 'layout'
-}
-
-/**
- * Mark cached segment data as stale.
- */
-export function revalidateTag(tag: string) {
-	if (tag) invalidatedTags.add(tag)
 }
 
 /**
@@ -23,15 +15,6 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 		path: path.split('?')[0] || '/',
 		scope,
 	})
-}
-
-/**
- * Drain tags invalidated during the current action request.
- */
-export function drainRevalidatedTags() {
-	const tags = [...invalidatedTags]
-	invalidatedTags.clear()
-	return tags
 }
 
 /**

@@ -288,7 +288,7 @@ export function BrowserRouterProvider({
 	)
 	const segmentMetaCache = useRef(new Map<string, Map<string, SegmentMeta>>())
 	const layoutCache = useRef(
-		new Map<string, { value: React.ReactNode; expiresAt: number; tags?: string[] }>(),
+		new Map<string, { value: React.ReactNode; expiresAt: number; path?: string }>(),
 	)
 
 	useEffect(() => {
@@ -296,27 +296,12 @@ export function BrowserRouterProvider({
 			const detail = (
 				event as
 					| CustomEvent<{
-							tags?: string[]
 							paths?: { path: string; scope: 'page' | 'layout' }[]
 					  }>
 					| undefined
 			)?.detail
-			const tags = detail?.tags
 			const paths = detail?.paths
 			let handled = false
-
-			if (tags && tags.length > 0) {
-				routerCache.invalidateTags(tags)
-				segmentMetaCache.current.clear()
-
-				for (const [key, entry] of layoutCache.current) {
-					if (!entry.tags || entry.tags.some(tag => tags.includes(tag))) {
-						layoutCache.current.delete(key)
-					}
-				}
-
-				handled = true
-			}
 
 			if (paths && paths.length > 0) {
 				for (const item of paths) {
@@ -324,12 +309,13 @@ export function BrowserRouterProvider({
 					segmentMetaCache.current.delete(item.path)
 
 					if (item.scope === 'layout') {
-						const prefix = `path:${item.path}`
+						const prefix = item.path
 
 						for (const [key, entry] of layoutCache.current) {
 							if (
-								!entry.tags ||
-								entry.tags.some(tag => tag === prefix || tag.startsWith(`${prefix}/`))
+								!entry.path ||
+								entry.path === prefix ||
+								entry.path.startsWith(`${prefix}/`)
 							) {
 								layoutCache.current.delete(key)
 							}
@@ -512,7 +498,7 @@ export function BrowserRouterProvider({
 						layoutCache.current.set(layoutSegmentKey(id, params), {
 							value,
 							expiresAt,
-							tags: cache?.tags,
+							path,
 						})
 					}
 
@@ -591,7 +577,6 @@ export function BrowserRouterProvider({
 								payload: pagePayload,
 								url: decoded.url,
 								bytes,
-								tags: pagePayload.cache?.tags,
 							},
 							{ ttl: pagePayload.cache?.page },
 						)
@@ -817,7 +802,7 @@ export function BrowserRouterProvider({
 				layoutCache.current.set(cacheKey, {
 					value,
 					expiresAt,
-					tags: patch.cache?.tags,
+					path: key,
 				})
 			}
 
@@ -839,7 +824,6 @@ export function BrowserRouterProvider({
 					// the patch root is enough to reuse the page; byte accounting
 					// is intentionally deferred until the stream completes
 					bytes: 0,
-					tags: pagePayload.cache?.tags,
 				},
 				{ ttl: pagePayload.cache?.page },
 			)
