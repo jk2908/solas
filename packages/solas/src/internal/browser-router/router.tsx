@@ -28,7 +28,7 @@ import {
 	isRouteTargetError,
 } from './errors.js'
 import { BrowserRouterHistory } from './history.js'
-import { layoutSegmentKey } from './layout-cache-key.js'
+import { LayoutCache } from './layout-cache.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
 import { collectSegments, SegmentContext, type SegmentMeta } from './segment-slot.js'
@@ -274,15 +274,11 @@ export function BrowserRouterProvider({
 		[config],
 	)
 	const [segmentPage, setSegmentPage] = useState<RscPayload | null>(null)
-	const [layoutValues, setLayoutValues] = useState<Map<string, React.ReactNode>>(
-		() => new Map(),
-	)
+	const [layouts, setLayouts] = useState<Map<string, React.ReactNode>>(() => new Map())
 	const [segmentMeta, setSegmentMeta] = useState<Map<string, SegmentMeta>>(
 		() => new Map(),
 	)
-	const layoutCache = useRef(
-		new Map<string, { value: React.ReactNode; expiresAt: number; path?: string }>(),
-	)
+	const layoutCache = useRef(new LayoutCache())
 
 	useEffect(() => {
 		const clear = (event?: Event) => {
@@ -300,19 +296,7 @@ export function BrowserRouterProvider({
 				for (const item of paths) {
 					routerCache.invalidatePath(item.path, item.scope)
 
-					if (item.scope === 'layout') {
-						const prefix = item.path
-
-						for (const [key, entry] of layoutCache.current) {
-							if (
-								!entry.path ||
-								entry.path === prefix ||
-								entry.path.startsWith(`${prefix}/`)
-							) {
-								layoutCache.current.delete(key)
-							}
-						}
-					}
+					layoutCache.current.invalidatePath(item.path, item.scope)
 				}
 
 				handled = true
@@ -323,7 +307,7 @@ export function BrowserRouterProvider({
 			routerCache.clear()
 			layoutCache.current.clear()
 			setSegmentPage(null)
-			setLayoutValues(new Map())
+			setLayouts(new Map())
 			setSegmentMeta(new Map())
 		}
 
@@ -418,7 +402,7 @@ export function BrowserRouterProvider({
 				let resolvedPath = path
 
 				setSegmentPage(null)
-				setLayoutValues(new Map())
+				setLayouts(new Map())
 				setSegmentMeta(new Map())
 
 				/**
@@ -432,39 +416,15 @@ export function BrowserRouterProvider({
 					const targetIds = (layoutIds ?? []).filter(
 						(id): id is string => typeof id === 'string',
 					)
-					const now = Date.now()
-					const values = new Map<string, React.ReactNode>()
-					let missing = false
 
-					for (const id of targetIds) {
-						const cached = layoutCache.current.get(layoutSegmentKey(id, params))
-
-						if (cached && cached.expiresAt > now) {
-							values.set(id, cached.value)
-						} else {
-							missing = true
-						}
-					}
-
-					return { values, missing }
+					return layoutCache.current.getValues(targetIds, params)
 				}
 
 				/**
 				 * List cached layout IDs so the server can diff the target tree.
 				 */
 				function getCachedLayoutIds() {
-					const ids = new Set<string>()
-
-					for (const key of layoutCache.current.keys()) {
-						try {
-							const [id] = JSON.parse(key) as [unknown]
-							if (typeof id === 'string') ids.add(id)
-						} catch {
-							// ignore malformed cache keys
-						}
-					}
-
-					return [...ids]
+					return layoutCache.current.ids()
 				}
 
 				/**
@@ -484,9 +444,9 @@ export function BrowserRouterProvider({
 					const values = new Map<string, React.ReactNode>()
 
 					for (const id of targetIds) {
-						const cached = layoutCache.current.get(layoutSegmentKey(id, params))
+						const cached = layoutCache.current.get(id, params)
 
-						if (cached && cached.expiresAt > now) {
+						if (cached) {
 							values.set(id, cached.value)
 							continue
 						}
@@ -496,14 +456,10 @@ export function BrowserRouterProvider({
 						if (value === undefined) continue
 
 						values.set(id, value)
-						layoutCache.current.set(layoutSegmentKey(id, params), {
-							value,
-							expiresAt,
-							path,
-						})
+						layoutCache.current.set(id, params, value, { expiresAt, path })
 					}
 
-					if (values.size > 0) setLayoutValues(values)
+					if (values.size > 0) setLayouts(values)
 				}
 
 				/**
@@ -524,11 +480,11 @@ export function BrowserRouterProvider({
 						if (cachedPage.value.meta) setSegmentMeta(cachedPage.value.meta)
 
 						if (!missing) {
-							if (values.size > 0) setLayoutValues(values)
+							if (values.size > 0) setLayouts(values)
 							return
 						}
 
-						if (values.size > 0) setLayoutValues(values)
+						if (values.size > 0) setLayouts(values)
 					}
 
 					const ctrl = new AbortController()
@@ -755,16 +711,7 @@ export function BrowserRouterProvider({
 		async (key: string, shell: RscPayload) => {
 			if (routerCache.getSegment(key)) return
 
-			const cachedLayouts = new Set<string>()
-
-			for (const cacheKey of layoutCache.current.keys()) {
-				try {
-					const [id] = JSON.parse(cacheKey) as [unknown]
-					if (typeof id === 'string') cachedLayouts.add(id)
-				} catch {
-					// ignore malformed cache keys
-				}
-			}
+			const cachedLayouts = layoutCache.current.ids()
 
 			const res = await performNavigationFetch(key, {
 				headers: {
@@ -793,16 +740,12 @@ export function BrowserRouterProvider({
 					: now + (patch.cache?.layouts ?? routerCache.ttl)
 
 			for (const id of targetIds) {
-				const cacheKey = layoutSegmentKey(id, patch.params)
-				const cached = layoutCache.current.get(cacheKey)
-
-				if (cached && cached.expiresAt > now) continue
+				if (layoutCache.current.get(id, patch.params)) continue
 
 				const value = collected.layouts.get(id)
 				if (value === undefined) continue
 
-				layoutCache.current.set(cacheKey, {
-					value,
+				layoutCache.current.set(id, patch.params, value, {
 					expiresAt,
 					path: key,
 				})
@@ -983,8 +926,7 @@ export function BrowserRouterProvider({
 
 	return (
 		<PrefetchObserverProvider>
-			<SegmentContext
-				value={{ page: segmentPage, layouts: layoutValues, meta: segmentMeta }}>
+			<SegmentContext value={{ page: segmentPage, layouts, meta: segmentMeta }}>
 				<Suspense fallback={null}>
 					<Head
 						metadata={pageHead ?? segmentPage?.metadata ?? metadata}
