@@ -10,12 +10,13 @@ import {
 } from 'react'
 
 import type { RscPayload } from '../env/rsc.js'
+import type { Metadata } from '../metadata.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
-import { Head } from '../render/head.js'
 
 export type SegmentMeta = {
 	loading?: ReactNode
 	errors?: Partial<Record<401 | 403 | 404 | 500, ReactElement | null>>
+	head?: Metadata.Item | Promise<Metadata.Item>
 }
 
 export type SegmentState = {
@@ -47,11 +48,13 @@ export function SegmentMetaMarker({
 	pprMeta: _pprMeta,
 	loading: _loading,
 	errors: _errors,
+	head: _head,
 }: {
 	id: string
 	pprMeta?: true
 	loading?: ReactNode
 	errors?: SegmentMeta['errors']
+	head?: SegmentMeta['head']
 }) {
 	return null
 }
@@ -76,7 +79,6 @@ export function SegmentSlot({
 
 	return (
 		<Suspense fallback={meta?.loading ?? fallback ?? children ?? null}>
-			<Head metadata={page.metadata} url={page.url} clientCss={page.clientCss} />
 			{page.root}
 		</Suspense>
 	)
@@ -167,6 +169,7 @@ export function collectSegmentMeta(root: ReactNode) {
 			pprMeta?: true
 			loading?: ReactNode
 			errors?: SegmentMeta['errors']
+			head?: SegmentMeta['head']
 			children?: ReactNode
 		}
 
@@ -174,6 +177,7 @@ export function collectSegmentMeta(root: ReactNode) {
 			meta.set(props.id, {
 				loading: props.loading,
 				errors: props.errors,
+				head: props.head,
 			})
 		}
 

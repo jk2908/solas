@@ -12,7 +12,6 @@ import * as Solas from '../../solas.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import * as Prerender from '../prerender.js'
-import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
 import { captureBuffered, completeShellPayload, injectPayload } from './flight.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -31,18 +30,13 @@ function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
 
 	return (
 		<RedirectBoundary>
-			<BrowserRouterProvider url={payload.url}>
+			<BrowserRouterProvider
+				url={payload.url}
+				metadata={payload.metadata}
+				clientCss={payload.clientCss}>
 				<ErrorBoundary fallback={null}>
-					<Suspense fallback={null}>
-						<Head
-							metadata={payload.metadata}
-							url={payload.url}
-							clientCss={payload.clientCss}
-						/>
-					</Suspense>
+					<Suspense fallback={null}>{payload.root}</Suspense>
 				</ErrorBoundary>
-
-				{payload.root}
 			</BrowserRouterProvider>
 		</RedirectBoundary>
 	)

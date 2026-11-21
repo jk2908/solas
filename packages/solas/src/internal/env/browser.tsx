@@ -23,7 +23,6 @@ import type { RscPayload } from './rsc.js'
 import * as Events from '../../events.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
-import { Head } from '../render/head.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
 import { rscStream } from './flight.js'
 
@@ -59,14 +58,12 @@ export async function browser(config: BrowserConfig = {}) {
 					setPayload={setPayloadInTransition}
 					isNavigating={isPending}
 					url={p.url}
+					metadata={p.metadata}
+					clientCss={p.clientCss}
 					config={config}>
 					<ErrorBoundary fallback={null}>
-						<Suspense fallback={null}>
-							<Head metadata={p.metadata} url={p.url} clientCss={p.clientCss} />
-						</Suspense>
+						<Suspense fallback={null}>{p.root}</Suspense>
 					</ErrorBoundary>
-
-					{p.root}
 				</BrowserRouterProvider>
 			</RedirectBoundary>
 		)

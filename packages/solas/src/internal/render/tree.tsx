@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 
+import type { Metadata } from '../metadata.js'
 import type { Resolver } from '../resolver.js'
 import {
 	ChildSlot,
@@ -68,6 +69,7 @@ export function Tree({
 	patch = false,
 	layoutFilter,
 	pageId,
+	segmentHeads,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
@@ -78,6 +80,7 @@ export function Tree({
 	patch?: boolean
 	layoutFilter?: string[]
 	pageId?: string | null
+	segmentHeads?: { id: string; metadata: Metadata.Item | Promise<Metadata.Item> }[]
 }) {
 	const {
 		layouts,
@@ -117,6 +120,8 @@ export function Tree({
 			const node = <Layout params={params}>{<ChildSlot />}</Layout>
 
 			if (id) {
+				const head = segmentHeads?.find(item => item.id === id)?.metadata
+
 				nodes.push(
 					<SegmentMetaMarker
 						key={`m:${idx}`}
@@ -124,6 +129,7 @@ export function Tree({
 						pprMeta
 						loading={Loading ? <Loading /> : undefined}
 						errors={errors}
+						head={head}
 					/>,
 				)
 			}
@@ -149,12 +155,15 @@ export function Tree({
 			const ServerError = serverErrors[serverErrors.length - 1]
 
 			if (pageId) {
+				const head = segmentHeads?.find(item => item.id === pageId)?.metadata
+
 				nodes.push(
 					<SegmentMetaMarker
 						key="m:page"
 						id={pageId}
 						pprMeta
 						loading={Loading ? <Loading /> : undefined}
+						head={head}
 						errors={{
 							401: Unauthorised ? <Unauthorised error={UNAUTHORISED_ERROR} /> : null,
 							403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,

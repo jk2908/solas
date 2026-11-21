@@ -56,6 +56,9 @@ export namespace Resolver {
 		error?: HttpException | Error
 		endpoint?: (req?: Request & { params?: HttpRouter.Params }) => unknown
 		metadata?: (input: Metadata.Input<HttpRouter.Params>) => Metadata.Task[]
+		metadataSegments?: (
+			input: Metadata.Input<HttpRouter.Params>,
+		) => { id: string; tasks: Metadata.Task[] }[]
 	}
 }
 
@@ -376,39 +379,62 @@ export class Resolver {
 		// collect metadata loaders once per route so they can turn into request
 		// specific tasks later when params and errors are known
 		const metadataSources: Metadata.Source[] = []
+		const segmentMetadataSources: { id: string; sources: Metadata.Source[] }[] = []
+		const segmentSourceStack: Metadata.Source[] = []
 
-		if (entry.shell) {
-			metadataSources.push({
-				priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
-				load: () => Promise.resolve(entry.shell?.metadata),
+		function addMetadataSource(source: Metadata.Source, id?: string | null) {
+			metadataSources.push(source)
+
+			if (!id) return
+
+			segmentSourceStack.push(source)
+			segmentMetadataSources.push({
+				id,
+				sources: [...segmentSourceStack],
 			})
 		}
 
+		if (entry.shell) {
+			addMetadataSource(
+				{
+					priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
+					load: () => Promise.resolve(entry.shell?.metadata),
+				},
+				match.paths.layouts[0],
+			)
+		}
+
 		if (entry.layouts?.length) {
-			for (const layout of entry.layouts) {
+			for (const [index, layout] of entry.layouts.entries()) {
 				if (!layout) continue
 				const loaded = Resolver.#load(layout)
 
-				metadataSources.push({
-					priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
-					load: () =>
-						loaded.module
-							? Promise.resolve(loaded.module.metadata)
-							: loaded.promise.then(module => module.metadata),
-				})
+				addMetadataSource(
+					{
+						priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
+						load: () =>
+							loaded.module
+								? Promise.resolve(loaded.module.metadata)
+								: loaded.promise.then(module => module.metadata),
+					},
+					match.paths.layouts[index + 1],
+				)
 			}
 		}
 
 		if (entry.page) {
 			const loaded = Resolver.#load(entry.page)
 
-			metadataSources.push({
-				priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
-				load: () =>
-					loaded.module
-						? Promise.resolve(loaded.module.metadata)
-						: loaded.promise.then(module => module.metadata),
-			})
+			addMetadataSource(
+				{
+					priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
+					load: () =>
+						loaded.module
+							? Promise.resolve(loaded.module.metadata)
+							: loaded.promise.then(module => module.metadata),
+				},
+				match.paths.page,
+			)
 		}
 
 		if (entry['401s']?.length) {
@@ -485,6 +511,14 @@ export class Resolver {
 			Metadata.tasks(metadataSources, { params, error }, err => {
 				logger.error(`[enhance.metadata]: ${__id}`, err)
 			})
+
+		enhanced.metadataSegments = ({ params, error }: Metadata.Input<HttpRouter.Params>) =>
+			segmentMetadataSources.map(({ id, sources }) => ({
+				id,
+				tasks: Metadata.tasks(sources, { params, error }, err => {
+					logger.error(`[enhance.metadataSegments]: ${__id}`, err)
+				}),
+			}))
 
 		if (!IS_DEV) Resolver.#enhancedMatchCache.set(__id, enhanced)
 

@@ -312,6 +312,15 @@ async function createPayload({
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params)
 			: undefined
+	const segmentHeads =
+		patchSegment && match?.metadataSegments
+			? match
+					.metadataSegments({ params: match.params, error: match.error })
+					.map(({ id, tasks }) => ({
+						id,
+						metadata: new Metadata.Collection(baseMetadata).add(...tasks).run(),
+					}))
+			: undefined
 
 	// completed build shells already contain the static layouts, page content
 	// and suspended fallbacks, so navigations can commit them immediately
@@ -425,6 +434,7 @@ async function createPayload({
 			patch={patchSegment}
 			layoutFilter={patchLayouts}
 			pageId={match.paths.page}
+			segmentHeads={segmentHeads}
 		/>
 	)
 

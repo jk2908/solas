@@ -1,5 +1,13 @@
 'use client'
-import { createContext, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {
+	createContext,
+	Suspense,
+	useCallback,
+	useEffect,
+	useMemo,
+	useRef,
+	useState,
+} from 'react'
 
 import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
 
@@ -10,6 +18,7 @@ import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
 import * as Config from '../../config.js'
 import * as Events from '../../events.js'
+import { Head } from '../render/head.js'
 import { describeSegments } from '../route-segments.js'
 import {
 	ExternalUrlError,
@@ -239,6 +248,8 @@ export function BrowserRouterProvider({
 	setPayload,
 	isNavigating = false,
 	url,
+	metadata,
+	clientCss,
 	config = {},
 }: {
 	children: React.ReactNode
@@ -249,6 +260,8 @@ export function BrowserRouterProvider({
 		search?: string
 		hash?: string
 	}
+	metadata?: RscPayload['metadata']
+	clientCss?: RscPayload['clientCss']
 	config?: BrowserConfig
 }) {
 	const id = useRef(0)
@@ -966,6 +979,8 @@ export function BrowserRouterProvider({
 		}
 	}, [])
 
+	const pageId = segmentPage?.segments?.page ?? null
+	const pageHead = pageId ? segmentMeta.get(pageId)?.head : undefined
 	const value = useMemo(
 		() => ({
 			go,
@@ -990,6 +1005,13 @@ export function BrowserRouterProvider({
 		<PrefetchObserverProvider>
 			<SegmentContext
 				value={{ page: segmentPage, layouts: layoutValues, meta: segmentMeta }}>
+				<Suspense fallback={null}>
+					<Head
+						metadata={pageHead ?? segmentPage?.metadata ?? metadata}
+						url={segmentPage?.url ?? url}
+						clientCss={segmentPage?.clientCss ?? clientCss}
+					/>
+				</Suspense>
 				<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
 			</SegmentContext>
 		</PrefetchObserverProvider>
