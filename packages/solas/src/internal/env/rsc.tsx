@@ -296,6 +296,9 @@ async function createPayload({
 	const effectiveNonce = prerender || routeType === 'full' ? undefined : nonce
 
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
+	// route params can have a null prototype; normalise before sending them over
+	// the RSC boundary
+	const payloadParams = match ? { ...match.params } : undefined
 	const patchLayouts =
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params)
@@ -438,7 +441,7 @@ async function createPayload({
 			page: match.paths.page ?? null,
 		},
 		segmentable: shell,
-		params: match.params,
+		params: payloadParams,
 		cache: {
 			...(patchSegment ? { layouts: null, page: DEFAULT_PAGE_STALE_MS } : {}),
 			...(invalidatedPaths && invalidatedPaths.length > 0 ? { invalidatedPaths } : {}),
