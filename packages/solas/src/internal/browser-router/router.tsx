@@ -25,7 +25,9 @@ import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
 import {
 	collectLayoutSegments,
 	collectPageSegment,
+	collectSegmentMeta,
 	SegmentContext,
+	type SegmentMeta,
 } from './segment-slot.js'
 import * as BrowserRouter from './shared.js'
 
@@ -268,6 +270,10 @@ export function BrowserRouterProvider({
 	const [layoutValues, setLayoutValues] = useState<Map<string, React.ReactNode>>(
 		() => new Map(),
 	)
+	const [segmentMeta, setSegmentMeta] = useState<Map<string, SegmentMeta>>(
+		() => new Map(),
+	)
+	const segmentMetaCache = useRef(new Map<string, Map<string, SegmentMeta>>())
 	const layoutCache = useRef(
 		new Map<string, { value: React.ReactNode; expiresAt: number; tags?: string[] }>(),
 	)
@@ -288,6 +294,7 @@ export function BrowserRouterProvider({
 
 			if (tags && tags.length > 0) {
 				routerCache.invalidateTags(tags)
+				segmentMetaCache.current.clear()
 
 				for (const [key, entry] of layoutCache.current) {
 					if (!entry.tags || entry.tags.some(tag => tags.includes(tag))) {
@@ -301,6 +308,7 @@ export function BrowserRouterProvider({
 			if (paths && paths.length > 0) {
 				for (const item of paths) {
 					routerCache.invalidatePath(item.path, item.scope)
+					segmentMetaCache.current.delete(item.path)
 
 					if (item.scope === 'layout') {
 						const prefix = `path:${item.path}`
@@ -323,8 +331,10 @@ export function BrowserRouterProvider({
 
 			routerCache.clear()
 			layoutCache.current.clear()
+			segmentMetaCache.current.clear()
 			setSegmentPage(null)
 			setLayoutValues(new Map())
+			setSegmentMeta(new Map())
 		}
 
 		const hot = import.meta.hot
@@ -419,6 +429,7 @@ export function BrowserRouterProvider({
 
 				setSegmentPage(null)
 				setLayoutValues(new Map())
+				setSegmentMeta(new Map())
 
 				function getCachedLayouts(
 					layoutIds: (string | null)[] | undefined,
@@ -507,6 +518,9 @@ export function BrowserRouterProvider({
 
 						setSegmentPage(cachedPayload)
 
+						const cachedMeta = segmentMetaCache.current.get(path)
+						if (cachedMeta) setSegmentMeta(cachedMeta)
+
 						if (!missing) {
 							if (values.size > 0) setLayoutValues(values)
 							return
@@ -544,8 +558,13 @@ export function BrowserRouterProvider({
 					)
 					const layouts = collectLayoutSegments(patch.root)
 					const pageRoot = collectPageSegment(patch.root)
+					const meta = collectSegmentMeta(patch.root)
 					const pagePayload = { ...patch, root: pageRoot }
 
+					if (meta.size > 0) {
+						setSegmentMeta(meta)
+						segmentMetaCache.current.set(path, meta)
+					}
 					applyLayoutSegments(layouts, targetIds, patch.params, patch.cache)
 					setSegmentPage(pageRoot ? pagePayload : null)
 
@@ -790,6 +809,9 @@ export function BrowserRouterProvider({
 			}
 
 			const pageRoot = collectPageSegment(patch.root)
+			const meta = collectSegmentMeta(patch.root)
+
+			if (meta.size > 0) segmentMetaCache.current.set(key, meta)
 
 			if (!pageRoot) return
 
@@ -866,6 +888,7 @@ export function BrowserRouterProvider({
 				routerCache.removeSegment(key)
 			}
 			layoutCache.current.clear()
+			segmentMetaCache.current.clear()
 		},
 		[routerCache],
 	)
@@ -879,6 +902,7 @@ export function BrowserRouterProvider({
 		routerCache.remove(key)
 		routerCache.removeSegment(key)
 		layoutCache.current.clear()
+		segmentMetaCache.current.clear()
 		setSegmentPage(null)
 
 		// a refresh stays exactly where the user is
@@ -964,7 +988,8 @@ export function BrowserRouterProvider({
 
 	return (
 		<PrefetchObserverProvider>
-			<SegmentContext value={{ page: segmentPage, layouts: layoutValues }}>
+			<SegmentContext
+				value={{ page: segmentPage, layouts: layoutValues, meta: segmentMeta }}>
 				<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
 			</SegmentContext>
 		</PrefetchObserverProvider>

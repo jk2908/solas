@@ -5,15 +5,23 @@ import {
 	isValidElement,
 	Suspense,
 	useContext,
+	type ReactElement,
 	type ReactNode,
 } from 'react'
 
 import type { RscPayload } from '../env/rsc.js'
+import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import { Head } from '../render/head.js'
+
+export type SegmentMeta = {
+	loading?: ReactNode
+	errors?: Partial<Record<401 | 403 | 404 | 500, ReactElement | null>>
+}
 
 export type SegmentState = {
 	page: RscPayload | null
 	layouts: Map<string, ReactNode>
+	meta: Map<string, SegmentMeta>
 }
 
 export const SegmentContext = createContext<SegmentState | null>(null)
@@ -34,23 +42,40 @@ export function PageMarker({ children }: { pprPage?: true; children?: ReactNode 
 	return children
 }
 
+export function SegmentMetaMarker({
+	id: _id,
+	pprMeta: _pprMeta,
+	loading: _loading,
+	errors: _errors,
+}: {
+	id: string
+	pprMeta?: true
+	loading?: ReactNode
+	errors?: SegmentMeta['errors']
+}) {
+	return null
+}
+
 /**
  * Render the page segment fetched after a shell navigation.
  */
 export function SegmentSlot({
+	id,
 	fallback,
 	children,
 }: {
+	id?: string
 	fallback?: ReactNode
 	children?: ReactNode
 }) {
 	const segment = useContext(SegmentContext)
 	const page = segment?.page
+	const meta = id ? segment?.meta.get(id) : undefined
 
-	if (!page) return children ?? fallback ?? null
+	if (!page) return children ?? meta?.loading ?? fallback ?? null
 
 	return (
-		<Suspense fallback={fallback ?? children ?? null}>
+		<Suspense fallback={meta?.loading ?? fallback ?? children ?? null}>
 			<Head metadata={page.metadata} url={page.url} clientCss={page.clientCss} />
 			{page.root}
 		</Suspense>
@@ -73,9 +98,22 @@ export function LayoutSlot(props: {
 	if (patched) {
 		// Request-time layout nodes have a child slot. The target subtree is
 		// passed separately so the cached node does not own its descendants.
-		return (
+		const meta = segment?.meta.get(props.id)
+		let content = (
 			<ChildContext.Provider value={props.child ?? null}>{patched}</ChildContext.Provider>
 		)
+
+		if (meta?.loading) {
+			content = <Suspense fallback={meta.loading}>{content}</Suspense>
+		}
+
+		if (meta?.errors) {
+			content = (
+				<HttpExceptionBoundary components={meta.errors}>{content}</HttpExceptionBoundary>
+			)
+		}
+
+		return content
 	}
 
 	return props.children ?? null
@@ -108,6 +146,43 @@ export function collectPageSegment(root: ReactNode) {
 	visit(root)
 
 	return page
+}
+
+/**
+ * Collect loading/error metadata attached to segment patch markers.
+ */
+export function collectSegmentMeta(root: ReactNode) {
+	const meta = new Map<string, SegmentMeta>()
+
+	function visit(value: unknown) {
+		if (Array.isArray(value)) {
+			for (const child of value) visit(child)
+			return
+		}
+
+		if (!isValidElement(value)) return
+
+		const props = value.props as {
+			id?: string
+			pprMeta?: true
+			loading?: ReactNode
+			errors?: SegmentMeta['errors']
+			children?: ReactNode
+		}
+
+		if (props.pprMeta === true && typeof props.id === 'string') {
+			meta.set(props.id, {
+				loading: props.loading,
+				errors: props.errors,
+			})
+		}
+
+		visit(props.children)
+	}
+
+	visit(root)
+
+	return meta
 }
 
 /**

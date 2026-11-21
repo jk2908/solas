@@ -5,6 +5,7 @@ import {
 	ChildSlot,
 	LayoutSlot,
 	PageMarker,
+	SegmentMetaMarker,
 	SegmentSlot,
 } from '../browser-router/segment-slot.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
@@ -66,6 +67,7 @@ export function Tree({
 	shell = false,
 	patch = false,
 	layoutFilter,
+	pageId,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
@@ -75,6 +77,7 @@ export function Tree({
 	shell?: boolean
 	patch?: boolean
 	layoutFilter?: string[]
+	pageId?: string | null
 }) {
 	const {
 		layouts,
@@ -100,7 +103,30 @@ export function Tree({
 			if (!Layout) continue
 			if (layoutFilter && (id === null || !layoutFilter.includes(id))) continue
 
+			const Loading = loaders[idx]
+			const Unauthorised = unauthorised[idx]
+			const Forbidden = forbidden[idx]
+			const NotFound = notFounds[idx]
+			const ServerError = serverErrors[idx]
+			const errors = {
+				401: Unauthorised ? <Unauthorised error={UNAUTHORISED_ERROR} /> : null,
+				403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,
+				404: NotFound ? <NotFound error={NOT_FOUND_ERROR} /> : null,
+				500: ServerError ? <ServerError error={SERVER_ERROR} /> : null,
+			}
 			const node = <Layout params={params}>{<ChildSlot />}</Layout>
+
+			if (id) {
+				nodes.push(
+					<SegmentMetaMarker
+						key={`m:${idx}`}
+						id={id}
+						pprMeta
+						loading={Loading ? <Loading /> : undefined}
+						errors={errors}
+					/>,
+				)
+			}
 
 			nodes.push(
 				id ? (
@@ -116,6 +142,29 @@ export function Tree({
 		}
 
 		if (patch && Page) {
+			const Loading = loaders[loaders.length - 1]
+			const Unauthorised = unauthorised[unauthorised.length - 1]
+			const Forbidden = forbidden[forbidden.length - 1]
+			const NotFound = notFounds[notFounds.length - 1]
+			const ServerError = serverErrors[serverErrors.length - 1]
+
+			if (pageId) {
+				nodes.push(
+					<SegmentMetaMarker
+						key="m:page"
+						id={pageId}
+						pprMeta
+						loading={Loading ? <Loading /> : undefined}
+						errors={{
+							401: Unauthorised ? <Unauthorised error={UNAUTHORISED_ERROR} /> : null,
+							403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,
+							404: NotFound ? <NotFound error={NOT_FOUND_ERROR} /> : null,
+							500: ServerError ? <ServerError error={SERVER_ERROR} /> : null,
+						}}
+					/>,
+				)
+			}
+
 			nodes.push(
 				<PageMarker key="page" pprPage>
 					<Page params={params} />
@@ -146,7 +195,9 @@ export function Tree({
 	if (shell) {
 		const Loading = loaders[loaders.length - 1] ?? loaders[0] ?? null
 
-		inner = <SegmentSlot fallback={Loading ? <Loading /> : null} />
+		inner = (
+			<SegmentSlot id={pageId ?? undefined} fallback={Loading ? <Loading /> : null} />
+		)
 	} else if (error && isHttpException(error)) {
 		const Exception =
 			httpExceptionMap[error.status].slice(0, depth + 1).findLast(e => e !== null) ??
@@ -160,7 +211,7 @@ export function Tree({
 		)
 	} else if (Page) {
 		inner = (
-			<SegmentSlot>
+			<SegmentSlot id={pageId ?? undefined}>
 				<Page params={params} />
 			</SegmentSlot>
 		)

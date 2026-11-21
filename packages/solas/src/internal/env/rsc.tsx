@@ -424,6 +424,7 @@ async function createPayload({
 			shell={shell && !patchSegment}
 			patch={patchSegment}
 			layoutFilter={patchLayouts}
+			pageId={match.paths.page}
 		/>
 	)
 
