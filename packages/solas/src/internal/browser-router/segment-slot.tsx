@@ -19,6 +19,12 @@ export type SegmentMeta = {
 	head?: Metadata.Item | Promise<Metadata.Item>
 }
 
+export type SegmentReference = {
+	kind: 'layout' | 'page'
+	id: string
+	meta?: SegmentMeta
+}
+
 export type SegmentState = {
 	page: RscPayload | null
 	layouts: Map<string, ReactNode>
@@ -39,24 +45,8 @@ export function ChildSlot() {
 /**
  * Marks the page root inside a combined page/layout segment patch.
  */
-export function PageMarker({ children }: { pprPage?: true; children?: ReactNode }) {
-	return children
-}
-
-export function SegmentMetaMarker({
-	id: _id,
-	pprMeta: _pprMeta,
-	loading: _loading,
-	errors: _errors,
-	head: _head,
-}: {
-	id: string
-	pprMeta?: true
-	loading?: ReactNode
-	errors?: SegmentMeta['errors']
-	head?: SegmentMeta['head']
-}) {
-	return null
+export function PageMarker(props: { segment: SegmentReference; children?: ReactNode }) {
+	return props.children
 }
 
 /**
@@ -71,9 +61,9 @@ export function SegmentSlot({
 	fallback?: ReactNode
 	children?: ReactNode
 }) {
-	const segment = useContext(SegmentContext)
-	const page = segment?.page
-	const meta = id ? segment?.meta.get(id) : undefined
+	const context = useContext(SegmentContext)
+	const page = context?.page
+	const meta = id ? context?.meta.get(id) : undefined
 
 	if (!page) return children ?? meta?.loading ?? fallback ?? null
 
@@ -90,17 +80,17 @@ export function SegmentSlot({
  */
 export function LayoutSlot(props: {
 	id: string
-	pprLayout?: true
+	segment?: SegmentReference
 	child?: ReactNode
 	children?: ReactNode
 }) {
-	const segment = useContext(SegmentContext)
-	const patched = segment?.layouts.get(props.id)
+	const context = useContext(SegmentContext)
+	const patched = context?.layouts.get(props.id)
 
 	if (patched) {
 		// Request-time layout nodes have a child slot. The target subtree is
 		// passed separately so the cached node does not own its descendants.
-		const meta = segment?.meta.get(props.id)
+		const meta = context?.meta.get(props.id)
 		let content = (
 			<ChildContext.Provider value={props.child ?? null}>{patched}</ChildContext.Provider>
 		)
@@ -121,70 +111,55 @@ export function LayoutSlot(props: {
 	return props.children ?? null
 }
 
+function walkSegments(
+	root: ReactNode,
+	visit: (
+		value: React.ReactElement<{ segment?: SegmentReference; children?: ReactNode }>,
+	) => false | void,
+) {
+	if (Array.isArray(root)) {
+		for (const child of root) walkSegments(child, visit)
+		return
+	}
+
+	if (!isValidElement(root)) return
+
+	const value = root as React.ReactElement<{
+		segment?: SegmentReference
+		children?: ReactNode
+	}>
+
+	if (visit(value) === false) return
+
+	walkSegments(value.props.children ?? null, visit)
+}
+
 /**
  * Find the page root inside a combined page/layout segment patch.
  */
 export function collectPageSegment(root: ReactNode) {
 	let page: ReactNode = null
 
-	function visit(value: unknown) {
-		if (Array.isArray(value)) {
-			for (const child of value) visit(child)
-			return
-		}
+	walkSegments(root, value => {
+		if (value.props.segment?.kind !== 'page') return
 
-		if (!isValidElement(value)) return
-
-		const props = value.props as { pprPage?: true; children?: ReactNode }
-
-		if (props.pprPage === true) {
-			page = props.children ?? null
-			return
-		}
-
-		visit(props.children)
-	}
-
-	visit(root)
+		page = value.props.children ?? null
+		return false
+	})
 
 	return page
 }
 
 /**
- * Collect loading/error metadata attached to segment patch markers.
+ * Collect loading/error/head metadata attached to segment patch nodes.
  */
 export function collectSegmentMeta(root: ReactNode) {
 	const meta = new Map<string, SegmentMeta>()
 
-	function visit(value: unknown) {
-		if (Array.isArray(value)) {
-			for (const child of value) visit(child)
-			return
-		}
-
-		if (!isValidElement(value)) return
-
-		const props = value.props as {
-			id?: string
-			pprMeta?: true
-			loading?: ReactNode
-			errors?: SegmentMeta['errors']
-			head?: SegmentMeta['head']
-			children?: ReactNode
-		}
-
-		if (props.pprMeta === true && typeof props.id === 'string') {
-			meta.set(props.id, {
-				loading: props.loading,
-				errors: props.errors,
-				head: props.head,
-			})
-		}
-
-		visit(props.children)
-	}
-
-	visit(root)
+	walkSegments(root, value => {
+		const segment = value.props.segment
+		if (segment?.meta) meta.set(segment.id, segment.meta)
+	})
 
 	return meta
 }
@@ -195,28 +170,10 @@ export function collectSegmentMeta(root: ReactNode) {
 export function collectLayoutSegments(root: ReactNode) {
 	const layouts = new Map<string, ReactNode>()
 
-	function visit(value: unknown) {
-		if (Array.isArray(value)) {
-			for (const child of value) visit(child)
-			return
-		}
-
-		if (!isValidElement(value)) return
-
-		const props = value.props as {
-			id?: string
-			pprLayout?: true
-			children?: ReactNode
-		}
-
-		if (props.pprLayout === true && typeof props.id === 'string') {
-			layouts.set(props.id, props.children)
-		}
-
-		visit(props.children)
-	}
-
-	visit(root)
+	walkSegments(root, value => {
+		const segment = value.props.segment
+		if (segment?.kind === 'layout') layouts.set(segment.id, value.props.children)
+	})
 
 	return layouts
 }
