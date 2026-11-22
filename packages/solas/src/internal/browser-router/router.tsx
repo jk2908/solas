@@ -442,9 +442,13 @@ export function BrowserRouterProvider({
 							? Number.POSITIVE_INFINITY
 							: now + (cache?.layouts ?? routerCache.ttl)
 					const values = new Map<string, React.ReactNode>()
+					const dynamic = new Set(cache?.dynamicLayouts ?? [])
+					let dynamicChain = false
 
 					for (const id of targetIds) {
-						const cached = layoutCache.current.get(id, params)
+						if (dynamic.has(id)) dynamicChain = true
+
+						const cached = dynamicChain ? undefined : layoutCache.current.get(id, params)
 
 						if (cached) {
 							values.set(id, cached.value)
@@ -456,7 +460,12 @@ export function BrowserRouterProvider({
 						if (value === undefined) continue
 
 						values.set(id, value)
-						layoutCache.current.set(id, params, value, { expiresAt, path })
+
+						// Dynamic layouts and their descendants are request data,
+						// not static shell nodes.
+						if (!dynamicChain) {
+							layoutCache.current.set(id, params, value, { expiresAt, path })
+						}
 					}
 
 					if (values.size > 0) setLayouts(values)
@@ -739,7 +748,13 @@ export function BrowserRouterProvider({
 					? Number.POSITIVE_INFINITY
 					: now + (patch.cache?.layouts ?? routerCache.ttl)
 
+			const dynamic = new Set(patch.cache?.dynamicLayouts ?? [])
+			let dynamicChain = false
+
 			for (const id of targetIds) {
+				if (dynamic.has(id)) dynamicChain = true
+				if (dynamicChain) continue
+
 				if (layoutCache.current.get(id, patch.params)) continue
 
 				const value = collected.layouts.get(id)

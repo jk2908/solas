@@ -79,6 +79,7 @@ export type RscPayload = {
 	cache?: {
 		layouts?: number | null
 		page?: number | null
+		dynamicLayouts?: string[]
 		invalidatedPaths?: { path: string; scope: 'page' | 'layout' }[]
 	}
 	url: {
@@ -179,6 +180,7 @@ function requiredLayoutIds(
 	state: ReturnType<typeof parseRouterState>,
 	layoutIds: (string | null)[],
 	params: Record<string, string | string[]> | undefined,
+	dynamicLayouts: string[] = [],
 ) {
 	const target = layoutIds.filter((id): id is string => typeof id === 'string')
 
@@ -189,6 +191,7 @@ function requiredLayoutIds(
 		.map(segment => segment.id)
 	const paramsChanged = !sameParams(state.params, params)
 	const cached = new Set(state.cachedLayouts ?? [])
+	const dynamic = new Set(dynamicLayouts)
 
 	let firstChanged = target.length
 
@@ -201,9 +204,13 @@ function requiredLayoutIds(
 		}
 	}
 
-	return target.filter(
-		(id, index) => paramsChanged || index >= firstChanged || !cached.has(id),
-	)
+	let dynamicChain = false
+
+	return target.filter((id, index) => {
+		if (dynamic.has(id)) dynamicChain = true
+
+		return paramsChanged || dynamicChain || index >= firstChanged || !cached.has(id)
+	})
 }
 
 /**
@@ -299,9 +306,15 @@ async function createPayload({
 	// route params can have a null prototype; normalise before sending them over
 	// the RSC boundary
 	const payloadParams = match ? { ...match.params } : undefined
+	const dynamicLayouts =
+		patchSegment && match
+			? await Prerender.loadShell(pathname, assets).then(shell =>
+					shell ? Prerender.getDynamicLayouts(shell) : [],
+				)
+			: []
 	const patchLayouts =
 		patchSegment && match
-			? requiredLayoutIds(routerState, match.paths.layouts, match.params)
+			? requiredLayoutIds(routerState, match.paths.layouts, match.params, dynamicLayouts)
 			: undefined
 	const segmentHeads =
 		patchSegment && match?.metadataSegments
@@ -319,7 +332,6 @@ async function createPayload({
 		match && shell && (prefetch || shellSegment)
 			? await Prerender.loadShell(pathname, assets)
 			: null
-
 	if (shellArtifact) {
 		const encoder = new TextEncoder()
 
@@ -444,6 +456,7 @@ async function createPayload({
 		params: payloadParams,
 		cache: {
 			...(patchSegment ? { layouts: null, page: DEFAULT_PAGE_STALE_MS } : {}),
+			...(dynamicLayouts.length > 0 ? { dynamicLayouts } : {}),
 			...(invalidatedPaths && invalidatedPaths.length > 0 ? { invalidatedPaths } : {}),
 		},
 		url: {

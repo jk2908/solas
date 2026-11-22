@@ -570,3 +570,63 @@ export async function* run(
 		enqueue()
 	}
 }
+
+/**
+ * Find layout IDs whose shell child was postponed. These layouts are dynamic
+ * at runtime and must not be treated as permanently static by the client.
+ */
+export function getDynamicLayouts(shell: string) {
+	const rows = new Map<string, unknown>()
+
+	for (const line of shell.split('\n')) {
+		const separator = line.indexOf(':')
+		if (separator <= 0) continue
+
+		const id = line.slice(0, separator)
+		if (!/^[0-9a-f]+$/.test(id)) continue
+
+		try {
+			rows.set(id, JSON.parse(line.slice(separator + 1)))
+		} catch {
+			// ignore non-json rows
+		}
+	}
+
+	const dynamic = new Set<string>()
+	const seen = new Set<unknown>()
+
+	function visitElement(props: Record<string, unknown>) {
+		const id = props.id
+
+		for (const child of [props.child, props.children]) {
+			if (typeof id !== 'string' || typeof child !== 'string') continue
+			if (!child.startsWith('$L')) continue
+
+			const childId = child.slice(2)
+			const row = rows.get(childId)
+			if (!rows.has(childId) || row === null) dynamic.add(id)
+		}
+
+		visit(props)
+	}
+
+	function visit(value: unknown) {
+		if (!value || typeof value !== 'object' || seen.has(value)) return
+		seen.add(value)
+
+		if (Array.isArray(value)) {
+			if (value[0] === '$' && value[3] && typeof value[3] === 'object') {
+				visitElement(value[3] as Record<string, unknown>)
+			}
+
+			for (const item of value) visit(item)
+			return
+		}
+
+		for (const item of Object.values(value)) visit(item)
+	}
+
+	for (const row of rows.values()) visit(row)
+
+	return [...dynamic]
+}

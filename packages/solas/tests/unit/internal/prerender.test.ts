@@ -14,6 +14,7 @@ import {
 	loadMetadata,
 	loadPostponedState,
 	loadPrelude,
+	getDynamicLayouts,
 	loadShell,
 	Postponed,
 	staticRoutePath,
@@ -511,5 +512,19 @@ describe('Prerender', () => {
 				}
 			})
 		})
+	})
+})
+
+describe('getDynamicLayouts', () => {
+	it('finds postponed layout children', () => {
+		const shell = [
+			'3:I[..."LayoutSlot",1]',
+			'0:{"root":["$","$L3",null,{"id":"static","child":"$L4"}]}',
+			'4:["$","div",null,{"children":"static"}]',
+			'5:{"root":["$","$L3",null,{"id":"dynamic","child":"$L6"}]}',
+			'6:null',
+		].join('\n')
+
+		expect(getDynamicLayouts(shell)).toEqual(['dynamic'])
 	})
 })
