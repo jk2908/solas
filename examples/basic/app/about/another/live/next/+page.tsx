@@ -5,12 +5,15 @@ import { dynamic } from '@jk2908/solas/server'
 
 export const prerender = 'ppr'
 
+const STATIC_PAGE_TIMESTAMP = Date.now()
+
 export default function Page() {
 	return (
 		<>
 			<section>
 				<h2>Next static live page shell</h2>
 				<div>This is a different page under the same dynamic live layout.</div>
+				<div>Static next page timestamp: {STATIC_PAGE_TIMESTAMP}</div>
 			</section>
 
 			<section>

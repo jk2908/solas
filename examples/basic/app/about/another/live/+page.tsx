@@ -5,6 +5,8 @@ import { dynamic } from '@jk2908/solas/server'
 
 export const prerender = 'ppr'
 
+const STATIC_PAGE_TIMESTAMP = Date.now()
+
 export default function Page() {
 	return (
 		<>
@@ -14,6 +16,7 @@ export default function Page() {
 					This text is in the page shell. It should be visible before the dynamic page
 					data arrives.
 				</div>
+				<div>Static live page timestamp: {STATIC_PAGE_TIMESTAMP}</div>
 			</section>
 
 			<section>

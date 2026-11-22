@@ -7,12 +7,15 @@ import { ClientButton } from '../client-button.js'
 
 export const prerender = 'ppr'
 
+const STATIC_PAGE_TIMESTAMP = Date.now()
+
 export default function Page() {
 	return (
 		<>
 			<section>
 				<h2>Static PPR page</h2>
 				<div>Some page data — this is part of the prerendered page shell.</div>
+				<div>Static page timestamp: {STATIC_PAGE_TIMESTAMP}</div>
 			</section>
 
 			<section>
