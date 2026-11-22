@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 
+import { Link } from '@jk2908/solas/router'
 import { dynamic, headers, url } from '@jk2908/solas/server'
 
 import { ClientButton } from '../client-button.js'
@@ -22,6 +23,9 @@ export default function Page() {
 			</Suspense>
 
 			<ClientButton />
+			<Link href="/about/another/live" prefetch="hover">
+				Live PPR route
+			</Link>
 		</>
 	)
 }
