@@ -204,13 +204,10 @@ function requiredLayoutIds(
 		}
 	}
 
-	let dynamicChain = false
-
-	return target.filter((id, index) => {
-		if (dynamic.has(id)) dynamicChain = true
-
-		return paramsChanged || dynamicChain || index >= firstChanged || !cached.has(id)
-	})
+	return target.filter(
+		(id, index) =>
+			paramsChanged || dynamic.has(id) || index >= firstChanged || !cached.has(id),
+	)
 }
 
 /**
