@@ -7,7 +7,11 @@ export default async function Layout({ children }: { children: React.ReactNode }
 
 	return (
 		<div>
-			<div>Dynamic layout rendered at {Date.now()}</div>
+			<div>
+				<strong>Dynamic layout</strong> — rendered for this request. The static about
+				layouts above are reused.
+			</div>
+			<div>Dynamic layout timestamp: {Date.now()}</div>
 			{children}
 		</div>
 	)

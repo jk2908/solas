@@ -10,22 +10,29 @@ export const prerender = 'ppr'
 export default function Page() {
 	return (
 		<>
-			<div>Some page data</div>
+			<section>
+				<h2>Static PPR page</h2>
+				<div>Some page data — this is part of the prerendered page shell.</div>
+			</section>
 
-			<Suspense fallback={<div>Loading...</div>}>
-				<D1 />
-			</Suspense>
-
-			<D2 />
-
-			<Suspense fallback={<div>Loading...</div>}>
-				<D3 />
-			</Suspense>
+			<section>
+				<h2>Dynamic page sections</h2>
+				<Suspense fallback={<div>Loading dynamic section A...</div>}>
+					<D1 />
+				</Suspense>
+				<D2 />
+				<Suspense fallback={<div>Loading dynamic section B...</div>}>
+					<D3 />
+				</Suspense>
+			</section>
 
 			<ClientButton />
-			<Link href="/about/another/live" prefetch="hover">
-				Live PPR route
-			</Link>
+
+			<nav>
+				<Link href="/about/another/live" prefetch="hover">
+					Open the live dynamic PPR demo
+				</Link>
+			</nav>
 		</>
 	)
 }
@@ -38,11 +45,11 @@ async function D1() {
 	await dynamic()
 	await demoDelay()
 
-	return <div>{Date.now()}</div>
+	return <div>Dynamic A rendered at {Date.now()}</div>
 }
 
 function D2() {
-	return <div>{Date.now()}</div>
+	return <div>Server value rendered at {Date.now()}</div>
 }
 
 async function D3() {

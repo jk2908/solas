@@ -3,7 +3,10 @@ export const prerender = 'ppr'
 export default function Layout({ children }: { children: React.ReactNode }) {
 	return (
 		<div>
-			I am the another layout
+			<div>
+				<strong>Static another layout</strong> — this stays mounted while the live subtree
+				changes.
+			</div>
 			{children}
 		</div>
 	)

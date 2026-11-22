@@ -7,17 +7,29 @@ export const prerender = 'ppr'
 
 export default function Page() {
 	return (
-		<div>
-			<div>Static PPR page content</div>
+		<>
+			<section>
+				<h2>Static live page shell</h2>
+				<div>
+					This text is in the page shell. It should be visible before the dynamic page
+					data arrives.
+				</div>
+			</section>
 
-			<Suspense fallback={<div>Loading the dynamic page...</div>}>
-				<DynamicPageData />
-			</Suspense>
+			<section>
+				<h2>Dynamic live page section</h2>
+				<Suspense fallback={<div>Loading dynamic page data...</div>}>
+					<DynamicPageData />
+				</Suspense>
+			</section>
 
-			<Link href="/about/another/live/next" prefetch="hover">
-				Go to the next live page
-			</Link>
-		</div>
+			<nav>
+				<Link href="/about/another/live/next" prefetch="hover">
+					Go to the next live page
+				</Link>
+				<Link href="/about/another/static">Open the static page</Link>
+			</nav>
+		</>
 	)
 }
 
