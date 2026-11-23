@@ -49,6 +49,14 @@ export function PageMarker(props: { segment: SegmentReference; children?: ReactN
 }
 
 /**
+ * Marks a segment that called `dynamic()` during the current request.
+ */
+export function DynamicSegmentMarker(props: { id: string; dynamic?: true }) {
+	void props
+	return null
+}
+
+/**
  * A node in the server patch tree. It is only collected client-side.
  */
 export function PatchNode(props: {
@@ -133,6 +141,8 @@ function walkSegments(
 			segment?: SegmentReference
 			children?: ReactNode
 			node?: ReactNode
+			id?: string
+			dynamic?: true
 		}>,
 	) => false | void,
 ) {
@@ -147,6 +157,8 @@ function walkSegments(
 		segment?: SegmentReference
 		children?: ReactNode
 		node?: ReactNode
+		id?: string
+		dynamic?: true
 	}>
 
 	if (visit(value) === false) return
@@ -165,24 +177,28 @@ export function collectSegments(
 ) {
 	const layouts = new Map<string, ReactNode>()
 	const meta = new Map<string, SegmentMeta>()
+	const dynamic = new Set<string>()
 	const targets = new Set(layoutIds)
 	let page: ReactNode = null
 
 	walkSegments(root, value => {
-		const segment = value.props.segment
+		const props = value.props
+		if (props.dynamic === true && typeof props.id === 'string') dynamic.add(props.id)
+
+		const segment = props.segment
 		if (!segment) return
 
 		if (segment.meta) meta.set(segment.id, segment.meta)
 
 		if (segment.id === pageId) {
-			page = value.props.children ?? null
+			page = props.children ?? null
 			return false
 		}
 
 		if (targets.has(segment.id)) {
-			layouts.set(segment.id, value.props.children)
+			layouts.set(segment.id, props.children)
 		}
 	})
 
-	return { page, layouts, meta }
+	return { page, layouts, meta, dynamic }
 }

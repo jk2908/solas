@@ -4,11 +4,14 @@ import type { Metadata } from '../metadata.js'
 import type { Resolver } from '../resolver.js'
 import {
 	ChildSlot,
+	DynamicSegmentMarker,
 	LayoutSlot,
 	PageMarker,
 	PatchNode,
 	SegmentSlot,
 } from '../browser-router/segment-slot.js'
+import { RequestContext } from '../env/request-context.js'
+import { SegmentContext } from '../env/segment-context.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import {
 	HttpException,
@@ -23,6 +26,70 @@ const UNAUTHORISED_ERROR = new HttpException(401, 'Unauthorised')
 const FORBIDDEN_ERROR = new HttpException(403, 'Forbidden')
 const NOT_FOUND_ERROR = new HttpException(404, 'Not found')
 const SERVER_ERROR = new HttpException(500, 'Internal Server Error')
+
+/**
+ * Resolve a lazy route component without asking the router to invent a
+ * component wrapper.
+ */
+async function resolveComponent(Component: unknown) {
+	if (typeof Component === 'function') return Component as React.ComponentType<any>
+
+	const payload = (Component as { _payload?: { _result?: unknown } })?._payload
+
+	if (payload && typeof payload._result === 'function') {
+		const result = await (payload._result as () => Promise<any>)()
+		const resolved = result?.default ?? result
+		if (typeof resolved === 'function') return resolved as React.ComponentType<any>
+	}
+
+	return null
+}
+
+/**
+ * Render one segment under its own work context so `dynamic()` can associate
+ * the request with that segment.
+ */
+async function SegmentScope({
+	id,
+	Component,
+	params,
+	children,
+}: {
+	id: string
+	Component: unknown
+	params: Match['params']
+	children: React.ReactNode
+}) {
+	const request = RequestContext.tryUse()
+	if (!request) throw new Error('Missing request context for segment render')
+
+	const cache = request.cache
+	cache.dynamicSegments ??= new Set()
+
+	const Resolved = await resolveComponent(Component)
+
+	if (!Resolved) {
+		const Fallback = Component as React.ComponentType<any>
+		return <Fallback params={params}>{children}</Fallback>
+	}
+
+	const output = await SegmentContext.write({ id }, () =>
+		(
+			Resolved as (props: {
+				params?: Match['params']
+				children?: React.ReactNode
+			}) => React.ReactNode
+		)({ params, children }),
+	)
+	const dynamic = cache.dynamicSegments.has(id)
+
+	return (
+		<>
+			{dynamic ? <DynamicSegmentMarker id={id} dynamic /> : null}
+			{output}
+		</>
+	)
+}
 
 /**
  * Render the resolved route tree for a matched page.
@@ -129,9 +196,9 @@ export function Tree({
 							head,
 						},
 					}}>
-					<Layout params={params}>
+					<SegmentScope id={id} Component={Layout} params={params}>
 						<ChildSlot />
-					</Layout>
+					</SegmentScope>
 				</LayoutSlot>,
 			)
 		}
