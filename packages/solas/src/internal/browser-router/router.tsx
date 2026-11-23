@@ -389,17 +389,17 @@ export function BrowserRouterProvider({
 			setSegmentMeta(new Map())
 		}
 
-		function onRevalidate(event: Event) {
-			const paths = readInvalidatedPaths(
-				(event as CustomEvent<{ paths?: unknown }>).detail?.paths,
-			)
+		function onRevalidate(e: Event) {
+			if (!(e instanceof CustomEvent)) return
+
+			const paths = readInvalidatedPaths(e.detail?.paths)
 
 			clear(paths)
 			channel?.postMessage({ paths })
 		}
 
-		function onChannelMessage(event: MessageEvent<{ paths?: unknown }>) {
-			clear(readInvalidatedPaths(event.data?.paths))
+		function onChannelMessage(e: MessageEvent<{ paths?: unknown }>) {
+			clear(readInvalidatedPaths(e.data?.paths))
 		}
 
 		const hot = import.meta.hot

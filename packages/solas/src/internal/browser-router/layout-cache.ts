@@ -122,9 +122,10 @@ export class LayoutCache {
 
 	/**
 	 * Drop layouts from a path. Layout scope also drops descendants.
+	 * Page-scoped invalidation is handled by the route/page cache.
 	 */
 	invalidatePath(path: string, scope: 'page' | 'layout') {
-		if (scope === 'page') return
+		if (scope !== 'layout') return
 
 		for (const [key, entry] of this.#entries) {
 			if (
