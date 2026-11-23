@@ -244,6 +244,8 @@ export function BrowserRouterProvider({
 	url,
 	metadata,
 	clientCss,
+	segments,
+	params,
 	config = {},
 }: {
 	children: React.ReactNode
@@ -256,6 +258,8 @@ export function BrowserRouterProvider({
 	}
 	metadata?: RscPayload['metadata']
 	clientCss?: RscPayload['clientCss']
+	segments?: RscPayload['segments']
+	params?: RscPayload['params']
 	config?: BrowserConfig
 }) {
 	const id = useRef(0)
@@ -279,6 +283,7 @@ export function BrowserRouterProvider({
 		() => new Map(),
 	)
 	const layoutCache = useRef(new LayoutCache())
+	const routerState = useRef({ segments, params })
 
 	useEffect(() => {
 		const clear = (event?: Event) => {
@@ -400,6 +405,7 @@ export function BrowserRouterProvider({
 
 				let payload: RscPayload | undefined
 				let resolvedPath = path
+				const previousState = routerState.current
 
 				setSegmentPage(null)
 				setLayouts(new Map())
@@ -501,8 +507,10 @@ export function BrowserRouterProvider({
 						headers: {
 							[`x-${Config.SLUG}-segment`]: 'patch',
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
-								segments: payload?.segments ? describeSegments(payload.segments) : [],
-								params: payload?.params,
+								segments: previousState.segments
+									? describeSegments(previousState.segments)
+									: [],
+								params: previousState.params,
 								cachedLayouts: getCachedLayoutIds(),
 							}),
 						},
@@ -671,6 +679,10 @@ export function BrowserRouterProvider({
 				focusPending.current = scrollIntent !== 'none' && !hash
 
 				setPayload?.(payload)
+				routerState.current = {
+					segments: payload?.segments,
+					params: payload?.params,
+				}
 				applyScroll(scrollIntent, hash)
 
 				// notify listeners only after the payload has been applied
@@ -715,7 +727,7 @@ export function BrowserRouterProvider({
 	 * Fetch a page/layout patch in the background and warm the segment caches.
 	 */
 	const prefetchSegmentPatch = useCallback(
-		async (key: string, shell: RscPayload) => {
+		async (key: string) => {
 			if (routerCache.getSegment(key)) return
 
 			const cachedLayouts = layoutCache.current.ids()
@@ -725,8 +737,10 @@ export function BrowserRouterProvider({
 					[`x-${Config.SLUG}-segment`]: 'patch',
 					[`x-${Config.SLUG}-prefetch`]: '1',
 					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
-						segments: shell.segments ? describeSegments(shell.segments) : [],
-						params: shell.params,
+						segments: routerState.current.segments
+							? describeSegments(routerState.current.segments)
+							: [],
+						params: routerState.current.params,
 						cachedLayouts: [...cachedLayouts],
 					}),
 				},
@@ -809,7 +823,7 @@ export function BrowserRouterProvider({
 						void decoded.payload
 							.then(payload => {
 								if (payload.segmentable) {
-									return prefetchSegmentPatch(key, payload)
+									return prefetchSegmentPatch(key)
 								}
 							})
 							.catch(() => {})

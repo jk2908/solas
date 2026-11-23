@@ -33,7 +33,9 @@ function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
 			<BrowserRouterProvider
 				url={payload.url}
 				metadata={payload.metadata}
-				clientCss={payload.clientCss}>
+				clientCss={payload.clientCss}
+				segments={payload.segments}
+				params={payload.params}>
 				<ErrorBoundary fallback={null}>
 					<Suspense fallback={null}>{payload.root}</Suspense>
 				</ErrorBoundary>
