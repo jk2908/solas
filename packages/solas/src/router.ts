@@ -1,5 +1,4 @@
 export { Link } from './internal/browser-router/link.js'
-export { solasFetch } from './internal/browser-router/fetch.js'
 export { Announcer } from './internal/render/announcer.js'
 export { withBase } from './internal/browser-router/shared.js'
 export {

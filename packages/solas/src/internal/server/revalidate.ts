@@ -21,7 +21,7 @@ export function runWithRevalidations<T>(fn: (paths: RevalidatedPath[]) => T): T 
 export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') {
 	if (!path) return
 
-	const paths = RevalidationContext.get()
+	const paths = RevalidationContext.tryUse()
 
 	if (!paths) {
 		throw new Error('revalidatePath must be called during a request')
@@ -37,7 +37,7 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
  * Drain paths invalidated during the current request.
  */
 export function drainRevalidatedPaths() {
-	const paths = RevalidationContext.get()
+	const paths = RevalidationContext.tryUse()
 	if (!paths) return []
 
 	return paths.splice(0)

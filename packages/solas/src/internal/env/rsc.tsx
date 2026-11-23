@@ -41,7 +41,6 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import { isSolasResponse } from '../server/response.js'
 import { drainRevalidatedPaths, runWithRevalidations } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
@@ -1043,13 +1042,6 @@ export function createHandler(
 			const res = await dispatchRequest(req)
 
 			if (paths.length === 0) return res
-
-			if (!isSolasResponse(res)) {
-				logger.warn(
-					'[revalidatePath] route handler returned a plain Response; invalidations were discarded',
-				)
-				return res
-			}
 
 			const headers = new Headers(res.headers)
 			headers.set(Config.INVALIDATED_PATHS_HEADER, JSON.stringify(paths))
