@@ -79,7 +79,7 @@ function getPayloadUrl(path: string) {
 }
 
 /**
- * Read and decode a prefetched RSC response.
+ * Read the route mode advertised by an RSC response.
  */
 function readRouteType(res: Response) {
 	const type = res.headers.get(`x-${Config.SLUG}-route-type`)
@@ -230,6 +230,47 @@ function applyScroll(intent: BrowserRouter.ScrollIntent, hash: string) {
 	window.scrollTo(0, 0)
 }
 
+/**
+ * Resolve the layout nodes needed by a target chain. Cached nodes are reused;
+ * request-time nodes are stored according to the payload cache policy.
+ */
+function resolveLayoutNodes(
+	cache: LayoutCache,
+	layoutNodes: Map<string, React.ReactNode>,
+	layoutIds: string[],
+	params: RscPayload['params'],
+	cachePolicy: RscPayload['cache'],
+	path: string,
+	defaultTtl: number,
+) {
+	const expiresAt =
+		cachePolicy?.layouts === null
+			? Number.POSITIVE_INFINITY
+			: Date.now() + (cachePolicy?.layouts ?? defaultTtl)
+	const dynamic = new Set(cachePolicy?.dynamicLayouts ?? [])
+	const values = new Map<string, React.ReactNode>()
+
+	for (const id of layoutIds) {
+		const isDynamic = dynamic.has(id)
+		const cached = isDynamic ? undefined : cache.get(id, params)
+
+		if (cached) {
+			values.set(id, cached.value)
+			continue
+		}
+
+		const value = layoutNodes.get(id)
+		if (value === undefined) continue
+
+		values.set(id, value)
+
+		// dynamic layouts are request data; their static descendants stay cacheable
+		if (!isDynamic) cache.set(id, params, value, { expiresAt, path })
+	}
+
+	return values
+}
+
 export function BrowserRouterProvider({
 	children,
 	setPayload,
@@ -277,6 +318,11 @@ export function BrowserRouterProvider({
 	)
 	const layoutCache = useRef(new LayoutCache())
 	const routerState = useRef({ tree: buildRouterTree(segments), params })
+
+	// keep the request-diff state aligned with action payloads and shell updates
+	useEffect(() => {
+		routerState.current = { tree: buildRouterTree(segments), params }
+	}, [segments, params])
 
 	useEffect(() => {
 		const clear = (event?: Event) => {
@@ -367,7 +413,7 @@ export function BrowserRouterProvider({
 				return `${entry.pathname}${entry.search}`
 			}
 
-			const replace = opts?.replace ?? DEFAULT_GO_CONFIG.replace
+			const replace = opts.replace ?? DEFAULT_GO_CONFIG.replace
 
 			// stop the previous navigation fetch before starting another
 			controller.current?.abort()
@@ -405,70 +451,6 @@ export function BrowserRouterProvider({
 				setSegmentMeta(new Map())
 
 				/**
-				 * Read cached layout nodes for a target chain and report whether
-				 * any are missing.
-				 */
-				function getCachedLayouts(
-					layoutIds: (string | null)[] | undefined,
-					params: Record<string, string | string[]> | undefined,
-				) {
-					const targetIds = (layoutIds ?? []).filter(
-						(id): id is string => typeof id === 'string',
-					)
-
-					return layoutCache.current.getValues(targetIds, params)
-				}
-
-				/**
-				 * List cached layout IDs so the server can diff the target tree.
-				 */
-				function getCachedLayoutIds() {
-					return layoutCache.current.ids()
-				}
-
-				/**
-				 * Store layout nodes from a patch and expose them to the slots.
-				 */
-				function applyLayoutSegments(
-					layouts: Map<string, React.ReactNode>,
-					targetIds: string[],
-					params?: Record<string, string | string[]>,
-					cache?: RscPayload['cache'],
-				) {
-					const now = Date.now()
-					const expiresAt =
-						cache?.layouts === null
-							? Number.POSITIVE_INFINITY
-							: now + (cache?.layouts ?? routerCache.ttl)
-					const values = new Map<string, React.ReactNode>()
-					const dynamic = new Set(cache?.dynamicLayouts ?? [])
-
-					for (const id of targetIds) {
-						const isDynamic = dynamic.has(id)
-						const cached = isDynamic ? undefined : layoutCache.current.get(id, params)
-
-						if (cached) {
-							values.set(id, cached.value)
-							continue
-						}
-
-						const value = layouts.get(id)
-
-						if (value === undefined) continue
-
-						values.set(id, value)
-
-						// A dynamic layout is request data, but its static child
-						// layouts remain independently cacheable.
-						if (!isDynamic) {
-							layoutCache.current.set(id, params, value, { expiresAt, path })
-						}
-					}
-
-					if (values.size > 0) setLayouts(values)
-				}
-
-				/**
 				 * Fetch one page/layout patch, cache its nodes and commit the page.
 				 */
 				async function loadSegmentPatch() {
@@ -476,8 +458,11 @@ export function BrowserRouterProvider({
 
 					if (cachedPage) {
 						const cachedPayload = cachedPage.value.payload
-						const { values, missing } = getCachedLayouts(
-							cachedPayload.segments?.layouts,
+						const cachedLayoutIds = (cachedPayload.segments?.layouts ?? []).filter(
+							(id): id is string => typeof id === 'string',
+						)
+						const { values, missing } = layoutCache.current.getValues(
+							cachedLayoutIds,
 							cachedPayload.params,
 						)
 
@@ -497,7 +482,7 @@ export function BrowserRouterProvider({
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 								tree: previousState.tree,
 								params: previousState.params,
-								cachedLayouts: getCachedLayoutIds(),
+								cachedLayouts: layoutCache.current.ids(),
 							}),
 						},
 						signal: ctrl.signal,
@@ -519,7 +504,17 @@ export function BrowserRouterProvider({
 					const pagePayload = { ...patch, root: collected.page }
 
 					if (collected.meta.size > 0) setSegmentMeta(collected.meta)
-					applyLayoutSegments(collected.layouts, targetIds, patch.params, patch.cache)
+
+					const values = resolveLayoutNodes(
+						layoutCache.current,
+						collected.layouts,
+						targetIds,
+						patch.params,
+						patch.cache,
+						path,
+						routerCache.ttl,
+					)
+					if (values.size > 0) setLayouts(values)
 					setSegmentPage(collected.page ? pagePayload : null)
 
 					const bytes = await decoded.bytes
@@ -544,12 +539,22 @@ export function BrowserRouterProvider({
 				// ready entries are complete; pending entries can stream their payload
 				if (cached) {
 					try {
-						if (cached.status === 'ready') {
-							const cachedPayload = cached.value.payload
-							const isShell = cached.type === 'ppr' && cachedPayload.segmentable
+						const stream =
+							cached.status === 'ready'
+								? {
+										payload: Promise.resolve(cached.value.payload),
+										url: cached.value.url,
+										type: cached.type,
+									}
+								: await cached.response
+
+						if (stream) {
+							const cachedPayload = await stream.payload
+							const isShell = stream.type === 'ppr' && cachedPayload.segmentable
+
+							payload = cachedPayload
 
 							if (isShell) {
-								payload = cachedPayload
 								setPayload?.(cachedPayload)
 								try {
 									await loadSegmentPatch()
@@ -557,38 +562,11 @@ export function BrowserRouterProvider({
 									// keep the static shell rendered if the page segment fails
 									setSegmentPage(null)
 								}
-							} else {
-								payload = cachedPayload
 							}
 
 							resolvedPath = STATIC
 								? path
-								: (BrowserRouter.toCacheKey(cached.value.url, window.location.origin) ??
-									path)
-						} else if (cached.status === 'pending') {
-							const stream = await cached.response
-
-							if (stream) {
-								const cachedPayload = await stream.payload
-								const isShell = stream.type === 'ppr' && cachedPayload.segmentable
-
-								if (isShell) {
-									payload = cachedPayload
-									setPayload?.(cachedPayload)
-									try {
-										await loadSegmentPatch()
-									} catch {
-										// keep the static shell rendered if the page segment fails
-										setSegmentPage(null)
-									}
-								} else {
-									payload = cachedPayload
-								}
-
-								resolvedPath = STATIC
-									? path
-									: (BrowserRouter.toCacheKey(stream.url, window.location.origin) ?? path)
-							}
+								: (BrowserRouter.toCacheKey(stream.url, window.location.origin) ?? path)
 						}
 					} catch {
 						// fall back to a normal navigation fetch below
@@ -716,8 +694,6 @@ export function BrowserRouterProvider({
 		async (key: string) => {
 			if (routerCache.getSegment(key)) return
 
-			const cachedLayouts = layoutCache.current.ids()
-
 			const res = await performNavigationFetch(key, {
 				headers: {
 					[`x-${Config.SLUG}-segment`]: 'patch',
@@ -725,7 +701,7 @@ export function BrowserRouterProvider({
 					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 						tree: routerState.current.tree,
 						params: routerState.current.params,
-						cachedLayouts: [...cachedLayouts],
+						cachedLayouts: layoutCache.current.ids(),
 					}),
 				},
 			})
@@ -738,26 +714,16 @@ export function BrowserRouterProvider({
 				(id): id is string => typeof id === 'string',
 			)
 			const collected = collectSegments(patch.root, targetIds, patch.segments?.page)
-			const now = Date.now()
-			const expiresAt =
-				patch.cache?.layouts === null
-					? Number.POSITIVE_INFINITY
-					: now + (patch.cache?.layouts ?? routerCache.ttl)
 
-			const dynamic = new Set(patch.cache?.dynamicLayouts ?? [])
-
-			for (const id of targetIds) {
-				if (dynamic.has(id)) continue
-				if (layoutCache.current.get(id, patch.params)) continue
-
-				const value = collected.layouts.get(id)
-				if (value === undefined) continue
-
-				layoutCache.current.set(id, patch.params, value, {
-					expiresAt,
-					path: key,
-				})
-			}
+			resolveLayoutNodes(
+				layoutCache.current,
+				collected.layouts,
+				targetIds,
+				patch.params,
+				patch.cache,
+				key,
+				routerCache.ttl,
+			)
 
 			if (!collected.page) return
 
@@ -921,8 +887,8 @@ export function BrowserRouterProvider({
 			isNavigating,
 			url: {
 				pathname: url.pathname,
-				search: url?.search,
-				hash: url?.hash,
+				search: url.search,
+				hash: url.hash,
 			},
 			history: {
 				entries: history.current.entries,

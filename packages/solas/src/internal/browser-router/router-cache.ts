@@ -28,18 +28,10 @@ export namespace RouterCache {
 		type?: Type
 	}
 
-	export type DecodedResponse = {
-		payload: RscPayload | null
-		url: string
-		bytes: number
-		type: Type
-	}
-
 	type PendingEntry = {
 		kind: 'route'
 		status: 'pending'
 		response: Promise<DecodedStream | null>
-		timer?: ReturnType<typeof setTimeout>
 	}
 
 	type ReadyEntry = {
@@ -254,7 +246,9 @@ export class RouterCache {
 
 	clear() {
 		for (const entry of this.#cache.values()) {
-			if (entry.timer !== undefined) clearTimeout(entry.timer)
+			if (entry.status === 'ready' && entry.timer !== undefined) {
+				clearTimeout(entry.timer)
+			}
 		}
 
 		this.#cache.clear()
@@ -294,8 +288,10 @@ export class RouterCache {
 		const entry = this.#cache.get(key)
 		if (!entry) return
 
-		if (entry.timer !== undefined) clearTimeout(entry.timer)
-		if (entry.status === 'ready') this.#bytes -= entry.value.bytes
+		if (entry.status === 'ready') {
+			if (entry.timer !== undefined) clearTimeout(entry.timer)
+			this.#bytes -= entry.value.bytes
+		}
 
 		this.#cache.delete(key)
 	}

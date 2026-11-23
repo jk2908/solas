@@ -383,14 +383,15 @@ export class Resolver {
 		const segmentSourceStack: Metadata.Source[] = []
 
 		/**
-		 * Keep a running metadata source stack for each layout/page segment.
+		 * Each segment inherits metadata from every layout above it, so keep a
+		 * running stack while walking the route from the shell down to the page.
 		 */
 		function addMetadataSource(source: Metadata.Source, id?: string | null) {
 			metadataSources.push(source)
+			segmentSourceStack.push(source)
 
 			if (!id) return
 
-			segmentSourceStack.push(source)
 			segmentMetadataSources.push({
 				id,
 				sources: [...segmentSourceStack],
@@ -398,10 +399,12 @@ export class Resolver {
 		}
 
 		if (entry.shell) {
+			const shell = entry.shell
+
 			addMetadataSource(
 				{
 					priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
-					load: () => Promise.resolve(entry.shell?.metadata),
+					load: () => Promise.resolve(shell.metadata),
 				},
 				match.paths.layouts[0],
 			)

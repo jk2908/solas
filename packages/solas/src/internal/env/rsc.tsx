@@ -93,6 +93,7 @@ export type RscPayload = {
 const logger = new Logger()
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 const nullBodyStatuses = new Set([101, 204, 205, 304])
+// page patches may change without a path revalidation, so keep them short-lived
 const DEFAULT_PAGE_STALE_MS = 30_000
 
 function normaliseParams(params: Record<string, unknown> | undefined) {
@@ -112,6 +113,22 @@ function sameParams(
 	return JSON.stringify(normaliseParams(a)) === JSON.stringify(normaliseParams(b))
 }
 
+function parseRouterNode(node: unknown): RouterNode | null {
+	if (!node || typeof node !== 'object') return null
+
+	const item = node as { id?: unknown; kind?: unknown; children?: unknown }
+	if (typeof item.id !== 'string') return null
+	if (item.kind !== 'shell' && item.kind !== 'layout' && item.kind !== 'page') {
+		return null
+	}
+
+	const children =
+		item.children === undefined ? undefined : parseRouterNode(item.children)
+	if (item.children !== undefined && !children) return null
+
+	return { id: item.id, kind: item.kind, children: children ?? undefined }
+}
+
 function parseRouterState(value: string | null) {
 	if (!value) return null
 
@@ -122,21 +139,7 @@ function parseRouterState(value: string | null) {
 			cachedLayouts?: unknown
 		}
 
-		function parseNode(node: unknown): RouterNode | null {
-			if (!node || typeof node !== 'object') return null
-			const item = node as { id?: unknown; kind?: unknown; children?: unknown }
-			if (typeof item.id !== 'string') return null
-			if (item.kind !== 'shell' && item.kind !== 'layout' && item.kind !== 'page') {
-				return null
-			}
-
-			const children = item.children === undefined ? undefined : parseNode(item.children)
-			if (item.children !== undefined && !children) return null
-
-			return { id: item.id, kind: item.kind, children: children ?? undefined }
-		}
-
-		const tree = parseNode(parsed.tree)
+		const tree = parseRouterNode(parsed.tree)
 		if (!tree) return null
 
 		let params: Record<string, string | string[]> | undefined
@@ -290,10 +293,7 @@ async function createPayload({
 	// ppr prefetches render the static layout shell with a page slot; dynamic
 	// routes still prefetch in full
 	const shell =
-		(prefetch || shellSegment) &&
-		!patchSegment &&
-		prerenderMode === 'ppr' &&
-		!reconciled?.error
+		(prefetch || shellSegment) && prerenderMode === 'ppr' && !reconciled?.error
 
 	const match = resolver.enhance(reconciled)
 
@@ -306,12 +306,12 @@ async function createPayload({
 	// route params can have a null prototype; normalise before sending them over
 	// the RSC boundary
 	const payloadParams = match ? { ...match.params } : undefined
-	const dynamicLayouts =
-		patchSegment && match
-			? await Prerender.loadShell(pathname, assets).then(shell =>
-					shell ? Prerender.getDynamicLayouts(shell) : [],
-				)
-			: []
+	let dynamicLayouts: string[] = []
+
+	if (patchSegment && match) {
+		const shellPayload = await Prerender.loadShell(pathname, assets)
+		if (shellPayload) dynamicLayouts = Prerender.getDynamicLayouts(shellPayload)
+	}
 	const patchLayouts =
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params, dynamicLayouts)
@@ -329,9 +329,7 @@ async function createPayload({
 	// completed build shells already contain the static layouts, page content
 	// and suspended fallbacks, so navigations can commit them immediately
 	const shellArtifact =
-		match && shell && (prefetch || shellSegment)
-			? await Prerender.loadShell(pathname, assets)
-			: null
+		match && shell ? await Prerender.loadShell(pathname, assets) : null
 	if (shellArtifact) {
 		const encoder = new TextEncoder()
 

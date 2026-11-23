@@ -196,7 +196,7 @@ export function Tree({
 		return buildNode(0) ?? page
 	}
 
-	// build the inner inner (everything after shell)
+	// build everything nested inside the shell
 	let inner: React.ReactNode = null
 
 	// map http status codes to exception components

@@ -76,7 +76,7 @@ export function parsePayloadRows(payload: string) {
 }
 
 /**
- * Complete a buffered ppr payload by resolving postponed lazy references to
+ * Complete a buffered PPR payload by resolving postponed lazy references to
  * their nearest suspense fallback. The result can be used as a standalone
  * prefetch shell without keeping the render stream open.
  */

@@ -76,7 +76,7 @@ export async function postbuild(
 		fs.rm(staticRoot, { recursive: true, force: true }),
 	])
 
-	const artfifactManifest: Prerender.ArtifactManifest = {}
+	const artifactManifest: Prerender.ArtifactManifest = {}
 
 	if (manifest.prerenderRoutes.length > 0) {
 		const concurrency = Prerender.getConcurrency()
@@ -177,14 +177,14 @@ export async function postbuild(
 
 						await Promise.all(writes)
 
-						artfifactManifest[route] = {
+						const files: Prerender.File[] = ['metadata', 'prelude']
+
+						if (artifact.shell !== undefined) files.push('shell')
+						if (artifact.postponed !== undefined) files.push('postponed')
+
+						artifactManifest[route] = {
 							mode: artifact.mode,
-							files: [
-								'metadata',
-								'prelude',
-								...(artifact.shell !== undefined ? (['shell'] as const) : []),
-								...(artifact.postponed !== undefined ? (['postponed'] as const) : []),
-							],
+							files,
 							...hashes,
 						}
 
@@ -214,7 +214,7 @@ export async function postbuild(
 						)
 					}
 
-					artfifactManifest[route] = {
+					artifactManifest[route] = {
 						mode: artifact.mode,
 						files: ['html'],
 						...hashes,
@@ -242,7 +242,7 @@ export async function postbuild(
 		const hasStrictDynamic = scriptSources?.some(
 			value => value.trim().toLowerCase().replace(/^'|'$/g, '') === 'strict-dynamic',
 		)
-		const hasFullPrerender = Object.values(artfifactManifest).some(
+		const hasFullPrerender = Object.values(artifactManifest).some(
 			artifact => artifact.mode === 'full',
 		)
 
@@ -255,14 +255,14 @@ export async function postbuild(
 
 		const styleHashes = [
 			...new Set(
-				Object.values(artfifactManifest).flatMap(artifact => artifact.csp?.style ?? []),
+				Object.values(artifactManifest).flatMap(artifact => artifact.csp?.style ?? []),
 			),
 		]
 
 		let largestRoute = ''
 		let largestSize = 0
 
-		for (const [route, artifact] of Object.entries(artfifactManifest)) {
+		for (const [route, artifact] of Object.entries(artifactManifest)) {
 			const policy = buildPolicy(csp.directives, {
 				nonce: artifact.mode === 'ppr' ? 'x'.repeat(36) : undefined,
 				hashes: {
@@ -337,7 +337,7 @@ export async function postbuild(
 	}
 
 	const runtimeManifest = {
-		artifacts: artfifactManifest,
+		artifacts: artifactManifest,
 		publicFiles: [...manifest.publicFiles, ...generatedPublicFiles],
 		csp,
 		clientCssByRoute,

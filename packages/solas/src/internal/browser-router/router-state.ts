@@ -7,24 +7,22 @@ export type RouterNode = {
 }
 
 /**
- * Turn a linear layout/page descriptor into a router tree.
+ * Turn the linear layout/page descriptor into a nested router tree.
  *
- * The router currently fits the tree — it just was not sending one. Keeping
- * this tree shape makes the patch protocol line up with how layouts compose.
+ * The tree mirrors how layouts compose, so the server can diff a target chain
+ * against the chain already rendered by the client.
  */
 export function buildRouterTree(segments: RscSegment | undefined) {
 	if (!segments) return undefined
 
+	const layoutIds = segments.layouts.filter((id): id is string => id !== null)
 	let node: RouterNode | undefined = segments.page
 		? { id: segments.page, kind: 'page' }
 		: undefined
 
-	for (let index = segments.layouts.length - 1; index >= 0; index--) {
-		const id = segments.layouts[index]
-		if (!id) continue
-
+	for (let index = layoutIds.length - 1; index >= 0; index--) {
 		node = {
-			id,
+			id: layoutIds[index],
 			kind: index === 0 ? 'shell' : 'layout',
 			children: node,
 		}

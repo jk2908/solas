@@ -2,7 +2,8 @@ import { parseSync } from 'oxc-parser'
 
 import * as Config from '../config.js'
 
-type Node = Record<string, any>
+// oxc-parser exposes a JSON AST without types, so probe only the keys we need
+type AstNode = Record<string, any>
 
 /**
  * Reject conditional dynamic() calls in PPR layout modules.
@@ -16,11 +17,11 @@ export function validatePprLayout(file: string, source: string) {
 	const dynamicNames = new Set<string>()
 	const namespaceNames = new Set<string>()
 
-	for (const statement of parsed.program.body as Node[]) {
+	for (const statement of parsed.program.body as AstNode[]) {
 		if (statement.type !== 'ImportDeclaration') continue
 		if (statement.source?.value !== `${Config.PKG_NAME}/server`) continue
 
-		for (const specifier of statement.specifiers as Node[]) {
+		for (const specifier of statement.specifiers as AstNode[]) {
 			if (
 				specifier.type === 'ImportSpecifier' &&
 				specifier.imported?.name === 'dynamic'
@@ -38,7 +39,7 @@ export function validatePprLayout(file: string, source: string) {
 
 	const errors: string[] = []
 
-	function isDynamicCall(callee: Node) {
+	function isDynamicCall(callee: AstNode) {
 		if (callee.type === 'Identifier') return dynamicNames.has(callee.name)
 		if (callee.type !== 'MemberExpression') return false
 		if (callee.computed) return false
@@ -53,12 +54,12 @@ export function validatePprLayout(file: string, source: string) {
 			return
 		}
 
-		const node = value as Node
+		const node = value as AstNode
 
 		if (node.type === 'CallExpression' && isDynamicCall(node.callee) && conditional) {
 			errors.push(
 				`${file}: dynamic() is conditional in a PPR layout. ` +
-					'Use prerender = false for this route or move the dynamic work to the page.',
+					'Use `export const prerender = false` for this route or move the dynamic work to the page.',
 			)
 		}
 
