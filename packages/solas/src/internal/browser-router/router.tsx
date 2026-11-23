@@ -368,19 +368,14 @@ export function BrowserRouterProvider({
 				: new BroadcastChannel(`${Config.SLUG}revalidate`)
 
 		function clear(paths?: InvalidatedPath[]) {
-			let handled = false
-
 			if (paths && paths.length > 0) {
 				for (const item of paths) {
 					routerCache.invalidatePath(item.path, item.scope)
-
 					layoutCache.invalidatePath(item.path, item.scope)
 				}
 
-				handled = true
+				return
 			}
-
-			if (handled) return
 
 			routerCache.clear()
 			layoutCache.clear()
