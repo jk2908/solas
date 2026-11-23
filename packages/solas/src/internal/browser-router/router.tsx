@@ -29,6 +29,11 @@ import {
 import { BrowserRouterHistory } from './history.js'
 import { LayoutCache } from './layout-cache.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
+import {
+	createRevalidationChannel,
+	readInvalidatedPaths,
+	type InvalidatedPath,
+} from './revalidation.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
 import { buildRouterTree } from './router-state.js'
 import { collectSegments, SegmentContext, type SegmentMeta } from './segment-slot.js'
@@ -67,29 +72,6 @@ const DEFAULT_GO_CONFIG = {
 const logger = new Logger()
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
-
-type InvalidatedPath = {
-	path: string
-	scope: 'page' | 'layout'
-}
-
-function readInvalidatedPaths(value: unknown) {
-	if (!Array.isArray(value)) return undefined
-
-	const paths: InvalidatedPath[] = []
-
-	for (const item of value) {
-		if (!item || typeof item !== 'object') continue
-
-		const { path, scope } = item as { path?: unknown; scope?: unknown }
-		if (typeof path !== 'string') continue
-		if (scope !== 'page' && scope !== 'layout') continue
-
-		paths.push({ path, scope })
-	}
-
-	return paths
-}
 
 /**
  * The URL to fetch the response for a navigation. On a static host that is the
@@ -362,11 +344,6 @@ export function BrowserRouterProvider({
 	}, [segments, params, routerState])
 
 	useEffect(() => {
-		const channel =
-			typeof BroadcastChannel === 'undefined'
-				? null
-				: new BroadcastChannel(`${Config.SLUG}revalidate`)
-
 		function clear(paths?: InvalidatedPath[]) {
 			if (paths && paths.length > 0) {
 				for (const item of paths) {
@@ -384,29 +361,25 @@ export function BrowserRouterProvider({
 			setSegmentMeta(new Map())
 		}
 
+		const channel = createRevalidationChannel(clear)
+
 		function onRevalidate(e: Event) {
 			if (!(e instanceof CustomEvent)) return
 
 			const paths = readInvalidatedPaths(e.detail?.paths)
 
 			clear(paths)
-			channel?.postMessage({ paths })
-		}
-
-		function onChannelMessage(e: MessageEvent<{ paths?: unknown }>) {
-			clear(readInvalidatedPaths(e.data?.paths))
+			channel.broadcast(paths)
 		}
 
 		const hot = import.meta.hot
 		const onHot = () => clear()
 		hot?.on('rsc:update', onHot)
-		channel?.addEventListener('message', onChannelMessage)
 		window.addEventListener(Events.REVALIDATE, onRevalidate)
 
 		return () => {
 			hot?.off?.('rsc:update', onHot)
-			channel?.removeEventListener('message', onChannelMessage)
-			channel?.close()
+			channel.close()
 			window.removeEventListener(Events.REVALIDATE, onRevalidate)
 		}
 	}, [layoutCache, routerCache])
