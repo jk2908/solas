@@ -17,6 +17,7 @@ import type {
 } from '../types.js'
 import * as Config from '../config.js'
 import { normaliseTrailingSlash } from './http-router/utils.js'
+import { validatePprLayout } from './ppr-dynamic-validation.js'
 import * as Prerender from './prerender.js'
 
 /**
@@ -832,6 +833,16 @@ export class Finder {
 				const prerenderMode: Route.PrerenderMode | false = shouldPrerender
 					? currentPrerenderMode
 					: false
+
+				if (prerenderMode === 'ppr') {
+					const layoutFiles = [shellPath, ...(layoutPaths.filter(Boolean) as string[])]
+
+					for (const layoutFile of layoutFiles) {
+						const source = await fs.readFile(layoutFile, 'utf8')
+						const errors = validatePprLayout(layoutFile, source)
+						if (errors.length > 0) throw new BuildError(errors.join('\n'))
+					}
+				}
 
 				// collect concrete prerender routes; for dynamic routes,
 				// expand using the page's exported static params
