@@ -290,10 +290,13 @@ async function createPayload({
 	const routeType: Route.PrerenderMode | 'dynamic' =
 		prerenderMode === 'full' ? 'full' : prerenderMode === 'ppr' ? 'ppr' : 'dynamic'
 
-	// ppr prefetches render the static layout shell with a page slot; dynamic
-	// routes still prefetch in full
+	// ppr prefetches render the static layout shell with a page slot; patch
+	// prefetches must render the patch itself, and dynamic routes prefetch in full
 	const shell =
-		(prefetch || shellSegment) && prerenderMode === 'ppr' && !reconciled?.error
+		!patchSegment &&
+		(prefetch || shellSegment) &&
+		prerenderMode === 'ppr' &&
+		!reconciled?.error
 
 	const match = resolver.enhance(reconciled)
 
