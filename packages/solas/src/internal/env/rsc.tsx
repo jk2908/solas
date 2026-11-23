@@ -339,12 +339,6 @@ async function createPayload({
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params, dynamicLayouts)
 			: undefined
-	const resolvedLayouts =
-		patchSegment && match?.resolveLayout
-			? await Promise.all(
-					match.paths.layouts.map((_, index) => match.resolveLayout?.(index) ?? null),
-				)
-			: undefined
 	const segmentHeads =
 		patchSegment && match?.metadataSegments
 			? match
@@ -467,7 +461,6 @@ async function createPayload({
 			layoutFilter={patchLayouts}
 			pageId={match.paths.page}
 			segmentHeads={segmentHeads}
-			resolvedLayouts={resolvedLayouts}
 		/>
 	)
 

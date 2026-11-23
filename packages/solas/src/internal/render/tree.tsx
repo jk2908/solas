@@ -4,14 +4,11 @@ import type { Metadata } from '../metadata.js'
 import type { Resolver } from '../resolver.js'
 import {
 	ChildSlot,
-	DynamicSegmentMarker,
 	LayoutSlot,
 	PageMarker,
 	PatchNode,
 	SegmentSlot,
 } from '../browser-router/segment-slot.js'
-import { RequestContext } from '../env/request-context.js'
-import { SegmentContext } from '../env/segment-context.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
 import {
 	HttpException,
@@ -26,45 +23,6 @@ const UNAUTHORISED_ERROR = new HttpException(401, 'Unauthorised')
 const FORBIDDEN_ERROR = new HttpException(403, 'Forbidden')
 const NOT_FOUND_ERROR = new HttpException(404, 'Not found')
 const SERVER_ERROR = new HttpException(500, 'Internal Server Error')
-
-/**
- * Render one segment under its own work context so `dynamic()` can associate
- * the request with that segment.
- */
-async function SegmentScope({
-	id,
-	Component,
-	params,
-	children,
-}: {
-	id: string
-	Component: React.ComponentType<{ params?: Match['params']; children?: React.ReactNode }>
-	params: Match['params']
-	children: React.ReactNode
-}) {
-	const request = RequestContext.tryUse()
-	if (!request) throw new Error('Missing request context for segment render')
-
-	const cache = request.cache
-	cache.dynamicSegments ??= new Set()
-
-	const output = await SegmentContext.write({ id }, () =>
-		(
-			Component as (props: {
-				params?: Match['params']
-				children?: React.ReactNode
-			}) => React.ReactNode
-		)({ params, children }),
-	)
-	const dynamic = cache.dynamicSegments.has(id)
-
-	return (
-		<>
-			{dynamic ? <DynamicSegmentMarker id={id} dynamic /> : null}
-			{output}
-		</>
-	)
-}
 
 /**
  * Render the resolved route tree for a matched page.
@@ -112,7 +70,6 @@ export function Tree({
 	layoutFilter,
 	pageId,
 	segmentHeads,
-	resolvedLayouts,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
@@ -124,10 +81,6 @@ export function Tree({
 	layoutFilter?: string[]
 	pageId?: string | null
 	segmentHeads?: { id: string; metadata: Metadata.Item | Promise<Metadata.Item> }[]
-	resolvedLayouts?: (React.ComponentType<{
-		params?: Match['params']
-		children?: React.ReactNode
-	}> | null)[]
 }) {
 	const {
 		layouts,
@@ -157,7 +110,6 @@ export function Tree({
 			const NotFound = notFounds[idx]
 			const ServerError = serverErrors[idx]
 			const head = segmentHeads?.find(item => item.id === id)?.metadata
-			const Resolved = resolvedLayouts?.[idx]
 
 			rendered.set(
 				id,
@@ -177,15 +129,9 @@ export function Tree({
 							head,
 						},
 					}}>
-					{Resolved ? (
-						<SegmentScope id={id} Component={Resolved} params={params}>
-							<ChildSlot />
-						</SegmentScope>
-					) : (
-						<Layout params={params}>
-							<ChildSlot />
-						</Layout>
-					)}
+					<Layout params={params}>
+						<ChildSlot />
+					</Layout>
 				</LayoutSlot>,
 			)
 		}

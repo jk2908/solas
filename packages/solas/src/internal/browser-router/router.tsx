@@ -529,16 +529,9 @@ export function BrowserRouterProvider({
 					)
 					const collected = collectSegments(patch.root, targetIds, patch.segments?.page)
 					const pagePayload = { ...patch, root: collected.page }
-					const dynamicLayouts = [
-						...(patch.cache?.dynamicLayouts ?? []),
-						...collected.dynamic,
-					]
 
 					if (collected.meta.size > 0) setSegmentMeta(collected.meta)
-					applyLayoutSegments(collected.layouts, targetIds, patch.params, {
-						...patch.cache,
-						dynamicLayouts,
-					})
+					applyLayoutSegments(collected.layouts, targetIds, patch.params, patch.cache)
 					setSegmentPage(collected.page ? pagePayload : null)
 
 					const bytes = await decoded.bytes
@@ -763,10 +756,7 @@ export function BrowserRouterProvider({
 					? Number.POSITIVE_INFINITY
 					: now + (patch.cache?.layouts ?? routerCache.ttl)
 
-			const dynamic = new Set([
-				...(patch.cache?.dynamicLayouts ?? []),
-				...collected.dynamic,
-			])
+			const dynamic = new Set(patch.cache?.dynamicLayouts ?? [])
 
 			for (const id of targetIds) {
 				if (dynamic.has(id)) continue

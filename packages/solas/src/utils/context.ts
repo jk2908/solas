@@ -5,11 +5,11 @@ import { Logger } from './logger.js'
 const logger = new Logger()
 
 export function create<T>(name: string) {
-	const storage = typeof window === 'undefined' ? new AsyncLocalStorage<T>() : null
+	const storage = new AsyncLocalStorage<T>()
 
 	return {
 		use() {
-			const r = storage?.getStore()
+			const r = storage.getStore()
 
 			if (!r) {
 				const error = new Error(`No ${name} context available`)
@@ -20,11 +20,8 @@ export function create<T>(name: string) {
 
 			return r
 		},
-		tryUse() {
-			return storage?.getStore()
-		},
 		write<R>(value: T, fn: () => R | Promise<R>) {
-			return storage ? storage.run(value, fn) : fn()
+			return storage.run(value, fn)
 		},
 	}
 }

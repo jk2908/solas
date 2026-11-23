@@ -59,10 +59,6 @@ export namespace Resolver {
 		metadataSegments?: (
 			input: Metadata.Input<HttpRouter.Params>,
 		) => { id: string; tasks: Metadata.Task[] }[]
-		resolveLayout?: (index: number) => Promise<React.ComponentType<{
-			children?: React.ReactNode
-			params?: HttpRouter.Params
-		}> | null>
 	}
 }
 
@@ -379,30 +375,6 @@ export class Resolver {
 		}
 
 		if (entry.endpoint) enhanced.endpoint = entry.endpoint
-
-		enhanced.resolveLayout = async (index: number) => {
-			if (index === 0) {
-				const shell = entry.shell?.default
-				return typeof shell === 'function'
-					? (shell as React.ComponentType<{
-							children?: React.ReactNode
-							params?: HttpRouter.Params
-						}>)
-					: null
-			}
-
-			const loader = entry.layouts?.[index - 1]
-			if (!loader) return null
-
-			const loaded = Resolver.#load(loader)
-			const module = loaded.module ?? (await loaded.promise)
-			return typeof module.default === 'function'
-				? (module.default as React.ComponentType<{
-						children?: React.ReactNode
-						params?: HttpRouter.Params
-					}>)
-				: null
-		}
 
 		// collect metadata loaders once per route so they can turn into request
 		// specific tasks later when params and errors are known

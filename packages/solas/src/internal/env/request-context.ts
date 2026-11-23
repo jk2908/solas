@@ -7,7 +7,6 @@ export type RequestCache = {
 	cookies?: Readonly<ReturnType<typeof Cookies.parse>>
 	headers?: ReadonlyMap<string, string>
 	url?: URL
-	dynamicSegments?: Set<string>
 }
 
 export const RequestContext = Context.create<{
