@@ -1038,20 +1038,7 @@ export function createHandler(
 	 * route-handler callers via a response header.
 	 */
 	async function dispatch(req: Request) {
-		return runWithRevalidations(async paths => {
-			const res = await dispatchRequest(req)
-
-			if (paths.length === 0) return res
-
-			const headers = new Headers(res.headers)
-			headers.set(Config.INVALIDATED_PATHS_HEADER, JSON.stringify(paths))
-
-			return new Response(res.body, {
-				status: res.status,
-				statusText: res.statusText,
-				headers,
-			})
-		})
+		return runWithRevalidations(() => dispatchRequest(req))
 	}
 
 	async function dispatchRequest(req: Request) {

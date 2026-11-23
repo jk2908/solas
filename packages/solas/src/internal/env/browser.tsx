@@ -21,7 +21,6 @@ import { getDocumentNonce } from '../../utils/get-document-nonce.js'
 import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from './rsc.js'
 import * as Events from '../../events.js'
-import { observeFetch } from '../browser-router/fetch-observer.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
@@ -31,8 +30,6 @@ import { rscStream } from './flight.js'
  * Browser RSC hydration entry point.
  */
 export async function browser(config: BrowserConfig = {}) {
-	observeFetch()
-
 	// read the initial payload from the inline __FLIGHT_DATA pushes that were
 	// injected into the html document during ssr/prerender
 	const payload = await createFromReadableStream<RscPayload>(rscStream)
