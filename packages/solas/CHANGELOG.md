@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased
+
+### Breaking
+
+- `router.invalidate(path)` is now `router.invalidateCache(path)`. The method only evicts client cache entries and does not navigate or refresh.
+
+### Features
+
+- PPR routes now prefetch a static shell followed by a page/layout patch. Static layouts are cached independently and reused across navigations.
+- Added `router.cache.maxLayoutEntries` to bound the number of cached layout nodes. Defaults to 100.
+- Added `revalidatePath(path, scope)` for request-scoped path invalidation with page and layout scopes. Invalidation is shared across tabs through `BroadcastChannel`.
+- Added a build guard for direct conditional `dynamic()` calls in PPR layouts.
+
+### Fixes
+
+- PPR patch prefetches now return patch payloads instead of the shell artifact.
+- PPR shell artifacts and parsed dynamic layout IDs are cached on the server.
+- Route Handler `revalidatePath` calls match Next.js semantics: they do not update client caches immediately.
+- Path invalidation now handles shared layouts, root paths, and concurrent requests correctly.
+- The client layout cache is bounded and least-recently-used entries are evicted.
+
 ## 0.22.4
 
 ### Fixes

@@ -153,7 +153,7 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 
 `prefetch={false}` is the default. `intent` prefetches on focus or touch, `hover` after a short mouse hover, `viewport` when the link enters the viewport, and `auto` uses hover on hover-capable devices and intent otherwise. Prefetches are skipped for hidden pages, save-data connections and 2G/slow-2G. Nothing is prefetched unless you opt in with `Link` or call `router.prefetch(...)`.
 
-Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. Direct navigations to dynamic routes that were not prefetched are fetched fresh. PPR shell prefetching is not implemented yet: PPR prefetches return `204` and are not cached, so navigating to that route still makes a request. A route declared as PPR that produced a full prerender artifact is treated as full for prefetching and caching.
+Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. PPR routes prefetch the static shell and then a page/layout patch. Static layout nodes are cached independently and reused across navigations. A PPR route that produced a full prerender artifact is treated as full for prefetching and caching.
 
 The router cache is enabled by default in production and disabled in development. Set `router.cache.enabled` to `true` to exercise prefetching and caching in development, or to `false` to disable them in production.
 
@@ -198,6 +198,17 @@ await router.refresh()
 ```
 
 `router.invalidateCache(path)` removes a cached route payload without changing what is currently rendered. The next navigation to that path fetches fresh data.
+
+Use `revalidatePath` from a Server Action to invalidate page or layout data:
+
+```ts
+import { revalidatePath } from '@jk2908/solas/server'
+
+revalidatePath('/posts')
+revalidatePath('/posts', 'layout')
+```
+
+Page scope evicts the matching page cache. Layout scope also evicts layouts and their descendants. Invalidation is shared across tabs. Route Handler calls match Next.js and do not update client caches immediately; call `router.refresh()` after the request when an immediate client update is needed.
 
 `router.refresh()` always refreshes the current browser location at the moment you call it. If you call it after `await router.go('/posts')`, it refreshes `/posts` (or the final redirected path).
 
@@ -348,6 +359,28 @@ export default defineConfig({
 
 `maxBytes` must be a positive integer.
 
+### `router.cache.maxLayoutEntries`
+
+Use `router.cache.maxLayoutEntries` to bound independently cached layout nodes. The least recently used layout is evicted when the limit is exceeded.
+
+Default: `100`
+
+```ts
+export default defineConfig({
+	plugins: [
+		solas({
+			router: {
+				cache: {
+					maxLayoutEntries: 50,
+				},
+			},
+		}),
+	],
+})
+```
+
+`maxLayoutEntries` must be a positive integer.
+
 ### `router.cache.ttl`
 
 Use `router.cache.ttl` to control how long dynamically rendered route payloads remain reusable. Fully prerendered routes do not expire.
@@ -448,6 +481,8 @@ During prerender, `dynamic()` suspends so the nearest Suspense fallback is writt
 If you call `dynamic()` outside `ppr` mode, Solas does not defer that subtree. In `full` mode it logs a warning and the component still renders at build time.
 
 `headers()`, `cookies()`, and `url()` also mark the current render path as dynamic, so they should be treated the same way when you are building a `ppr` shell.
+
+Direct conditional `dynamic()` calls in PPR layouts fail the build. Indirect calls through helpers are not detected; avoid request-time work in PPR layouts or set `prerender = false` for the route.
 
 ### `metadata`
 
