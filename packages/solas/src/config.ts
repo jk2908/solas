@@ -103,10 +103,12 @@ export function parseBrowserConfig(config: PluginConfig): BrowserConfig {
 	const enabled = config.router?.cache?.enabled
 	const maxBytes = config.router?.cache?.maxBytes
 	const ttl = config.router?.cache?.ttl
+	const maxLayoutEntries = config.router?.cache?.maxLayoutEntries
 	const cache = {
 		...(enabled === undefined ? {} : { enabled }),
 		...(maxBytes === undefined ? {} : { maxBytes }),
 		...(ttl === undefined ? {} : { ttl }),
+		...(maxLayoutEntries === undefined ? {} : { maxLayoutEntries }),
 	}
 
 	return Object.keys(cache).length === 0 ? {} : { router: { cache } }
@@ -188,7 +190,12 @@ export function validate(input: unknown, envUrl?: string) {
 					errors.push('router.cache must be an object')
 				} else {
 					for (const key of Object.keys(input.router.cache)) {
-						if (key !== 'enabled' && key !== 'maxBytes' && key !== 'ttl') {
+						if (
+							key !== 'enabled' &&
+							key !== 'maxBytes' &&
+							key !== 'ttl' &&
+							key !== 'maxLayoutEntries'
+						) {
 							errors.push(`Unknown router.cache key: ${key}`)
 						}
 					}
@@ -212,6 +219,16 @@ export function validate(input: unknown, envUrl?: string) {
 						(typeof ttl !== 'number' || !Number.isInteger(ttl) || ttl <= 0)
 					) {
 						errors.push('router.cache.ttl must be a positive integer')
+					}
+
+					const maxLayoutEntries = input.router.cache.maxLayoutEntries
+					if (
+						maxLayoutEntries !== undefined &&
+						(typeof maxLayoutEntries !== 'number' ||
+							!Number.isInteger(maxLayoutEntries) ||
+							maxLayoutEntries <= 0)
+					) {
+						errors.push('router.cache.maxLayoutEntries must be a positive integer')
 					}
 				}
 			}

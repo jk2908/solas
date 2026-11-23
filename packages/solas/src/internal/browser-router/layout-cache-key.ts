@@ -12,6 +12,9 @@ function normaliseParams(params: LayoutCacheParams | undefined) {
 
 /**
  * Build a cache key for one independently cached layout node.
+ *
+ * Search is deliberately excluded: static layouts may depend on route params,
+ * but not on request-specific query state.
  */
 export function layoutSegmentKey(id: string, params: LayoutCacheParams | undefined) {
 	return JSON.stringify([id, normaliseParams(params)])

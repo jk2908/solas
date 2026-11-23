@@ -220,6 +220,8 @@ export class RouterCache {
 		if (!this.enabled) return
 
 		const target = path.split('?')[0] || '/'
+		const routeKey = this.#routeKey(target)
+		const segmentKey = this.#segmentKey(target)
 
 		for (const [key, entry] of this.#cache) {
 			if (
@@ -230,10 +232,10 @@ export class RouterCache {
 			}
 
 			const keyMatches =
-				key === this.#routeKey(target) ||
-				key === this.#segmentKey(target) ||
+				key === routeKey ||
+				key === segmentKey ||
 				(scope === 'layout' &&
-					(key.startsWith(`route:${target}/`) || key.startsWith(`segment:${target}/`)))
+					(isNestedKey(key, routeKey) || isNestedKey(key, segmentKey)))
 
 			if (keyMatches) this.#delete(key)
 		}
@@ -295,4 +297,12 @@ export class RouterCache {
 
 		this.#cache.delete(key)
 	}
+}
+
+/**
+ * Whether a cache key sits below another key. Root keys end with `:/`.
+ */
+function isNestedKey(key: string, base: string) {
+	if (base.endsWith(':/')) return key !== base && key.startsWith(base)
+	return key.startsWith(`${base}/`)
 }

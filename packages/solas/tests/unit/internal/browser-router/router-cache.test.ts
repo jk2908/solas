@@ -155,6 +155,17 @@ describe('RouterCache', () => {
 		expect(cache.hasSegment('/about/another')).toBe(false)
 	})
 
+	it('invalidates descendant paths from the root for layout scope', () => {
+		const cache = new RouterCache()
+		cache.setSegment('/about', 'dynamic', {
+			...cached('/about', 10),
+		})
+
+		cache.invalidatePath('/', 'layout')
+
+		expect(cache.hasSegment('/about')).toBe(false)
+	})
+
 	it('does not retain entries when disabled', async () => {
 		const cache = new RouterCache({ enabled: false })
 

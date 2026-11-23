@@ -71,6 +71,10 @@ export type RouterConfig = {
 		 * How long non-prerendered route payloads stay cached. Defaults to 60 seconds.
 		 */
 		ttl?: number
+		/**
+		 * Maximum number of independently cached layout nodes. Defaults to 100.
+		 */
+		maxLayoutEntries?: number
 	}
 }
 

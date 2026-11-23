@@ -20,6 +20,12 @@ describe('writeBrowserConfig', () => {
 		expect(result).not.toContain('x-test')
 	})
 
+	it('includes the layout cache entry limit', () => {
+		const result = writeBrowserConfig({ router: { cache: { maxLayoutEntries: 25 } } })
+
+		expect(result).toContain('maxLayoutEntries: 25')
+	})
+
 	it('includes the router cache ttl', () => {
 		const result = writeBrowserConfig({ router: { cache: { ttl: 500 } } })
 

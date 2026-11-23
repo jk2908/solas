@@ -68,6 +68,29 @@ const logger = new Logger()
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
+type InvalidatedPath = {
+	path: string
+	scope: 'page' | 'layout'
+}
+
+function readInvalidatedPaths(value: unknown) {
+	if (!Array.isArray(value)) return undefined
+
+	const paths: InvalidatedPath[] = []
+
+	for (const item of value) {
+		if (!item || typeof item !== 'object') continue
+
+		const { path, scope } = item as { path?: unknown; scope?: unknown }
+		if (typeof path !== 'string') continue
+		if (scope !== 'page' && scope !== 'layout') continue
+
+		paths.push({ path, scope })
+	}
+
+	return paths
+}
+
 /**
  * The URL to fetch the response for a navigation. On a static host that is the
  * pre-generated RSC payload; otherwise the path itself carries the RSC response
@@ -262,6 +285,7 @@ function resolveLayoutNodes(
 		const cached = isDynamic ? undefined : cache.get(id, params)
 
 		if (cached) {
+			cache.touch(id, params, path)
 			values.set(id, cached.value)
 			continue
 		}
@@ -323,7 +347,12 @@ export function BrowserRouterProvider({
 	const [segmentMeta, setSegmentMeta] = useState<Map<string, SegmentMeta>>(
 		() => new Map(),
 	)
-	const [layoutCache] = useState(() => new LayoutCache())
+	const [layoutCache] = useState(
+		() =>
+			new LayoutCache({
+				maxEntries: config.router?.cache?.maxLayoutEntries,
+			}),
+	)
 	const [routerState] = useState(() => ({ tree: buildRouterTree(segments), params }))
 
 	// keep the request-diff state aligned with action payloads and shell updates
@@ -333,15 +362,12 @@ export function BrowserRouterProvider({
 	}, [segments, params, routerState])
 
 	useEffect(() => {
-		const clear = (event?: Event) => {
-			const detail = (
-				event as
-					| CustomEvent<{
-							paths?: { path: string; scope: 'page' | 'layout' }[]
-					  }>
-					| undefined
-			)?.detail
-			const paths = detail?.paths
+		const channel =
+			typeof BroadcastChannel === 'undefined'
+				? null
+				: new BroadcastChannel(`${Config.SLUG}revalidate`)
+
+		function clear(paths?: InvalidatedPath[]) {
 			let handled = false
 
 			if (paths && paths.length > 0) {
@@ -363,14 +389,30 @@ export function BrowserRouterProvider({
 			setSegmentMeta(new Map())
 		}
 
+		function onRevalidate(event: Event) {
+			const paths = readInvalidatedPaths(
+				(event as CustomEvent<{ paths?: unknown }>).detail?.paths,
+			)
+
+			clear(paths)
+			channel?.postMessage({ paths })
+		}
+
+		function onChannelMessage(event: MessageEvent<{ paths?: unknown }>) {
+			clear(readInvalidatedPaths(event.data?.paths))
+		}
+
 		const hot = import.meta.hot
 		const onHot = () => clear()
 		hot?.on('rsc:update', onHot)
-		window.addEventListener(Events.REVALIDATE, clear)
+		channel?.addEventListener('message', onChannelMessage)
+		window.addEventListener(Events.REVALIDATE, onRevalidate)
 
 		return () => {
 			hot?.off?.('rsc:update', onHot)
-			window.removeEventListener(Events.REVALIDATE, clear)
+			channel?.removeEventListener('message', onChannelMessage)
+			channel?.close()
+			window.removeEventListener(Events.REVALIDATE, onRevalidate)
 		}
 	}, [layoutCache, routerCache])
 
@@ -472,6 +514,7 @@ export function BrowserRouterProvider({
 						const { values, missing } = layoutCache.getValues(
 							cachedLayoutIds,
 							cachedPayload.params,
+							path,
 						)
 
 						setSegmentPage(cachedPayload)

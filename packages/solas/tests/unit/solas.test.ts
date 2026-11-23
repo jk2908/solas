@@ -139,6 +139,12 @@ describe('Solas', () => {
 				)
 			})
 
+			it('accepts a layout cache entry limit', () => {
+				expect(
+					Config.validate({ router: { cache: { maxLayoutEntries: 25 } } }),
+				).toHaveProperty('router.cache.maxLayoutEntries', 25)
+			})
+
 			it('accepts a router cache enabled flag', () => {
 				expect(Config.validate({ router: { cache: { enabled: false } } })).toHaveProperty(
 					'router.cache.enabled',
@@ -168,6 +174,12 @@ describe('Solas', () => {
 				expect(() => Config.validate({ router: { cache: { maxBytes: '1' } } })).toThrow(
 					'router.cache.maxBytes must be a positive integer',
 				)
+			})
+
+			it('rejects invalid layout cache entry limits', () => {
+				expect(() =>
+					Config.validate({ router: { cache: { maxLayoutEntries: 0 } } }),
+				).toThrow('router.cache.maxLayoutEntries must be a positive integer')
 			})
 
 			it('accepts a structured CSP config', () => {
