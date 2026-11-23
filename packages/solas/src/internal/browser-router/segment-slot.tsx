@@ -49,6 +49,19 @@ export function PageMarker(props: { segment: SegmentReference; children?: ReactN
 }
 
 /**
+ * A node in the server patch tree. It is only collected client-side.
+ */
+export function PatchNode(props: {
+	id: string
+	kind: 'shell' | 'layout' | 'page'
+	node?: ReactNode
+	children?: ReactNode
+}) {
+	void props
+	return null
+}
+
+/**
  * Render the page segment fetched after a shell navigation.
  */
 export function SegmentSlot({
@@ -116,7 +129,11 @@ export function LayoutSlot(props: {
 function walkSegments(
 	root: ReactNode,
 	visit: (
-		value: React.ReactElement<{ segment?: SegmentReference; children?: ReactNode }>,
+		value: React.ReactElement<{
+			segment?: SegmentReference
+			children?: ReactNode
+			node?: ReactNode
+		}>,
 	) => false | void,
 ) {
 	if (Array.isArray(root)) {
@@ -129,10 +146,12 @@ function walkSegments(
 	const value = root as React.ReactElement<{
 		segment?: SegmentReference
 		children?: ReactNode
+		node?: ReactNode
 	}>
 
 	if (visit(value) === false) return
 
+	walkSegments(value.props.node ?? null, visit)
 	walkSegments(value.props.children ?? null, visit)
 }
 

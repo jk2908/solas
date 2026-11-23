@@ -6,6 +6,7 @@ import {
 	ChildSlot,
 	LayoutSlot,
 	PageMarker,
+	PatchNode,
 	SegmentSlot,
 } from '../browser-router/segment-slot.js'
 import { HttpExceptionBoundary } from '../navigation/http-exception-boundary.js'
@@ -95,65 +96,26 @@ export function Tree({
 	if (!Shell) throw new Error('Shell layout is required in the route tree')
 
 	if (patch) {
-		// one independent node per layout. The target subtree is supplied by
-		// the layout slot that applies the node.
-		const nodes: React.ReactNode[] = []
+		const rendered = new Map<string, React.ReactNode>()
 
 		for (const [idx, Layout] of layouts.entries()) {
 			const id = layoutIds[idx]
 
-			if (!Layout) continue
-			if (layoutFilter && (id === null || !layoutFilter.includes(id))) continue
+			if (!Layout || !id) continue
+			if (layoutFilter && !layoutFilter.includes(id)) continue
 
 			const Loading = loaders[idx]
 			const Unauthorised = unauthorised[idx]
 			const Forbidden = forbidden[idx]
 			const NotFound = notFounds[idx]
 			const ServerError = serverErrors[idx]
-			const errors = {
-				401: Unauthorised ? <Unauthorised error={UNAUTHORISED_ERROR} /> : null,
-				403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,
-				404: NotFound ? <NotFound error={NOT_FOUND_ERROR} /> : null,
-				500: ServerError ? <ServerError error={SERVER_ERROR} /> : null,
-			}
-			const node = <Layout params={params}>{<ChildSlot />}</Layout>
-			const head = id ? segmentHeads?.find(item => item.id === id)?.metadata : undefined
-
-			nodes.push(
-				id ? (
-					<LayoutSlot
-						key={`l:${idx}`}
-						id={id}
-						segment={{
-							id,
-							meta: {
-								loading: Loading ? <Loading /> : undefined,
-								errors,
-								head,
-							},
-						}}>
-						{node}
-					</LayoutSlot>
-				) : (
-					<Layout key={`l:${idx}`} params={params}>
-						<ChildSlot />
-					</Layout>
-				),
-			)
-		}
-
-		if (Page) {
-			const Loading = loaders[loaders.length - 1]
-			const Unauthorised = unauthorised[unauthorised.length - 1]
-			const Forbidden = forbidden[forbidden.length - 1]
-			const NotFound = notFounds[notFounds.length - 1]
-			const ServerError = serverErrors[serverErrors.length - 1]
-			const id = pageId ?? 'page'
 			const head = segmentHeads?.find(item => item.id === id)?.metadata
 
-			nodes.push(
-				<PageMarker
-					key="page"
+			rendered.set(
+				id,
+				<LayoutSlot
+					key={`l:${idx}`}
+					id={id}
 					segment={{
 						id,
 						meta: {
@@ -167,12 +129,71 @@ export function Tree({
 							head,
 						},
 					}}>
-					<Page params={params} />
-				</PageMarker>,
+					<Layout params={params}>
+						<ChildSlot />
+					</Layout>
+				</LayoutSlot>,
 			)
 		}
 
-		return <>{nodes}</>
+		let page: React.ReactNode = null
+
+		if (Page) {
+			const Loading = loaders[loaders.length - 1]
+			const Unauthorised = unauthorised[unauthorised.length - 1]
+			const Forbidden = forbidden[forbidden.length - 1]
+			const NotFound = notFounds[notFounds.length - 1]
+			const ServerError = serverErrors[serverErrors.length - 1]
+			const id = pageId ?? 'page'
+			const head = segmentHeads?.find(item => item.id === id)?.metadata
+
+			page = (
+				<PatchNode
+					id={id}
+					kind="page"
+					node={
+						<PageMarker
+							segment={{
+								id,
+								meta: {
+									loading: Loading ? <Loading /> : undefined,
+									errors: {
+										401: Unauthorised ? (
+											<Unauthorised error={UNAUTHORISED_ERROR} />
+										) : null,
+										403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,
+										404: NotFound ? <NotFound error={NOT_FOUND_ERROR} /> : null,
+										500: ServerError ? <ServerError error={SERVER_ERROR} /> : null,
+									},
+									head,
+								},
+							}}>
+							<Page params={params} />
+						</PageMarker>
+					}
+				/>
+			)
+		}
+
+		function buildNode(index: number): React.ReactNode {
+			const Layout = layouts[index]
+			const id = layoutIds[index]
+			const child = index + 1 < layouts.length ? buildNode(index + 1) : page
+
+			if (!Layout || !id) return child
+
+			return (
+				<PatchNode
+					key={`p:${index}`}
+					id={id}
+					kind={index === 0 ? 'shell' : 'layout'}
+					node={rendered.get(id)}>
+					{child}
+				</PatchNode>
+			)
+		}
+
+		return buildNode(0) ?? page
 	}
 
 	// build the inner inner (everything after shell)
