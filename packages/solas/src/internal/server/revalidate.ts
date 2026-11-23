@@ -1,18 +1,18 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import * as Context from '../../utils/context.js'
 
 export type RevalidatedPath = {
 	path: string
 	scope: 'page' | 'layout'
 }
 
-const storage = new AsyncLocalStorage<RevalidatedPath[]>()
+const RevalidationContext = Context.create<RevalidatedPath[]>('revalidation')
 
 /**
  * Run a request with its own invalidation list.
  */
 export function runWithRevalidations<T>(fn: (paths: RevalidatedPath[]) => T): T {
 	const paths: RevalidatedPath[] = []
-	return storage.run(paths, () => fn(paths))
+	return RevalidationContext.write(paths, () => fn(paths))
 }
 
 /**
@@ -21,7 +21,7 @@ export function runWithRevalidations<T>(fn: (paths: RevalidatedPath[]) => T): T 
 export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') {
 	if (!path) return
 
-	const paths = storage.getStore()
+	const paths = RevalidationContext.get()
 
 	if (!paths) {
 		throw new Error('revalidatePath must be called during a request')
@@ -37,7 +37,7 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
  * Drain paths invalidated during the current request.
  */
 export function drainRevalidatedPaths() {
-	const paths = storage.getStore()
+	const paths = RevalidationContext.get()
 	if (!paths) return []
 
 	return paths.splice(0)
