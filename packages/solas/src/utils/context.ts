@@ -23,7 +23,7 @@ export function create<T>(name: string) {
 
 			return r
 		},
-		write<R>(value: T, fn: () => R | Promise<R>) {
+		write<R>(value: T, fn: () => R) {
 			return storage.run(value, fn)
 		},
 	}

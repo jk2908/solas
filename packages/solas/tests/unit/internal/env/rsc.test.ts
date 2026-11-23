@@ -14,6 +14,7 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 import type { RuntimeConfig } from '../../../../src/types.js'
 import * as Config from '../../../../src/config.js'
 import { createHandler } from '../../../../src/internal/env/rsc.js'
+import * as SolasResponse from '../../../../src/internal/server/response.js'
 import { revalidatePath } from '../../../../src/internal/server/revalidate.js'
 import { createEndpoint, createSegment } from '../../../utils.js'
 
@@ -170,7 +171,7 @@ describe('createHandler', () => {
 					endpoint: () => {
 						revalidatePath('/posts')
 						revalidatePath('/posts/[slug]', 'layout')
-						return Response.json({ ok: true })
+						return SolasResponse.Response.json({ ok: true })
 					},
 				},
 			},
@@ -185,6 +186,25 @@ describe('createHandler', () => {
 			{ path: '/posts', scope: 'page' },
 			{ path: '/posts/[slug]', scope: 'layout' },
 		])
+	})
+
+	it('does not attach invalidations to plain route handler responses', async () => {
+		const handler = createHandler(
+			config,
+			{ '/api/plain': createEndpoint('/api/plain') },
+			{
+				'e_/api/plain': {
+					endpoint: () => {
+						revalidatePath('/posts')
+						return Response.json({ ok: true })
+					},
+				},
+			},
+		)
+
+		const response = await handler.fetch(new Request('http://localhost/api/plain'))
+
+		expect(response.headers.get(Config.INVALIDATED_PATHS_HEADER)).toBeNull()
 	})
 
 	it('uses a full artifact mode for a declared PPR route', async () => {

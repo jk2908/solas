@@ -12,6 +12,7 @@ export const ENTRY_RSC = 'entry.rsc.tsx'
 export const ENTRY_SSR = 'entry.ssr.tsx'
 export const ENTRY_BROWSER = 'entry.browser.tsx'
 export const ASSETS_DIR = `_${SLUG}`
+export const INVALIDATED_PATHS_HEADER = `x-${SLUG}-invalidated-paths`
 export const PUBLIC_DIR = 'public'
 export const $ = Symbol(SLUG)
 export const REQUEST_META_KEY = `__${SLUG.toUpperCase()}__`
