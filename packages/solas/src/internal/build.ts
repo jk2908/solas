@@ -835,7 +835,10 @@ export class Finder {
 					: false
 
 				if (prerenderMode === 'ppr') {
-					const layoutFiles = [shellPath, ...(layoutPaths.filter(Boolean) as string[])]
+					const layoutFiles = [
+						shellPath,
+						...layoutPaths.filter((layout): layout is string => layout !== null),
+					]
 
 					for (const layoutFile of layoutFiles) {
 						const source = await fs.readFile(layoutFile, 'utf8')
