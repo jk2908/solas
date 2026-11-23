@@ -19,6 +19,7 @@ import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
 import { nodeAssets } from '../assets.js'
+import { layoutIdsFromTree, type RouterNode } from '../browser-router/router-state.js'
 import { addHashesToPolicy, buildPolicy, resolveNonce } from '../csp.js'
 import { createHttpRouter } from '../http-router/create-http-router.js'
 import { HttpRouter } from '../http-router/router.js'
@@ -116,22 +117,47 @@ function parseRouterState(value: string | null) {
 
 	try {
 		const parsed = JSON.parse(value) as {
+			tree?: unknown
 			segments?: unknown
 			params?: unknown
 			cachedLayouts?: unknown
 		}
-		if (!Array.isArray(parsed.segments)) return null
+		let tree: RouterNode | undefined
+
+		if (parsed.tree !== undefined) {
+			function parseNode(node: unknown): RouterNode | null {
+				if (!node || typeof node !== 'object') return null
+				const item = node as { id?: unknown; kind?: unknown; children?: unknown }
+				if (typeof item.id !== 'string') return null
+				if (item.kind !== 'shell' && item.kind !== 'layout' && item.kind !== 'page') {
+					return null
+				}
+
+				const children =
+					item.children === undefined ? undefined : parseNode(item.children)
+				if (item.children !== undefined && !children) return null
+
+				return { id: item.id, kind: item.kind, children: children ?? undefined }
+			}
+
+			tree = parseNode(parsed.tree) ?? undefined
+			if (!tree) return null
+		}
 
 		const segments: RscSegmentDescriptor[] = []
 
-		for (const segment of parsed.segments) {
-			if (!segment || typeof segment !== 'object') return null
+		if (Array.isArray(parsed.segments)) {
+			for (const segment of parsed.segments) {
+				if (!segment || typeof segment !== 'object') return null
 
-			const { id, kind } = segment as { id?: unknown; kind?: unknown }
-			if (typeof id !== 'string') return null
-			if (kind !== 'shell' && kind !== 'layout' && kind !== 'page') return null
+				const { id, kind } = segment as { id?: unknown; kind?: unknown }
+				if (typeof id !== 'string') return null
+				if (kind !== 'shell' && kind !== 'layout' && kind !== 'page') return null
 
-			segments.push({ id, kind })
+				segments.push({ id, kind })
+			}
+		} else if (!tree) {
+			return null
 		}
 
 		let params: Record<string, string | string[]> | undefined
@@ -166,7 +192,7 @@ function parseRouterState(value: string | null) {
 			cachedLayouts = parsed.cachedLayouts
 		}
 
-		return { segments, params, cachedLayouts }
+		return { tree, segments, params, cachedLayouts }
 	} catch {
 		return null
 	}
@@ -186,9 +212,9 @@ function requiredLayoutIds(
 
 	if (!state) return target
 
-	const current = state.segments
-		.filter(segment => segment.kind !== 'page')
-		.map(segment => segment.id)
+	const current = state.tree
+		? layoutIdsFromTree(state.tree)
+		: state.segments.filter(segment => segment.kind !== 'page').map(segment => segment.id)
 	const paramsChanged = !sameParams(state.params, params)
 	const cached = new Set(state.cachedLayouts ?? [])
 	const dynamic = new Set(dynamicLayouts)

@@ -19,7 +19,6 @@ import type { RscPayload } from '../env/rsc.js'
 import * as Config from '../../config.js'
 import * as Events from '../../events.js'
 import { Head } from '../render/head.js'
-import { describeSegments } from '../route-segments.js'
 import {
 	ExternalUrlError,
 	InvalidNavigationPayloadError,
@@ -31,6 +30,7 @@ import { BrowserRouterHistory } from './history.js'
 import { LayoutCache } from './layout-cache.js'
 import { PrefetchObserverProvider } from './prefetch-observer.js'
 import { isRouterCacheEntryType, RouterCache } from './router-cache.js'
+import { buildRouterTree } from './router-state.js'
 import { collectSegments, SegmentContext, type SegmentMeta } from './segment-slot.js'
 import * as BrowserRouter from './shared.js'
 
@@ -283,7 +283,7 @@ export function BrowserRouterProvider({
 		() => new Map(),
 	)
 	const layoutCache = useRef(new LayoutCache())
-	const routerState = useRef({ segments, params })
+	const routerState = useRef({ tree: buildRouterTree(segments), params })
 
 	useEffect(() => {
 		const clear = (event?: Event) => {
@@ -507,9 +507,7 @@ export function BrowserRouterProvider({
 						headers: {
 							[`x-${Config.SLUG}-segment`]: 'patch',
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
-								segments: previousState.segments
-									? describeSegments(previousState.segments)
-									: [],
+								tree: previousState.tree,
 								params: previousState.params,
 								cachedLayouts: getCachedLayoutIds(),
 							}),
@@ -680,7 +678,7 @@ export function BrowserRouterProvider({
 
 				setPayload?.(payload)
 				routerState.current = {
-					segments: payload?.segments,
+					tree: buildRouterTree(payload?.segments),
 					params: payload?.params,
 				}
 				applyScroll(scrollIntent, hash)
@@ -737,9 +735,7 @@ export function BrowserRouterProvider({
 					[`x-${Config.SLUG}-segment`]: 'patch',
 					[`x-${Config.SLUG}-prefetch`]: '1',
 					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
-						segments: routerState.current.segments
-							? describeSegments(routerState.current.segments)
-							: [],
+						tree: routerState.current.tree,
 						params: routerState.current.params,
 						cachedLayouts: [...cachedLayouts],
 					}),
