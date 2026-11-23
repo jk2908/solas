@@ -12,6 +12,7 @@ import * as Config from '../config.js'
 import * as Solas from '../solas.js'
 import { nodeAssets } from './assets.js'
 import { addNonceToBootstrap } from './csp.js'
+import { parsePayloadRows } from './env/flight.js'
 import { toPathPattern } from './http-router/utils.js'
 
 const logger = new Logger()
@@ -576,21 +577,7 @@ export async function* run(
  * at runtime and must not be treated as permanently static by the client.
  */
 export function getDynamicLayouts(shell: string) {
-	const rows = new Map<string, unknown>()
-
-	for (const line of shell.split('\n')) {
-		const separator = line.indexOf(':')
-		if (separator <= 0) continue
-
-		const id = line.slice(0, separator)
-		if (!/^[0-9a-f]+$/.test(id)) continue
-
-		try {
-			rows.set(id, JSON.parse(line.slice(separator + 1)))
-		} catch {
-			// ignore non-json rows
-		}
-	}
+	const rows = parsePayloadRows(shell)
 
 	const dynamic = new Set<string>()
 	const seen = new Set<unknown>()

@@ -13,6 +13,7 @@ declare global {
 const encoder = new TextEncoder()
 const HTML_TRAIL = '</body></html>'
 const shellRowId = /^[0-9a-f]+$/
+const CAPTURE_GRACE_MS = 10
 const lazyReference = /\$L([0-9a-f]+)/g
 
 /**
@@ -31,7 +32,7 @@ export async function captureBuffered(stream: ReadableStream<Uint8Array>) {
 			// turn for child rows behind client slots to reach the stream.
 			const result = await Promise.race([
 				reader.read(),
-				new Promise<null>(r => setTimeout(r, 10, null)),
+				new Promise<null>(r => setTimeout(r, CAPTURE_GRACE_MS, null)),
 			])
 
 			if (result === null || result.done) break
@@ -50,12 +51,10 @@ export async function captureBuffered(stream: ReadableStream<Uint8Array>) {
 }
 
 /**
- * Complete a buffered ppr payload by resolving postponed lazy references to
- * their nearest suspense fallback. The result can be used as a standalone
- * prefetch shell without keeping the render stream open.
+ * Parse the JSON rows from a Flight payload. Non-JSON rows are retained as
+ * markers so row presence checks remain accurate.
  */
-export function completeShellPayload(payload: string) {
-	const rowIds = new Set<string>()
+export function parsePayloadRows(payload: string) {
 	const rows = new Map<string, unknown>()
 
 	for (const line of payload.split('\n')) {
@@ -65,14 +64,25 @@ export function completeShellPayload(payload: string) {
 		const id = line.slice(0, separator)
 		if (!shellRowId.test(id)) continue
 
-		rowIds.add(id)
-
 		try {
 			rows.set(id, JSON.parse(line.slice(separator + 1)))
 		} catch {
-			// non-json rows still count as present, but cannot be traversed
+			// non-json rows still count as present
+			rows.set(id, undefined)
 		}
 	}
+
+	return rows
+}
+
+/**
+ * Complete a buffered ppr payload by resolving postponed lazy references to
+ * their nearest suspense fallback. The result can be used as a standalone
+ * prefetch shell without keeping the render stream open.
+ */
+export function completeShellPayload(payload: string) {
+	const rows = parsePayloadRows(payload)
+	const rowIds = new Set(rows.keys())
 
 	if (rowIds.size === 0) return payload
 
