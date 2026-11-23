@@ -41,7 +41,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import { drainRevalidatedPaths } from '../server/revalidate.js'
+import { drainRevalidatedPaths, runWithRevalidations } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -1033,7 +1033,28 @@ export function createHandler(
 		})
 	}
 
+	/**
+	 * Run one request with its own invalidation list and expose pending paths to
+	 * route-handler callers via a response header.
+	 */
 	async function dispatch(req: Request) {
+		return runWithRevalidations(async paths => {
+			const res = await dispatchRequest(req)
+
+			if (paths.length === 0) return res
+
+			const headers = new Headers(res.headers)
+			headers.set(`x-${Config.SLUG}-invalidated-paths`, JSON.stringify(paths))
+
+			return new Response(res.body, {
+				status: res.status,
+				statusText: res.statusText,
+				headers,
+			})
+		})
+	}
+
+	async function dispatchRequest(req: Request) {
 		const url = new URL(req.url)
 		const method = req.method.toUpperCase()
 

@@ -14,7 +14,8 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 import type { RuntimeConfig } from '../../../../src/types.js'
 import * as Config from '../../../../src/config.js'
 import { createHandler } from '../../../../src/internal/env/rsc.js'
-import { createSegment } from '../../../utils.js'
+import { revalidatePath } from '../../../../src/internal/server/revalidate.js'
+import { createEndpoint, createSegment } from '../../../utils.js'
 
 const config = {
 	precompress: false,
@@ -158,6 +159,32 @@ describe('createHandler', () => {
 		await handler.fetch(request())
 
 		expect(reads).toBe(1)
+	})
+
+	it('exposes route handler invalidations on the response', async () => {
+		const handler = createHandler(
+			config,
+			{ '/api/posts': createEndpoint('/api/posts') },
+			{
+				'e_/api/posts': {
+					endpoint: () => {
+						revalidatePath('/posts')
+						revalidatePath('/posts/[slug]', 'layout')
+						return Response.json({ ok: true })
+					},
+				},
+			},
+		)
+
+		const response = await handler.fetch(new Request('http://localhost/api/posts'))
+
+		expect(response.status).toBe(200)
+		expect(
+			JSON.parse(response.headers.get(`x-${Config.SLUG}-invalidated-paths`)!),
+		).toEqual([
+			{ path: '/posts', scope: 'page' },
+			{ path: '/posts/[slug]', scope: 'layout' },
+		])
 	})
 
 	it('uses a full artifact mode for a declared PPR route', async () => {
