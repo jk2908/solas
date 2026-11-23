@@ -28,24 +28,6 @@ const NOT_FOUND_ERROR = new HttpException(404, 'Not found')
 const SERVER_ERROR = new HttpException(500, 'Internal Server Error')
 
 /**
- * Resolve a lazy route component without asking the router to invent a
- * component wrapper.
- */
-async function resolveComponent(Component: unknown) {
-	if (typeof Component === 'function') return Component as React.ComponentType<any>
-
-	const payload = (Component as { _payload?: { _result?: unknown } })?._payload
-
-	if (payload && typeof payload._result === 'function') {
-		const result = await (payload._result as () => Promise<any>)()
-		const resolved = result?.default ?? result
-		if (typeof resolved === 'function') return resolved as React.ComponentType<any>
-	}
-
-	return null
-}
-
-/**
  * Render one segment under its own work context so `dynamic()` can associate
  * the request with that segment.
  */
@@ -56,7 +38,7 @@ async function SegmentScope({
 	children,
 }: {
 	id: string
-	Component: unknown
+	Component: React.ComponentType<{ params?: Match['params']; children?: React.ReactNode }>
 	params: Match['params']
 	children: React.ReactNode
 }) {
@@ -66,16 +48,9 @@ async function SegmentScope({
 	const cache = request.cache
 	cache.dynamicSegments ??= new Set()
 
-	const Resolved = await resolveComponent(Component)
-
-	if (!Resolved) {
-		const Fallback = Component as React.ComponentType<any>
-		return <Fallback params={params}>{children}</Fallback>
-	}
-
 	const output = await SegmentContext.write({ id }, () =>
 		(
-			Resolved as (props: {
+			Component as (props: {
 				params?: Match['params']
 				children?: React.ReactNode
 			}) => React.ReactNode
@@ -137,6 +112,7 @@ export function Tree({
 	layoutFilter,
 	pageId,
 	segmentHeads,
+	resolvedLayouts,
 }: {
 	depth: Match['__depth']
 	params: Match['params']
@@ -148,6 +124,10 @@ export function Tree({
 	layoutFilter?: string[]
 	pageId?: string | null
 	segmentHeads?: { id: string; metadata: Metadata.Item | Promise<Metadata.Item> }[]
+	resolvedLayouts?: (React.ComponentType<{
+		params?: Match['params']
+		children?: React.ReactNode
+	}> | null)[]
 }) {
 	const {
 		layouts,
@@ -177,6 +157,7 @@ export function Tree({
 			const NotFound = notFounds[idx]
 			const ServerError = serverErrors[idx]
 			const head = segmentHeads?.find(item => item.id === id)?.metadata
+			const Resolved = resolvedLayouts?.[idx]
 
 			rendered.set(
 				id,
@@ -196,9 +177,15 @@ export function Tree({
 							head,
 						},
 					}}>
-					<SegmentScope id={id} Component={Layout} params={params}>
-						<ChildSlot />
-					</SegmentScope>
+					{Resolved ? (
+						<SegmentScope id={id} Component={Resolved} params={params}>
+							<ChildSlot />
+						</SegmentScope>
+					) : (
+						<Layout params={params}>
+							<ChildSlot />
+						</Layout>
+					)}
 				</LayoutSlot>,
 			)
 		}
