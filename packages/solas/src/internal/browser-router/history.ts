@@ -8,6 +8,7 @@ import * as BrowserRouter from './shared.js'
 export class BrowserRouterHistory {
 	#entries: BrowserRouter.HistoryEntry[]
 	#index: number
+	#snapshot: BrowserRouter.HistoryEntry[] | null = null
 
 	constructor(url: { pathname: string; search?: string; hash?: string }) {
 		const entry: BrowserRouter.HistoryEntry = {
@@ -26,6 +27,14 @@ export class BrowserRouterHistory {
 	 */
 	get entries() {
 		return [...this.#entries]
+	}
+
+	/**
+	 * Returns a stable view of entries for context snapshots.
+	 */
+	snapshot() {
+		this.#snapshot ??= [...this.#entries]
+		return this.#snapshot
 	}
 
 	/**
@@ -73,6 +82,7 @@ export class BrowserRouterHistory {
 
 		this.#entries.push(entry)
 		this.#index++
+		this.#snapshot = null
 
 		return entry
 	}
@@ -94,10 +104,12 @@ export class BrowserRouterHistory {
 		if (this.#entries.length === 0) {
 			this.#entries = [entry]
 			this.#index = 0
+			this.#snapshot = null
 			return entry
 		}
 
 		this.#entries[this.#index] = entry
+		this.#snapshot = null
 		return entry
 	}
 
@@ -109,6 +121,7 @@ export class BrowserRouterHistory {
 		if (!current) return
 
 		current.scrollY = window.scrollY
+		this.#snapshot = null
 	}
 
 	/**
@@ -134,6 +147,8 @@ export class BrowserRouterHistory {
 	 * Syncs local index and entry from a popstate event.
 	 */
 	onPopState() {
+		this.#snapshot = null
+
 		const current: BrowserRouter.HistoryEntry = {
 			pathname: window.location.pathname,
 			search: window.location.search,

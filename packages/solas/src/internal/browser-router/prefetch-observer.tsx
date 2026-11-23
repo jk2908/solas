@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, use, useEffect, useMemo, useRef } from 'react'
+import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
 
 type Callback = () => void
 
@@ -49,19 +49,19 @@ function getObserver(
 }
 
 export function PrefetchObserverProvider({ children }: { children: React.ReactNode }) {
-	const callbacks = useRef(new Map<Element, Callback>())
+	const [callbacks] = useState(() => new Map<Element, Callback>())
 	const observer = useRef<IntersectionObserver | null>(null)
 
 	const value = useMemo<PrefetchObserver>(
 		() => ({
 			observe(el, callback) {
-				callbacks.current.set(el, callback)
-				getObserver(callbacks.current, observer)?.observe(el)
+				callbacks.set(el, callback)
+				getObserver(callbacks, observer)?.observe(el)
 			},
 			unobserve(el) {
-				callbacks.current.delete(el)
+				callbacks.delete(el)
 
-				if (callbacks.current.size === 0) {
+				if (callbacks.size === 0) {
 					observer.current?.disconnect()
 					observer.current = null
 					return
@@ -70,16 +70,16 @@ export function PrefetchObserverProvider({ children }: { children: React.ReactNo
 				observer.current?.unobserve(el)
 			},
 		}),
-		[],
+		[callbacks],
 	)
 
 	useEffect(
 		() => () => {
 			observer.current?.disconnect()
-			callbacks.current.clear()
+			callbacks.clear()
 			observer.current = null
 		},
-		[value],
+		[callbacks, value],
 	)
 
 	return <PrefetchObserverContext value={value}>{children}</PrefetchObserverContext>

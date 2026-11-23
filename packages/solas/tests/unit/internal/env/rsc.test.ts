@@ -123,6 +123,43 @@ describe('createHandler', () => {
 		expect(response.headers.get(`x-${Config.SLUG}-segment`)).toBe('patch')
 	})
 
+	it('reuses the shell artifact for repeated patch prefetches', async () => {
+		let reads = 0
+		const handler = createHandler(
+			config,
+			{ '/writing': createSegment('/writing', { prerender: 'ppr' }) },
+			{ 'p_/writing': { middlewares: [] } },
+			{
+				assets: {
+					exists: async () => true,
+					readText: async () => {
+						reads += 1
+						return '0:{}'
+					},
+					readBuffer: async () => new ArrayBuffer(0),
+					mimeType: () => 'application/octet-stream',
+				},
+			},
+		)
+
+		const request = () =>
+			new Request('http://localhost/writing', {
+				headers: {
+					accept: 'text/x-component',
+					[`x-${Config.SLUG}-prefetch`]: '1',
+					[`x-${Config.SLUG}-segment`]: 'patch',
+					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
+						tree: { id: 'shell', kind: 'shell' },
+					}),
+				},
+			})
+
+		await handler.fetch(request())
+		await handler.fetch(request())
+
+		expect(reads).toBe(1)
+	})
+
 	it('uses a full artifact mode for a declared PPR route', async () => {
 		const handler = createHandler(
 			config,

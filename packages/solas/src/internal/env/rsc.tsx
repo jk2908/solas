@@ -241,8 +241,9 @@ function toClientAsset(relativePath: string): AssetRef | Response {
  */
 async function createPayload({
 	request,
-	manifest,
-	importMap,
+	resolver,
+	loadShell,
+	loadDynamicLayouts,
 	baseMetadata,
 	returnValue,
 	formState,
@@ -250,12 +251,12 @@ async function createPayload({
 	nonce,
 	clientCssByRoute,
 	effectivePrerenderMode,
-	assets,
 	invalidatedPaths,
 }: {
 	request: SolasRequest
-	manifest: Manifest
-	importMap: ImportMap
+	resolver: Resolver
+	loadShell: (pathname: string) => Promise<string | null>
+	loadDynamicLayouts: (pathname: string) => Promise<string[]>
 	baseMetadata?: Metadata.Item
 	returnValue?: { ok: boolean; data: unknown }
 	formState?: ReactFormState
@@ -263,10 +264,8 @@ async function createPayload({
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
-	assets?: Assets
 	invalidatedPaths?: { path: string; scope: 'page' | 'layout' }[]
 }) {
-	const resolver = new Resolver(manifest, importMap)
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
 	const url = new URL(request.url)
 	const routedPath = stripBasePath(url.pathname, BASE_PATH) ?? url.pathname
@@ -311,10 +310,7 @@ async function createPayload({
 	const payloadParams = match ? { ...match.params } : undefined
 	let dynamicLayouts: string[] = []
 
-	if (patchSegment && match) {
-		const shellPayload = await Prerender.loadShell(pathname, assets)
-		if (shellPayload) dynamicLayouts = Prerender.getDynamicLayouts(shellPayload)
-	}
+	if (patchSegment && match) dynamicLayouts = await loadDynamicLayouts(pathname)
 	const patchLayouts =
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params, dynamicLayouts)
@@ -331,8 +327,7 @@ async function createPayload({
 
 	// completed build shells already contain the static layouts, page content
 	// and suspended fallbacks, so navigations can commit them immediately
-	const shellArtifact =
-		match && shell ? await Prerender.loadShell(pathname, assets) : null
+	const shellArtifact = match && shell ? await loadShell(pathname) : null
 	if (shellArtifact) {
 		const encoder = new TextEncoder()
 
@@ -561,6 +556,11 @@ async function createPayload({
 	}
 }
 
+type ShellCacheEntry = {
+	shell: Promise<string | null>
+	dynamicLayouts?: Promise<string[]>
+}
+
 /**
  * Create the object exported by the generated RSC entry. Uses the generated config,
  * route manifest, and import map to build the router once, then returns an object
@@ -590,6 +590,53 @@ export function createHandler(
 			),
 		),
 	]
+	const resolver = new Resolver(manifest, importMap)
+	const shellCache = new Map<string, ShellCacheEntry>()
+	const SHELL_CACHE_LIMIT = 64
+
+	/**
+	 * Load and cache one immutable PPR shell artifact. The cache is bounded so
+	 * large apps do not retain every shell in memory.
+	 */
+	function getShell(pathname: string) {
+		const cached = shellCache.get(pathname)
+
+		if (cached) {
+			// refresh the LRU position
+			shellCache.delete(pathname)
+			shellCache.set(pathname, cached)
+			return cached
+		}
+
+		const entry: ShellCacheEntry = {
+			shell: Prerender.loadShell(pathname, assets),
+		}
+		shellCache.set(pathname, entry)
+
+		if (shellCache.size > SHELL_CACHE_LIMIT) {
+			const oldest = shellCache.keys().next().value
+			if (oldest !== undefined) shellCache.delete(oldest)
+		}
+
+		return entry
+	}
+
+	function loadShell(pathname: string) {
+		return getShell(pathname).shell
+	}
+
+	/**
+	 * Dynamic layout IDs come from the shell payload. Cache the parse alongside
+	 * the shell so navigation patches do not repeat it.
+	 */
+	function loadDynamicLayouts(pathname: string) {
+		const entry = getShell(pathname)
+		entry.dynamicLayouts ??= entry.shell
+			.then(shell => (shell ? Prerender.getDynamicLayouts(shell) : []))
+			.catch(() => [])
+
+		return entry.dynamicLayouts
+	}
 
 	/**
 	 * Create the HTTP response for a single incoming request. Runs actions when needed,
@@ -649,8 +696,9 @@ export function createHandler(
 			segment,
 		} = await createPayload({
 			request,
-			manifest,
-			importMap,
+			resolver,
+			loadShell,
+			loadDynamicLayouts,
 			baseMetadata: config.metadata,
 			returnValue: opts.returnValue,
 			formState: opts.formState,
@@ -658,7 +706,6 @@ export function createHandler(
 			nonce,
 			clientCssByRoute,
 			effectivePrerenderMode,
-			assets,
 			invalidatedPaths,
 		})
 
@@ -715,8 +762,9 @@ export function createHandler(
 			try {
 				const { stream: retriedRscStream, status: retriedStatus } = await createPayload({
 					request,
-					manifest,
-					importMap,
+					resolver,
+					loadShell,
+					loadDynamicLayouts,
 					baseMetadata: config.metadata,
 					returnValue: opts.returnValue,
 					formState: opts.formState,
@@ -724,7 +772,6 @@ export function createHandler(
 					nonce,
 					clientCssByRoute,
 					effectivePrerenderMode,
-					assets,
 					invalidatedPaths,
 				})
 

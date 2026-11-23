@@ -5,9 +5,10 @@ import { render } from 'vitest-browser-react'
 
 vi.mock('../../../../src/internal/browser-router/use-router.js', () => ({
 	useRouter: vi.fn(),
+	useRouterActions: vi.fn(),
 }))
 
-const { useRouter } =
+const { useRouter, useRouterActions } =
 	await import('../../../../src/internal/browser-router/use-router.js')
 const { Link } = await import('../../../../src/internal/browser-router/link.js')
 const { PrefetchObserverProvider } =
@@ -42,7 +43,7 @@ declare module '../../../../src/solas.js' {
 }
 
 function mockRouter(overrides: Partial<BrowserRouter.Context> = {}) {
-	vi.mocked(useRouter).mockReturnValue({
+	const value: BrowserRouter.Context = {
 		go: vi.fn(),
 		invalidate: vi.fn(),
 		prefetch: vi.fn(),
@@ -51,6 +52,12 @@ function mockRouter(overrides: Partial<BrowserRouter.Context> = {}) {
 		url: { pathname: '/', search: '', hash: '' },
 		history: { entries: [], index: 0 },
 		...overrides,
+	}
+
+	vi.mocked(useRouter).mockReturnValue(value)
+	vi.mocked(useRouterActions).mockReturnValue({
+		go: value.go,
+		prefetch: value.prefetch,
 	})
 }
 

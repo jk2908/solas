@@ -16,6 +16,12 @@ declare module '../../../../src/solas.js' {
 }
 
 vi.mock('../../../../src/internal/browser-router/router.js', () => ({
+	BrowserRouterActionsContext: createContext<
+		Pick<BrowserRouter.Context, 'go' | 'prefetch'>
+	>({
+		go: async () => '',
+		prefetch: () => {},
+	}),
 	BrowserRouterContext: createContext<BrowserRouter.Context>({
 		go: async () => '',
 		invalidate: () => {},

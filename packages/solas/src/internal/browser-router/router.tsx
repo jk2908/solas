@@ -53,6 +53,13 @@ export const BrowserRouterContext = createContext<BrowserRouter.Context>({
 	},
 })
 
+export const BrowserRouterActionsContext = createContext<
+	Pick<BrowserRouter.Context, 'go' | 'prefetch'>
+>({
+	go: async () => '',
+	prefetch: () => {},
+})
+
 const DEFAULT_GO_CONFIG = {
 	replace: false,
 } satisfies BrowserRouter.GoOptions
@@ -298,7 +305,7 @@ export function BrowserRouterProvider({
 }) {
 	const id = useRef(0)
 	const controller = useRef<AbortController | null>(null)
-	const history = useRef(new BrowserRouterHistory(url))
+	const [history] = useState(() => new BrowserRouterHistory(url))
 	const focusPending = useRef(false)
 	const mounted = useRef(false)
 
@@ -316,13 +323,14 @@ export function BrowserRouterProvider({
 	const [segmentMeta, setSegmentMeta] = useState<Map<string, SegmentMeta>>(
 		() => new Map(),
 	)
-	const layoutCache = useRef(new LayoutCache())
-	const routerState = useRef({ tree: buildRouterTree(segments), params })
+	const [layoutCache] = useState(() => new LayoutCache())
+	const [routerState] = useState(() => ({ tree: buildRouterTree(segments), params }))
 
 	// keep the request-diff state aligned with action payloads and shell updates
 	useEffect(() => {
-		routerState.current = { tree: buildRouterTree(segments), params }
-	}, [segments, params])
+		routerState.tree = buildRouterTree(segments)
+		routerState.params = params
+	}, [segments, params, routerState])
 
 	useEffect(() => {
 		const clear = (event?: Event) => {
@@ -340,7 +348,7 @@ export function BrowserRouterProvider({
 				for (const item of paths) {
 					routerCache.invalidatePath(item.path, item.scope)
 
-					layoutCache.current.invalidatePath(item.path, item.scope)
+					layoutCache.invalidatePath(item.path, item.scope)
 				}
 
 				handled = true
@@ -349,7 +357,7 @@ export function BrowserRouterProvider({
 			if (handled) return
 
 			routerCache.clear()
-			layoutCache.current.clear()
+			layoutCache.clear()
 			setSegmentPage(null)
 			setLayouts(new Map())
 			setSegmentMeta(new Map())
@@ -364,7 +372,7 @@ export function BrowserRouterProvider({
 			hot?.off?.('rsc:update', onHot)
 			window.removeEventListener(Events.REVALIDATE, clear)
 		}
-	}, [routerCache])
+	}, [layoutCache, routerCache])
 
 	useEffect(() => {
 		if (!mounted.current) {
@@ -409,7 +417,7 @@ export function BrowserRouterProvider({
 			// or router.go(1) to go forward. Will trigger a popstate event which
 			// is intercepted
 			if (typeof to === 'number') {
-				const entry = history.current.go(to)
+				const entry = history.go(to)
 				return `${entry.pathname}${entry.search}`
 			}
 
@@ -436,15 +444,15 @@ export function BrowserRouterProvider({
 
 				if (path !== currentPath) {
 					if (replace) {
-						history.current.replaceState(path)
+						history.replaceState(path)
 					} else {
-						history.current.pushState(path)
+						history.pushState(path)
 					}
 				}
 
 				let payload: RscPayload | undefined
 				let resolvedPath = path
-				const previousState = routerState.current
+				const previousState = { tree: routerState.tree, params: routerState.params }
 
 				setSegmentPage(null)
 				setLayouts(new Map())
@@ -461,7 +469,7 @@ export function BrowserRouterProvider({
 						const cachedLayoutIds = (cachedPayload.segments?.layouts ?? []).filter(
 							(id): id is string => typeof id === 'string',
 						)
-						const { values, missing } = layoutCache.current.getValues(
+						const { values, missing } = layoutCache.getValues(
 							cachedLayoutIds,
 							cachedPayload.params,
 						)
@@ -482,7 +490,7 @@ export function BrowserRouterProvider({
 							[`x-${Config.SLUG}-router-state`]: JSON.stringify({
 								tree: previousState.tree,
 								params: previousState.params,
-								cachedLayouts: layoutCache.current.ids(),
+								cachedLayouts: layoutCache.ids(),
 							}),
 						},
 						signal: ctrl.signal,
@@ -506,7 +514,7 @@ export function BrowserRouterProvider({
 					if (collected.meta.size > 0) setSegmentMeta(collected.meta)
 
 					const values = resolveLayoutNodes(
-						layoutCache.current,
+						layoutCache,
 						collected.layouts,
 						targetIds,
 						patch.params,
@@ -636,17 +644,15 @@ export function BrowserRouterProvider({
 
 				// redirects and canonicalisation can change the final URL
 				if (resolvedPath !== path) {
-					history.current.replaceState(resolvedPath)
+					history.replaceState(resolvedPath)
 				}
 
 				// focus after React commits the new payload
 				focusPending.current = scrollIntent !== 'none' && !hash
 
 				setPayload?.(payload)
-				routerState.current = {
-					tree: buildRouterTree(payload?.segments),
-					params: payload?.params,
-				}
+				routerState.tree = buildRouterTree(payload?.segments)
+				routerState.params = payload?.params
 				applyScroll(scrollIntent, hash)
 
 				// notify listeners only after the payload has been applied
@@ -684,7 +690,7 @@ export function BrowserRouterProvider({
 
 			return path
 		},
-		[routerCache, setPayload],
+		[history, layoutCache, routerCache, routerState, setPayload],
 	)
 
 	/**
@@ -699,9 +705,9 @@ export function BrowserRouterProvider({
 					[`x-${Config.SLUG}-segment`]: 'patch',
 					[`x-${Config.SLUG}-prefetch`]: '1',
 					[`x-${Config.SLUG}-router-state`]: JSON.stringify({
-						tree: routerState.current.tree,
-						params: routerState.current.params,
-						cachedLayouts: layoutCache.current.ids(),
+						tree: routerState.tree,
+						params: routerState.params,
+						cachedLayouts: layoutCache.ids(),
 					}),
 				},
 			})
@@ -716,7 +722,7 @@ export function BrowserRouterProvider({
 			const collected = collectSegments(patch.root, targetIds, patch.segments?.page)
 
 			resolveLayoutNodes(
-				layoutCache.current,
+				layoutCache,
 				collected.layouts,
 				targetIds,
 				patch.params,
@@ -743,7 +749,7 @@ export function BrowserRouterProvider({
 				{ ttl: pagePayload.cache?.page },
 			)
 		},
-		[routerCache],
+		[layoutCache, routerCache, routerState],
 	)
 
 	/**
@@ -770,13 +776,8 @@ export function BrowserRouterProvider({
 				.then(decodeRscResponse)
 				.then(decoded => {
 					if (decoded?.segment === 'shell') {
-						void decoded.payload
-							.then(payload => {
-								if (payload.segmentable) {
-									return prefetchSegmentPatch(key)
-								}
-							})
-							.catch(() => {})
+						// start the patch alongside shell decoding instead of waiting for it
+						void prefetchSegmentPatch(key).catch(() => {})
 					}
 
 					return decoded
@@ -799,9 +800,9 @@ export function BrowserRouterProvider({
 				routerCache.remove(key)
 				routerCache.removeSegment(key)
 			}
-			layoutCache.current.clear()
+			layoutCache.clear()
 		},
-		[routerCache],
+		[layoutCache, routerCache],
 	)
 
 	const refresh = useCallback(() => {
@@ -812,15 +813,15 @@ export function BrowserRouterProvider({
 
 		routerCache.remove(key)
 		routerCache.removeSegment(key)
-		layoutCache.current.clear()
+		layoutCache.clear()
 		setSegmentPage(null)
 
 		// a refresh stays exactly where the user is
 		return go(currentPath, { replace: true, scroll: 'none' })
-	}, [go, routerCache])
+	}, [go, layoutCache, routerCache])
 
 	useEffect(() => {
-		const h = history.current
+		const h = history
 
 		function handler() {
 			const entry = h.onPopState()
@@ -840,7 +841,7 @@ export function BrowserRouterProvider({
 
 			window.removeEventListener('popstate', handler)
 		}
-	}, [go])
+	}, [go, history])
 
 	// take over scroll restoration so back/forward can restore saved positions
 	useEffect(() => {
@@ -861,7 +862,7 @@ export function BrowserRouterProvider({
 
 			requestAnimationFrame(() => {
 				pending = false
-				history.current.saveScroll()
+				history.saveScroll()
 			})
 		}
 
@@ -874,10 +875,21 @@ export function BrowserRouterProvider({
 				window.history.scrollRestoration = previous
 			}
 		}
-	}, [])
+	}, [history])
 
 	const pageId = segmentPage?.segments?.page ?? null
 	const pageHead = pageId ? segmentMeta.get(pageId)?.head : undefined
+	const segmentValue = useMemo(
+		() => ({ page: segmentPage, layouts, meta: segmentMeta }),
+		[segmentPage, layouts, segmentMeta],
+	)
+	const historyEntries = history.snapshot()
+	const historyIndex = history.index
+	const historyState = useMemo(
+		() => ({ entries: historyEntries, index: historyIndex }),
+		[historyEntries, historyIndex],
+	)
+	const actions = useMemo(() => ({ go, prefetch }), [go, prefetch])
 	const value = useMemo(
 		() => ({
 			go,
@@ -890,17 +902,14 @@ export function BrowserRouterProvider({
 				search: url.search,
 				hash: url.hash,
 			},
-			history: {
-				entries: history.current.entries,
-				index: history.current.index,
-			},
+			history: historyState,
 		}),
-		[go, invalidate, prefetch, refresh, isNavigating, url],
+		[go, historyState, invalidate, prefetch, refresh, isNavigating, url],
 	)
 
 	return (
 		<PrefetchObserverProvider>
-			<SegmentContext value={{ page: segmentPage, layouts, meta: segmentMeta }}>
+			<SegmentContext value={segmentValue}>
 				<Suspense fallback={null}>
 					<Head
 						metadata={pageHead ?? segmentPage?.metadata ?? metadata}
@@ -908,7 +917,9 @@ export function BrowserRouterProvider({
 						clientCss={segmentPage?.clientCss ?? clientCss}
 					/>
 				</Suspense>
-				<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
+				<BrowserRouterActionsContext value={actions}>
+					<BrowserRouterContext value={value}>{children}</BrowserRouterContext>
+				</BrowserRouterActionsContext>
 			</SegmentContext>
 		</PrefetchObserverProvider>
 	)

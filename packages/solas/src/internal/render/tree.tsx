@@ -96,46 +96,8 @@ export function Tree({
 	if (!Shell) throw new Error('Shell layout is required in the route tree')
 
 	if (patch) {
-		const rendered = new Map<string, React.ReactNode>()
-
-		for (const [idx, Layout] of layouts.entries()) {
-			const id = layoutIds[idx]
-
-			if (!Layout || !id) continue
-			if (layoutFilter && !layoutFilter.includes(id)) continue
-
-			const Loading = loaders[idx]
-			const Unauthorised = unauthorised[idx]
-			const Forbidden = forbidden[idx]
-			const NotFound = notFounds[idx]
-			const ServerError = serverErrors[idx]
-			const head = segmentHeads?.find(item => item.id === id)?.metadata
-
-			rendered.set(
-				id,
-				<LayoutSlot
-					key={`l:${idx}`}
-					id={id}
-					segment={{
-						id,
-						meta: {
-							loading: Loading ? <Loading /> : undefined,
-							errors: {
-								401: Unauthorised ? <Unauthorised error={UNAUTHORISED_ERROR} /> : null,
-								403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,
-								404: NotFound ? <NotFound error={NOT_FOUND_ERROR} /> : null,
-								500: ServerError ? <ServerError error={SERVER_ERROR} /> : null,
-							},
-							head,
-						},
-					}}>
-					<Layout params={params}>
-						<ChildSlot />
-					</Layout>
-				</LayoutSlot>,
-			)
-		}
-
+		const filter = layoutFilter ? new Set(layoutFilter) : null
+		const heads = new Map(segmentHeads?.map(item => [item.id, item.metadata]))
 		let page: React.ReactNode = null
 
 		if (Page) {
@@ -145,7 +107,7 @@ export function Tree({
 			const NotFound = notFounds[notFounds.length - 1]
 			const ServerError = serverErrors[serverErrors.length - 1]
 			const id = pageId ?? 'page'
-			const head = segmentHeads?.find(item => item.id === id)?.metadata
+			const head = heads.get(id)
 
 			page = (
 				<PatchNode
@@ -182,12 +144,43 @@ export function Tree({
 
 			if (!Layout || !id) return child
 
+			const Loading = loaders[index]
+			const Unauthorised = unauthorised[index]
+			const Forbidden = forbidden[index]
+			const NotFound = notFounds[index]
+			const ServerError = serverErrors[index]
+			const head = heads.get(id)
+
+			const node =
+				filter && !filter.has(id) ? undefined : (
+					<LayoutSlot
+						key={`l:${index}`}
+						id={id}
+						segment={{
+							id,
+							meta: {
+								loading: Loading ? <Loading /> : undefined,
+								errors: {
+									401: Unauthorised ? <Unauthorised error={UNAUTHORISED_ERROR} /> : null,
+									403: Forbidden ? <Forbidden error={FORBIDDEN_ERROR} /> : null,
+									404: NotFound ? <NotFound error={NOT_FOUND_ERROR} /> : null,
+									500: ServerError ? <ServerError error={SERVER_ERROR} /> : null,
+								},
+								head,
+							},
+						}}>
+						<Layout params={params}>
+							<ChildSlot />
+						</Layout>
+					</LayoutSlot>
+				)
+
 			return (
 				<PatchNode
 					key={`p:${index}`}
 					id={id}
 					kind={index === 0 ? 'shell' : 'layout'}
-					node={rendered.get(id)}>
+					node={node}>
 					{child}
 				</PatchNode>
 			)

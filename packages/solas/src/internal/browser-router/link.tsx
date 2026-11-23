@@ -4,7 +4,7 @@ import { useEffect, useImperativeHandle, useRef } from 'react'
 
 import { usePrefetchObserver } from './prefetch-observer.js'
 import * as BrowserRouter from './shared.js'
-import { useRouter } from './use-router.js'
+import { useRouterActions } from './use-router.js'
 
 type AnchorProps = React.ComponentPropsWithRef<'a'> & { href: string }
 
@@ -108,7 +108,7 @@ export function Link({
 	scroll,
 	...rest
 }: Props) {
-	const { go, prefetch: prefetcher } = useRouter()
+	const { go, prefetch: prefetcher } = useRouterActions()
 	const observer = usePrefetchObserver()
 
 	const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
