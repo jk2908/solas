@@ -102,9 +102,7 @@ function decodeRscResponse(res: Response) {
 	const type = readRouteType(res)
 	const segmentHeader = res.headers.get(`x-${Config.SLUG}-segment`)
 	const segment =
-		segmentHeader === 'page' || segmentHeader === 'shell' || segmentHeader === 'patch'
-			? segmentHeader
-			: null
+		segmentHeader === 'shell' || segmentHeader === 'patch' ? segmentHeader : null
 
 	// null-body responses have nothing to decode or cache
 	if (res.status === 204 || !res.ok || !res.body) return null
@@ -197,11 +195,6 @@ function scrollToHash(hash: string, attempts = MAX_HASH_ATTEMPTS) {
 	requestAnimationFrame(() => scrollToHash(hash, attempts - 1))
 }
 
-/**
- * Apply the scroll position for a completed navigation. Push navigations go to
- * the top (or the target hash), back/forward restore the saved position, and
- * refreshes leave the page where it is.
- */
 /**
  * Reset focus to the document body after a client navigation, matching the
  * browser behavior of a full page load.
@@ -491,13 +484,8 @@ export function BrowserRouterProvider({
 						setSegmentPage(cachedPayload)
 
 						if (cachedPage.value.meta) setSegmentMeta(cachedPage.value.meta)
-
-						if (!missing) {
-							if (values.size > 0) setLayouts(values)
-							return
-						}
-
 						if (values.size > 0) setLayouts(values)
+						if (!missing) return
 					}
 
 					const ctrl = new AbortController()

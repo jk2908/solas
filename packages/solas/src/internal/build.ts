@@ -613,6 +613,7 @@ export class Finder {
 		// cache prerender flags per file path so shared layouts
 		// only trigger one export read across routes
 		const prerenderCache = new Map<string, Route.PrerenderMode | false | undefined>()
+		const checkedPprLayouts = new Set<string>()
 
 		for (const segment of segments) {
 			try {
@@ -841,6 +842,9 @@ export class Finder {
 					]
 
 					for (const layoutFile of layoutFiles) {
+						if (checkedPprLayouts.has(layoutFile)) continue
+						checkedPprLayouts.add(layoutFile)
+
 						const source = await fs.readFile(layoutFile, 'utf8')
 						const errors = validatePprLayout(layoutFile, source)
 						if (errors.length > 0) throw new BuildError(errors.join('\n'))

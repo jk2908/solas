@@ -14,7 +14,7 @@ import type {
 	SolasRequest,
 } from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
-import type { RscSegment, RscSegmentDescriptor } from '../route-segments.js'
+import type { RscSegment } from '../route-segments.js'
 import type { SSRModule } from './ssr.js'
 import * as Config from '../../config.js'
 import * as RuntimeManifest from '../../manifest.js'
@@ -65,7 +65,7 @@ export type HandlerOptions = {
 	devClientCssByRoute?: Record<string, string[]>
 }
 
-export type { RscSegment, RscSegmentDescriptor } from '../route-segments.js'
+export type { RscSegment } from '../route-segments.js'
 
 export type RscPayload = {
 	returnValue?: { ok: boolean; data: unknown }
@@ -118,47 +118,26 @@ function parseRouterState(value: string | null) {
 	try {
 		const parsed = JSON.parse(value) as {
 			tree?: unknown
-			segments?: unknown
 			params?: unknown
 			cachedLayouts?: unknown
 		}
-		let tree: RouterNode | undefined
 
-		if (parsed.tree !== undefined) {
-			function parseNode(node: unknown): RouterNode | null {
-				if (!node || typeof node !== 'object') return null
-				const item = node as { id?: unknown; kind?: unknown; children?: unknown }
-				if (typeof item.id !== 'string') return null
-				if (item.kind !== 'shell' && item.kind !== 'layout' && item.kind !== 'page') {
-					return null
-				}
-
-				const children =
-					item.children === undefined ? undefined : parseNode(item.children)
-				if (item.children !== undefined && !children) return null
-
-				return { id: item.id, kind: item.kind, children: children ?? undefined }
+		function parseNode(node: unknown): RouterNode | null {
+			if (!node || typeof node !== 'object') return null
+			const item = node as { id?: unknown; kind?: unknown; children?: unknown }
+			if (typeof item.id !== 'string') return null
+			if (item.kind !== 'shell' && item.kind !== 'layout' && item.kind !== 'page') {
+				return null
 			}
 
-			tree = parseNode(parsed.tree) ?? undefined
-			if (!tree) return null
+			const children = item.children === undefined ? undefined : parseNode(item.children)
+			if (item.children !== undefined && !children) return null
+
+			return { id: item.id, kind: item.kind, children: children ?? undefined }
 		}
 
-		const segments: RscSegmentDescriptor[] = []
-
-		if (Array.isArray(parsed.segments)) {
-			for (const segment of parsed.segments) {
-				if (!segment || typeof segment !== 'object') return null
-
-				const { id, kind } = segment as { id?: unknown; kind?: unknown }
-				if (typeof id !== 'string') return null
-				if (kind !== 'shell' && kind !== 'layout' && kind !== 'page') return null
-
-				segments.push({ id, kind })
-			}
-		} else if (!tree) {
-			return null
-		}
+		const tree = parseNode(parsed.tree)
+		if (!tree) return null
 
 		let params: Record<string, string | string[]> | undefined
 		if (parsed.params !== undefined) {
@@ -192,7 +171,7 @@ function parseRouterState(value: string | null) {
 			cachedLayouts = parsed.cachedLayouts
 		}
 
-		return { tree, segments, params, cachedLayouts }
+		return { tree, params, cachedLayouts }
 	} catch {
 		return null
 	}
@@ -212,9 +191,7 @@ function requiredLayoutIds(
 
 	if (!state) return target
 
-	const current = state.tree
-		? layoutIdsFromTree(state.tree)
-		: state.segments.filter(segment => segment.kind !== 'page').map(segment => segment.id)
+	const current = layoutIdsFromTree(state.tree)
 	const paramsChanged = !sameParams(state.params, params)
 	const cached = new Set(state.cachedLayouts ?? [])
 	const dynamic = new Set(dynamicLayouts)
