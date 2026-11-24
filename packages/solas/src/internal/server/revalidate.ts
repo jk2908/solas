@@ -31,13 +31,13 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 }
 
 /**
- * Take and clear paths invalidated during the current request.
+ * Return and clear paths invalidated during the current request.
  */
-export function takeRevalidatedPaths() {
+export function consumeRevalidatedPaths() {
 	const paths = RevalidationContext.get()
 
 	if (!paths) {
-		throw new Error('takeRevalidatedPaths must be called during a request')
+		throw new Error('consumeRevalidatedPaths must be called during a request')
 	}
 
 	return paths.splice(0)

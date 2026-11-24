@@ -41,7 +41,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import { takeRevalidatedPaths, withRevalidations } from '../server/revalidate.js'
+import { consumeRevalidatedPaths, withRevalidations } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -662,7 +662,7 @@ export function createHandler(
 		}
 
 		const invalidatedPaths = request[Config.REQUEST_META_KEY].action
-			? takeRevalidatedPaths()
+			? consumeRevalidatedPaths()
 			: undefined
 
 		const requestCsp = request.headers.get('content-security-policy')
@@ -1043,7 +1043,7 @@ export function createHandler(
 				return await dispatchRequest(req)
 			} finally {
 				// route-handler invalidations are request-scoped and are discarded
-				takeRevalidatedPaths()
+				consumeRevalidatedPaths()
 			}
 		})
 	}
