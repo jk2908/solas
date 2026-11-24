@@ -1038,15 +1038,16 @@ export function createHandler(
 	}
 
 	/**
-	 * Run one request with its own invalidation list and expose pending paths to
-	 * route-handler callers via a response header.
+	 * Run one request with its own invalidation list.
 	 */
 	async function dispatch(req: Request) {
 		return withRevalidations(async () => {
 			try {
 				return await dispatchRequest(req)
 			} finally {
-				// route-handler invalidations are request-scoped and are discarded
+				// clear the request-scoped list so late async work cannot leak
+				// invalidations into another request. Route-handler paths have no
+				// response payload to carry them and are intentionally dropped.
 				clearRevalidatedPaths()
 			}
 		})
