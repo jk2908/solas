@@ -1,6 +1,7 @@
 import { lazy } from 'react'
 
 import { Logger } from '../utils/logger.js'
+import { trimTrailingSlash } from '../utils/path.js'
 
 import type {
 	DynamicImport,
@@ -140,11 +141,10 @@ export class Resolver {
 		const direct = manifest[path]
 		if (direct) return direct
 
-		if (path !== '/' && path.endsWith('/')) {
-			return manifest[path.slice(0, -1)]
-		}
+		const trimmed = trimTrailingSlash(path)
+		if (trimmed !== path) return manifest[trimmed]
 
-		return manifest[`${path}/`]
+		return manifest[`${trimmed}/`]
 	}
 
 	/**

@@ -1,4 +1,5 @@
 import { applyBasePath, stripBasePath } from '../../utils/base-path.js'
+import { trimTrailingSlash } from '../../utils/path.js'
 
 import type { PluginConfig } from '../../types.js'
 
@@ -111,10 +112,11 @@ export function normaliseTrailingSlash(
 	if (trailingSlash === 'ignore') return pathname
 
 	if (trailingSlash === 'always') {
-		return pathname.endsWith('/') ? pathname : `${pathname}/`
+		const path = trimTrailingSlash(pathname)
+		return path === '/' ? path : `${path}/`
 	}
 
-	return pathname.endsWith('/') ? pathname.slice(0, -1) : pathname
+	return trimTrailingSlash(pathname)
 }
 
 /**
@@ -129,6 +131,7 @@ export function normaliseTrailingSlash(
  * ```
  */
 export function getAlternatePathname(pathname: string) {
-	if (pathname === '/') return pathname
-	return pathname.endsWith('/') ? pathname.slice(0, -1) : `${pathname}/`
+	const path = trimTrailingSlash(pathname)
+	if (path === '/') return path
+	return path === pathname ? `${path}/` : path
 }

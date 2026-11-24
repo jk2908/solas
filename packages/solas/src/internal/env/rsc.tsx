@@ -4,7 +4,7 @@ import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
 import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
 import { Logger } from '../../utils/logger.js'
-import { normalisePath } from '../../utils/path.js'
+import { normalisePath, trimTrailingSlash } from '../../utils/path.js'
 
 import type {
 	ImportMap,
@@ -270,8 +270,7 @@ async function createPayload({
 	const url = new URL(request.url)
 	const routedPath = stripBasePath(url.pathname, BASE_PATH) ?? url.pathname
 
-	const pathname =
-		routedPath.endsWith('/') && routedPath !== '/' ? routedPath.slice(0, -1) : routedPath
+	const pathname = trimTrailingSlash(routedPath)
 
 	const reconciled = resolver.reconcile(
 		pathname,

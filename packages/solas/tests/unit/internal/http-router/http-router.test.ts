@@ -53,6 +53,10 @@ describe('toPathPattern', () => {
 
 describe('normaliseTrailingSlash', () => {
 	it('preserves root', () => expect(normaliseTrailingSlash('/')).toBe('/'))
+	it('collapses repeated trailing slashes', () => {
+		expect(normaliseTrailingSlash('/about///', 'never')).toBe('/about')
+		expect(normaliseTrailingSlash('/about///', 'always')).toBe('/about/')
+	})
 	it('strips trailing slash with "never"', () =>
 		expect(normaliseTrailingSlash('/about/', 'never')).toBe('/about'))
 	it('adds trailing slash with "always"', () =>
