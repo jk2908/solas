@@ -18,6 +18,7 @@ export function withRevalidations<T>(fn: () => T): T {
  * Invalidate route/segment caches for a path.
  */
 export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') {
+	// cache keys never include the query string or hash
 	const value = path.trim().split(/[?#]/)[0]
 	if (!value) return
 
@@ -31,7 +32,7 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 }
 
 /**
- * Read the paths invalidated for a Server Action response.
+ * Snapshot the paths invalidated for a Server Action response.
  */
 export function getRevalidatedPaths() {
 	const paths = RevalidationContext.get()

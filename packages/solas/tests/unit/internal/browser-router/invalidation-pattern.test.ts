@@ -28,6 +28,8 @@ describe('createInvalidationMatcher', () => {
 
 	it('matches catch-all routes', () => {
 		expect(createInvalidationMatcher('/docs/[...slug]', 'page')('/docs/a/b')).toBe(true)
+		expect(createInvalidationMatcher('/docs/[[...slug]]', 'page')('/docs')).toBe(true)
+		expect(createInvalidationMatcher('/docs/[[...slug]]', 'page')('/docs/a')).toBe(true)
 	})
 
 	it('matches all paths for the root layout', () => {

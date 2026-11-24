@@ -3,6 +3,9 @@ import type { RscPayload } from '../env/rsc.js'
 import type { SegmentMeta } from './segment-slot.js'
 import { createInvalidationMatcher } from './invalidation-pattern.js'
 
+const ROUTE_KEY_PREFIX = 'route:'
+const SEGMENT_KEY_PREFIX = 'segment:'
+
 export function isRouterCacheEntryType(
 	value: string | null | undefined,
 ): value is RouterCache.Type {
@@ -231,9 +234,9 @@ export class RouterCache {
 				continue
 			}
 
-			const candidate = key.startsWith('route:')
-				? key.slice('route:'.length)
-				: key.slice('segment:'.length)
+			const candidate = key.startsWith(ROUTE_KEY_PREFIX)
+				? key.slice(ROUTE_KEY_PREFIX.length)
+				: key.slice(SEGMENT_KEY_PREFIX.length)
 
 			if (matches(candidate)) this.#delete(key)
 		}
@@ -256,11 +259,11 @@ export class RouterCache {
 	}
 
 	#routeKey(key: string) {
-		return `route:${key}`
+		return `${ROUTE_KEY_PREFIX}${key}`
 	}
 
 	#segmentKey(key: string) {
-		return `segment:${key}`
+		return `${SEGMENT_KEY_PREFIX}${key}`
 	}
 
 	#timer(

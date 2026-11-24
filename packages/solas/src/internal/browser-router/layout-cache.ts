@@ -15,6 +15,7 @@ type LayoutCacheOptions = {
 }
 
 const MAX_TRACKED_PATHS = 32
+const WILDCARD_PATH = '*'
 
 /**
  * Client-side cache for independently rendered layout nodes.
@@ -133,7 +134,7 @@ export class LayoutCache {
 		for (const [key, entry] of this.#entries) {
 			if (
 				entry.paths.size === 0 ||
-				entry.paths.has('*') ||
+				entry.paths.has(WILDCARD_PATH) ||
 				[...entry.paths].some(item => matches(item))
 			) {
 				this.#entries.delete(key)
@@ -149,11 +150,11 @@ export class LayoutCache {
 	}
 
 	#addPath(entry: Entry, path: string) {
-		if (entry.paths.has(path) || entry.paths.has('*')) return
+		if (entry.paths.has(path) || entry.paths.has(WILDCARD_PATH)) return
 
 		if (entry.paths.size >= MAX_TRACKED_PATHS) {
 			entry.paths.clear()
-			entry.paths.add('*')
+			entry.paths.add(WILDCARD_PATH)
 			return
 		}
 
