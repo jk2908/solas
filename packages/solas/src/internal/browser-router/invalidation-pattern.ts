@@ -1,8 +1,9 @@
 import { isPathWithin, trimTrailingSlash } from '../../utils/path.js'
 
+import * as Config from '../../config.js'
+
 type Scope = 'page' | 'layout'
 
-const GROUP_SEGMENT = /^\(.+\)$/
 const OPTIONAL_CATCH_ALL = /^\[\[\.\.\..+\]\]$/
 const CATCH_ALL = /^\[\.\.\..+\]$/
 
@@ -13,7 +14,7 @@ export function createInvalidationMatcher(pattern: string, scope: Scope) {
 	const segments = trimTrailingSlash(pattern)
 		.split('/')
 		.filter(Boolean)
-		.filter(segment => !GROUP_SEGMENT.test(segment))
+		.filter(segment => !Config.ROUTE_GROUP_RE.test(segment))
 
 	if (segments.every(segment => !isDynamic(segment))) {
 		// literal patterns use direct comparison instead of a regex
