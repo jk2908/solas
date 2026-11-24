@@ -37,6 +37,7 @@ describe('Build', () => {
 
 			it('extracts rest params [...slug]', () => {
 				expect(Finder.getParams('app/docs/[...slug]/+page.tsx')).toEqual(['slug'])
+				expect(Finder.getParams('app/docs/[[...slug]]/+page.tsx')).toEqual(['slug'])
 			})
 
 			it('extracts mixed named and rest params', () => {
@@ -90,6 +91,7 @@ describe('Build', () => {
 
 			it('converts [...wildcard] to *', () => {
 				expect(Finder.toCanonicalRoute('app/docs/[...slug]/+page.tsx')).toBe('/docs/*')
+				expect(Finder.toCanonicalRoute('app/docs/[[...slug]]/+page.tsx')).toBe('/docs/*')
 			})
 
 			it('handles mixed static and dynamic segments', () => {
