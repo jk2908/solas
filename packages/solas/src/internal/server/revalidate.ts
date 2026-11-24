@@ -10,16 +10,16 @@ const RevalidationContext = Context.create<RevalidatedPath[]>('revalidation')
 /**
  * Run a request with its own invalidation list.
  */
-export function runWithRevalidations<T>(fn: (paths: RevalidatedPath[]) => T): T {
-	const paths: RevalidatedPath[] = []
-	return RevalidationContext.write(paths, () => fn(paths))
+export function withRevalidations<T>(fn: () => T): T {
+	return RevalidationContext.write([], fn)
 }
 
 /**
  * Invalidate route/segment caches for a path.
  */
 export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') {
-	if (!path) return
+	const value = path.trim().split(/[?#]/)[0]
+	if (!value) return
 
 	const paths = RevalidationContext.get()
 
@@ -27,10 +27,7 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 		throw new Error('revalidatePath must be called during a request')
 	}
 
-	paths.push({
-		path: path.split('?')[0] || '/',
-		scope,
-	})
+	paths.push({ path: value, scope })
 }
 
 /**
@@ -38,7 +35,10 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
  */
 export function drainRevalidatedPaths() {
 	const paths = RevalidationContext.get()
-	if (!paths) return []
+
+	if (!paths) {
+		throw new Error('drainRevalidatedPaths must be called during a request')
+	}
 
 	return paths.splice(0)
 }

@@ -3,12 +3,12 @@ import { describe, expect, it } from 'vitest'
 import {
 	drainRevalidatedPaths,
 	revalidatePath,
-	runWithRevalidations,
+	withRevalidations,
 } from '../../../../src/internal/server/revalidate.js'
 
 describe('revalidatePath', () => {
 	it('collects page and layout invalidations', () => {
-		runWithRevalidations(paths => {
+		withRevalidations(() => {
 			revalidatePath('/about/another')
 			revalidatePath('/about?x=1', 'layout')
 
@@ -16,20 +16,19 @@ describe('revalidatePath', () => {
 				{ path: '/about/another', scope: 'page' },
 				{ path: '/about', scope: 'layout' },
 			])
-			expect(paths).toEqual([])
 		})
 	})
 
 	it('keeps concurrent request invalidations separate', async () => {
-		const first = runWithRevalidations(async paths => {
+		const first = withRevalidations(async () => {
 			revalidatePath('/first')
 			await new Promise(resolve => setTimeout(resolve, 5))
-			return paths.splice(0)
+			return drainRevalidatedPaths()
 		})
 
-		const second = runWithRevalidations(paths => {
+		const second = withRevalidations(() => {
 			revalidatePath('/second', 'layout')
-			return paths.splice(0)
+			return drainRevalidatedPaths()
 		})
 
 		expect(await first).toEqual([{ path: '/first', scope: 'page' }])

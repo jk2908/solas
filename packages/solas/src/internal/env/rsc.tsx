@@ -41,7 +41,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import { drainRevalidatedPaths, runWithRevalidations } from '../server/revalidate.js'
+import { drainRevalidatedPaths, withRevalidations } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -1038,7 +1038,14 @@ export function createHandler(
 	 * route-handler callers via a response header.
 	 */
 	async function dispatch(req: Request) {
-		return runWithRevalidations(() => dispatchRequest(req))
+		return withRevalidations(async () => {
+			try {
+				return await dispatchRequest(req)
+			} finally {
+				// route-handler invalidations are request-scoped and are discarded
+				drainRevalidatedPaths()
+			}
+		})
 	}
 
 	async function dispatchRequest(req: Request) {
