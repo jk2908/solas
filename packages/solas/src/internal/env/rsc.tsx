@@ -1047,7 +1047,7 @@ export function createHandler(
 			} finally {
 				// clear the request-scoped list so late async work cannot leak
 				// invalidations into another request. Route-handler paths have no
-				// response payload to carry them and are intentionally dropped.
+				// response payload to carry them and are intentionally dropped
 				clearRevalidatedPaths()
 			}
 		})
