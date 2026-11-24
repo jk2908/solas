@@ -80,7 +80,7 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
 				return `/${segment}`
 			}
 
-			if (segment === '*') {
+			if (segment === '*' || segment === '**') {
 				// reuse the discovered param name when we have one so wildcard params
 				// line up with the generated route pattern
 				const value = paramNames[paramIndex]
@@ -90,7 +90,7 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
 				wildcardIndex += 1
 				wildcardNames.add(name)
 
-				return `/*${name}`
+				return segment === '**' ? `{/*${name}}` : `/*${name}`
 			}
 
 			return `/${escapePathSegment(segment)}`

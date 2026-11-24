@@ -79,7 +79,7 @@ Use these filename conventions:
 - `+404.tsx`: boundary for not found responses in the current route branch and its children.
 - `+500.tsx`: boundary for server errors in the current route branch and its children.
 
-Nested folders create nested routes. Dynamic segments use `[param]`, and catch-all segments use `[...param]`.
+Nested folders create nested routes. Dynamic segments use `[param]`. Catch-all segments use `[...param]`; optional catch-all segments use `[[...param]]` and also match the parent path.
 
 Status boundaries follow the same override pattern as layouts: a child route uses the nearest matching boundary file above it, and a more specific boundary replaces a parent one.
 

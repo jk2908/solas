@@ -308,12 +308,8 @@ export class Finder {
 			.filter(Boolean)
 			.filter(segment => !Finder.isRouteGroup(segment))
 			.map(segment => {
-				if (
-					Config.OPTIONAL_CATCH_ALL_SEGMENT_RE.test(segment) ||
-					Config.CATCH_ALL_SEGMENT_RE.test(segment)
-				) {
-					return '*'
-				}
+				if (Config.OPTIONAL_CATCH_ALL_SEGMENT_RE.test(segment)) return '**'
+				if (Config.CATCH_ALL_SEGMENT_RE.test(segment)) return '*'
 
 				const match = Config.DYNAMIC_SEGMENT_RE.exec(segment)
 				return match ? `:${match[1]}` : segment

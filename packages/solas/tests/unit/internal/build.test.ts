@@ -91,7 +91,7 @@ describe('Build', () => {
 
 			it('converts [...wildcard] to *', () => {
 				expect(Finder.toCanonicalRoute('app/docs/[...slug]/+page.tsx')).toBe('/docs/*')
-				expect(Finder.toCanonicalRoute('app/docs/[[...slug]]/+page.tsx')).toBe('/docs/*')
+				expect(Finder.toCanonicalRoute('app/docs/[[...slug]]/+page.tsx')).toBe('/docs/**')
 			})
 
 			it('handles mixed static and dynamic segments', () => {

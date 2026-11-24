@@ -47,7 +47,7 @@ export namespace HttpRouter {
 	) => Response | Promise<Response>
 
 	export type Token = {
-		kind: 'static' | 'dynamic' | 'wildcard'
+		kind: 'static' | 'dynamic' | 'wildcard' | 'optional-wildcard'
 		value: string
 	}
 
@@ -155,9 +155,12 @@ export class HttpRouter {
 		// turn the route path into tokens once so registration and matching can
 		// share the same specificity rules
 		for (const segment of segments) {
-			if (segment === '*') {
+			if (segment === '*' || segment === '**') {
 				wildcard = true
-				tokens.push({ kind: 'wildcard', value: params?.[0] ?? '*' })
+				tokens.push({
+					kind: segment === '**' ? 'optional-wildcard' : 'wildcard',
+					value: params?.[0] ?? '*',
+				})
 				continue
 			}
 
@@ -526,7 +529,8 @@ export class HttpRouter {
 		if (!token) return -1
 		if (token.kind === 'static') return 2
 		if (token.kind === 'dynamic') return 1
-		return 0
+		if (token.kind === 'wildcard') return 0
+		return -1
 	}
 
 	/**

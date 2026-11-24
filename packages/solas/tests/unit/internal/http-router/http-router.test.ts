@@ -46,6 +46,12 @@ describe('toPathPattern', () => {
 		expect(r.wildcardNames).toEqual(new Set(['slug']))
 	})
 
+	it('marks optional wildcard params', () => {
+		const r = toPathPattern('/docs/**', ['slug'])
+		expect(r.path).toBe('/docs{/*slug}')
+		expect(r.wildcardNames).toEqual(new Set(['slug']))
+	})
+
 	it('escapes regex chars in static segments', () => {
 		expect(toPathPattern('/search.+').path).toBe('/search\\.\\+')
 	})
@@ -227,6 +233,14 @@ describe('HttpRouter', () => {
 			const router = createRouter().add('/docs/*', 'GET', h)
 			await router.fetch(http('/other'))
 			expect(h).not.toHaveBeenCalled()
+		})
+
+		it('matches optional wildcard routes at the prefix and below', async () => {
+			const router = createRouter().add('/docs/**', 'GET', () => new Response('optional'))
+
+			expect(await (await router.fetch(http('/docs'))).text()).toBe('optional')
+			expect(await (await router.fetch(http('/docs/a'))).text()).toBe('optional')
+			expect(await (await router.fetch(http('/docs/a/b'))).text()).toBe('optional')
 		})
 	})
 
