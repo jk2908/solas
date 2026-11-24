@@ -270,12 +270,20 @@ export class Finder {
 	 * Extracts dynamic parameter names from a file path.
 	 */
 	static getParams(file: string) {
-		const normalised = normalisePath(file)
-			.split('/')
-			.filter(segment => !Finder.isRouteGroup(segment))
-			.join('/')
+		const params: string[] = []
 
-		return Array.from(normalised.matchAll(/\[(?:\.\.\.)?([^\]]+)\]/g), m => m[1])
+		for (const segment of normalisePath(file).split('/')) {
+			if (Finder.isRouteGroup(segment)) continue
+
+			const match =
+				Config.OPTIONAL_CATCH_ALL_SEGMENT_RE.exec(segment) ??
+				Config.CATCH_ALL_SEGMENT_RE.exec(segment) ??
+				Config.DYNAMIC_SEGMENT_RE.exec(segment)
+
+			if (match) params.push(match[1])
+		}
+
+		return params
 	}
 
 	/**
@@ -299,12 +307,17 @@ export class Finder {
 			.split('/')
 			.filter(Boolean)
 			.filter(segment => !Finder.isRouteGroup(segment))
-			.map(
-				segment =>
-					segment
-						.replace(/\[\.\.\..+?\]/g, '*') // wildcard routes
-						.replace(/\[(.+?)\]/g, ':$1'), // dynamic routes
-			)
+			.map(segment => {
+				if (
+					Config.OPTIONAL_CATCH_ALL_SEGMENT_RE.test(segment) ||
+					Config.CATCH_ALL_SEGMENT_RE.test(segment)
+				) {
+					return '*'
+				}
+
+				const match = Config.DYNAMIC_SEGMENT_RE.exec(segment)
+				return match ? `:${match[1]}` : segment
+			})
 
 		return segments.length ? `/${segments.join('/')}` : '/'
 	}

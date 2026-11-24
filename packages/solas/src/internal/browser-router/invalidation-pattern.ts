@@ -4,9 +4,6 @@ import * as Config from '../../config.js'
 
 type Scope = 'page' | 'layout'
 
-const OPTIONAL_CATCH_ALL = /^\[\[\.\.\..+\]\]$/
-const CATCH_ALL = /^\[\.\.\..+\]$/
-
 /**
  * Build a matcher for literal or dynamic route patterns.
  */
@@ -27,7 +24,9 @@ export function createInvalidationMatcher(pattern: string, scope: Scope) {
 	}
 
 	// optional catch-all segments also make the preceding slash optional
-	const optionalCatchAll = OPTIONAL_CATCH_ALL.test(segments.at(-1) ?? '')
+	const optionalCatchAll = Config.OPTIONAL_CATCH_ALL_SEGMENT_RE.test(
+		segments.at(-1) ?? '',
+	)
 	const pathSegments = optionalCatchAll ? segments.slice(0, -1) : segments
 	const source = pathSegments.map(toSegmentSource).join('/')
 	const optionalSuffix = optionalCatchAll ? '(?:/.*)?' : ''
@@ -43,8 +42,8 @@ function isDynamic(segment: string) {
 
 function toSegmentSource(segment: string) {
 	if (segment === '*') return '.*'
-	if (OPTIONAL_CATCH_ALL.test(segment)) return '.*'
-	if (CATCH_ALL.test(segment)) return '.*'
+	if (Config.OPTIONAL_CATCH_ALL_SEGMENT_RE.test(segment)) return '.*'
+	if (Config.CATCH_ALL_SEGMENT_RE.test(segment)) return '.*'
 	if (segment.startsWith('[') && segment.endsWith(']')) return '[^/]+'
 	if (segment.startsWith(':')) return segment.endsWith('?') ? '[^/]*' : '[^/]+'
 

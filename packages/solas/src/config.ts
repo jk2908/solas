@@ -80,6 +80,21 @@ export const ROUTE_GROUP_RE = /^\([A-Za-z0-9][A-Za-z0-9._-]*\)$/
  */
 export const ROUTE_GROUP_LIKE_RE = /^\([^()]*\)$/
 
+/**
+ * A required catch-all segment, for example `[...slug]`.
+ */
+export const CATCH_ALL_SEGMENT_RE = /^\[\.\.\.([^\]]+)\]$/
+
+/**
+ * An optional catch-all segment, for example `[[...slug]]`.
+ */
+export const OPTIONAL_CATCH_ALL_SEGMENT_RE = /^\[\[\.\.\.([^\]]+)\]\]$/
+
+/**
+ * A dynamic segment, for example `[slug]`.
+ */
+export const DYNAMIC_SEGMENT_RE = /^\[([^\]]+)\]$/
+
 const CONFIG_KEYS = new Set([
 	'adapter',
 	'csp',
