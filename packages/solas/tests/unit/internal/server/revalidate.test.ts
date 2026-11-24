@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-	consumeRevalidatedPaths,
+	clearRevalidatedPaths,
+	getRevalidatedPaths,
 	revalidatePath,
 	withRevalidations,
 } from '../../../../src/internal/server/revalidate.js'
@@ -12,10 +13,13 @@ describe('revalidatePath', () => {
 			revalidatePath('/about/another')
 			revalidatePath('/about?x=1', 'layout')
 
-			expect(consumeRevalidatedPaths()).toEqual([
+			expect(getRevalidatedPaths()).toEqual([
 				{ path: '/about/another', scope: 'page' },
 				{ path: '/about', scope: 'layout' },
 			])
+
+			clearRevalidatedPaths()
+			expect(getRevalidatedPaths()).toEqual([])
 		})
 	})
 
@@ -23,12 +27,12 @@ describe('revalidatePath', () => {
 		const first = withRevalidations(async () => {
 			revalidatePath('/first')
 			await new Promise(resolve => setTimeout(resolve, 5))
-			return consumeRevalidatedPaths()
+			return getRevalidatedPaths()
 		})
 
 		const second = withRevalidations(() => {
 			revalidatePath('/second', 'layout')
-			return consumeRevalidatedPaths()
+			return getRevalidatedPaths()
 		})
 
 		expect(await first).toEqual([{ path: '/first', scope: 'page' }])
