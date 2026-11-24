@@ -1,7 +1,7 @@
 import type { Route } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
 import type { SegmentMeta } from './segment-slot.js'
-import { createInvalidationMatcher } from './path-pattern.js'
+import { createInvalidationMatcher } from './invalidation-pattern.js'
 
 export function isRouterCacheEntryType(
 	value: string | null | undefined,

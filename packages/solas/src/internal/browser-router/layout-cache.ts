@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 
+import { createInvalidationMatcher } from './invalidation-pattern.js'
 import { layoutSegmentKey, type LayoutCacheParams } from './layout-cache-key.js'
-import { createInvalidationMatcher } from './path-pattern.js'
 
 type Entry = {
 	id: string

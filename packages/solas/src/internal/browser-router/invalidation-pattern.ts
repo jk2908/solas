@@ -1,3 +1,5 @@
+import { isPathWithin, trimTrailingSlash } from '../../utils/path.js'
+
 type Scope = 'page' | 'layout'
 
 const GROUP_SEGMENT = /^\(.+\)$/
@@ -6,7 +8,7 @@ const GROUP_SEGMENT = /^\(.+\)$/
  * Build a matcher for literal or dynamic route patterns.
  */
 export function createInvalidationMatcher(pattern: string, scope: Scope) {
-	const segments = normalise(pattern)
+	const segments = trimTrailingSlash(pattern)
 		.split('/')
 		.filter(Boolean)
 		.filter(segment => !GROUP_SEGMENT.test(segment))
@@ -15,7 +17,7 @@ export function createInvalidationMatcher(pattern: string, scope: Scope) {
 		const path = `/${segments.join('/')}`.replace(/^\/$/, '/')
 
 		return (candidate: string) => {
-			const value = normalise(candidate)
+			const value = trimTrailingSlash(candidate)
 			return value === path || (scope === 'layout' && isPathWithin(value, path))
 		}
 	}
@@ -24,11 +26,7 @@ export function createInvalidationMatcher(pattern: string, scope: Scope) {
 	const suffix = scope === 'layout' ? '(?:/.*)?' : ''
 	const matcher = new RegExp(`^/${source}${suffix}$`)
 
-	return (candidate: string) => matcher.test(normalise(candidate))
-}
-
-function normalise(value: string) {
-	return value === '/' ? value : value.replace(/\/+$/, '')
+	return (candidate: string) => matcher.test(trimTrailingSlash(candidate))
 }
 
 function isDynamic(segment: string) {
@@ -43,8 +41,4 @@ function toSegmentSource(segment: string) {
 	if (segment.startsWith(':')) return segment.endsWith('?') ? '[^/]*' : '[^/]+'
 
 	return segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
-function isPathWithin(candidate: string, path: string) {
-	return candidate === path || path === '/' || candidate.startsWith(`${path}/`)
 }

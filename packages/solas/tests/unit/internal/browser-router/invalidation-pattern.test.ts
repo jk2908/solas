@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createInvalidationMatcher } from '../../../../src/internal/browser-router/path-pattern.js'
+import { createInvalidationMatcher } from '../../../../src/internal/browser-router/invalidation-pattern.js'
 
 describe('createInvalidationMatcher', () => {
 	it('matches literal pages and layout descendants', () => {
