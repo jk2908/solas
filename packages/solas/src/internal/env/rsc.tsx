@@ -41,7 +41,11 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import { getRevalidatedPaths, withRevalidations } from '../server/revalidate.js'
+import {
+	enableRevalidations,
+	getRevalidatedPaths,
+	withRevalidations,
+} from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -654,6 +658,7 @@ export function createHandler(
 		}
 
 		if (request[Config.REQUEST_META_KEY].action) {
+			enableRevalidations()
 			opts = await processActionRequest(request, {
 				trustedOrigins: config.trustedOrigins,
 				url: config.url,

@@ -1,3 +1,5 @@
+import path from 'node:path'
+
 import { parseSync } from 'oxc-parser'
 
 import * as Config from '../config.js'
@@ -219,4 +221,163 @@ export function validatePprLayout(file: string, source: string) {
 	visit(parsed.program, false)
 
 	return [...new Set(errors)]
+}
+
+type ReadSource = (file: string) => Promise<string | null>
+
+/**
+ * Reject PPR layouts that import a local module which calls dynamic().
+ *
+ * This is deliberately conservative: a dynamic call anywhere in the imported
+ * module graph is treated as unsafe for a PPR layout. Move that work into the
+ * layout itself or opt the route out with prerender = false.
+ */
+export async function validatePprLayoutImports(
+	file: string,
+	source: string,
+	readSource: ReadSource,
+) {
+	const parsed = parseSync(file, source)
+	const errors: string[] = []
+	const results = new Map<string, boolean>()
+
+	for (const statement of parsed.program.body as AstNode[]) {
+		if (statement.type !== 'ImportDeclaration') continue
+
+		const specifier = statement.source?.value
+		if (typeof specifier !== 'string' || !specifier.startsWith('.')) continue
+
+		const resolved = await resolveImport(file, specifier, readSource)
+		if (!resolved) continue
+
+		if (await moduleHasDynamic(resolved, readSource, results)) {
+			errors.push(
+				`${file}: imported module ${resolved} calls dynamic(). ` +
+					'Move the dynamic work into the layout or use `export const prerender = false`.',
+			)
+		}
+	}
+
+	return [...new Set(errors)]
+}
+
+async function moduleHasDynamic(
+	file: string,
+	readSource: ReadSource,
+	results: Map<string, boolean>,
+): Promise<boolean> {
+	const cached = results.get(file)
+	if (cached !== undefined) return cached
+
+	// mark first so cyclic graph traversal terminates
+	results.set(file, false)
+
+	const source = await readSource(file)
+	if (source == null) return false
+
+	const parsed = parseSync(file, source)
+	const dynamicNames = new Set<string>()
+	const namespaceNames = new Set<string>()
+
+	for (const statement of parsed.program.body as AstNode[]) {
+		if (statement.type !== 'ImportDeclaration') continue
+		if (statement.source?.value !== `${Config.PKG_NAME}/server`) continue
+
+		for (const specifier of statement.specifiers as AstNode[]) {
+			if (
+				specifier.type === 'ImportSpecifier' &&
+				specifier.imported?.name === 'dynamic'
+			) {
+				dynamicNames.add(specifier.local.name)
+			}
+
+			if (specifier.type === 'ImportNamespaceSpecifier') {
+				namespaceNames.add(specifier.local.name)
+			}
+		}
+	}
+
+	if (hasDynamicCall(parsed.program, dynamicNames, namespaceNames)) {
+		results.set(file, true)
+		return true
+	}
+
+	for (const statement of parsed.program.body as AstNode[]) {
+		if (statement.type !== 'ImportDeclaration') continue
+
+		const specifier = statement.source?.value
+		if (typeof specifier !== 'string' || !specifier.startsWith('.')) continue
+
+		const resolved = await resolveImport(file, specifier, readSource)
+		if (!resolved) continue
+
+		if (await moduleHasDynamic(resolved, readSource, results)) {
+			results.set(file, true)
+			return true
+		}
+	}
+
+	return false
+}
+
+function hasDynamicCall(
+	value: unknown,
+	dynamicNames: Set<string>,
+	namespaceNames: Set<string>,
+): boolean {
+	if (!value || typeof value !== 'object') return false
+	if (Array.isArray(value)) {
+		return value.some(item => hasDynamicCall(item, dynamicNames, namespaceNames))
+	}
+
+	const node = value as AstNode
+
+	if (node.type === 'CallExpression') {
+		const callee = node.callee
+
+		if (callee?.type === 'Identifier' && dynamicNames.has(callee.name)) return true
+
+		if (
+			callee?.type === 'MemberExpression' &&
+			!callee.computed &&
+			callee.property?.name === 'dynamic' &&
+			callee.object?.type === 'Identifier' &&
+			namespaceNames.has(callee.object.name)
+		) {
+			return true
+		}
+	}
+
+	for (const key of Object.keys(node)) {
+		if (key === 'type' || key === 'loc' || key === 'start' || key === 'end') continue
+		if (hasDynamicCall(node[key], dynamicNames, namespaceNames)) return true
+	}
+
+	return false
+}
+
+async function resolveImport(
+	importer: string,
+	specifier: string,
+	readSource: ReadSource,
+) {
+	const base = path.resolve(path.dirname(importer), specifier)
+	const candidates = new Set<string>([base])
+	const extension = path.extname(base)
+
+	if (extension === '.js' || extension === '.jsx') {
+		candidates.add(base.replace(/\.(?:js|jsx)$/, '.ts'))
+		candidates.add(base.replace(/\.(?:js|jsx)$/, '.tsx'))
+	}
+
+	for (const suffix of ['', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.cjs']) {
+		if (!extension && suffix) candidates.add(`${base}${suffix}`)
+		candidates.add(path.join(base, `index${suffix}`))
+	}
+
+	for (const candidate of candidates) {
+		if ((await readSource(candidate)) != null) return candidate
+	}
+
+	return undefined
 }

@@ -17,7 +17,7 @@ import type {
 } from '../types.js'
 import * as Config from '../config.js'
 import { normaliseTrailingSlash } from './http-router/utils.js'
-import { validatePprLayout } from './ppr-dynamic-validation.js'
+import { validatePprLayout, validatePprLayoutImports } from './ppr-dynamic-validation.js'
 import * as Prerender from './prerender.js'
 
 /**
@@ -855,7 +855,12 @@ export class Finder {
 						checkedPprLayouts.add(layoutFile)
 
 						const source = await fs.readFile(layoutFile, 'utf8')
-						const errors = validatePprLayout(layoutFile, source)
+						const errors = [
+							...validatePprLayout(layoutFile, source),
+							...(await validatePprLayoutImports(layoutFile, source, async file =>
+								fs.readFile(file, 'utf8').catch(() => null),
+							)),
+						]
 						if (errors.length > 0) throw new BuildError(errors.join('\n'))
 					}
 				}
