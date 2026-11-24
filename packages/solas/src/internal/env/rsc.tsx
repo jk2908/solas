@@ -41,11 +41,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import {
-	clearRevalidatedPaths,
-	getRevalidatedPaths,
-	withRevalidations,
-} from '../server/revalidate.js'
+import { getRevalidatedPaths, withRevalidations } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -1041,16 +1037,7 @@ export function createHandler(
 	 * Run one request with its own invalidation list.
 	 */
 	async function dispatch(req: Request) {
-		return withRevalidations(async () => {
-			try {
-				return await dispatchRequest(req)
-			} finally {
-				// clear the request-scoped list so late async work cannot leak
-				// invalidations into another request. Route-handler paths have no
-				// response payload to carry them and are intentionally dropped
-				clearRevalidatedPaths()
-			}
-		})
+		return withRevalidations(() => dispatchRequest(req))
 	}
 
 	async function dispatchRequest(req: Request) {

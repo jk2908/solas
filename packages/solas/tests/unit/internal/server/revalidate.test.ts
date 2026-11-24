@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-	clearRevalidatedPaths,
 	getRevalidatedPaths,
 	revalidatePath,
 	withRevalidations,
@@ -17,9 +16,6 @@ describe('revalidatePath', () => {
 				{ path: '/about/another', scope: 'page' },
 				{ path: '/about', scope: 'layout' },
 			])
-
-			clearRevalidatedPaths()
-			expect(getRevalidatedPaths()).toEqual([])
 		})
 	})
 

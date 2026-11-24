@@ -42,16 +42,3 @@ export function getRevalidatedPaths() {
 
 	return [...paths]
 }
-
-/**
- * Clear the paths invalidated during the current request.
- */
-export function clearRevalidatedPaths() {
-	const paths = RevalidationContext.get()
-
-	if (!paths) {
-		throw new Error('clearRevalidatedPaths must be called during a request')
-	}
-
-	paths.length = 0
-}
