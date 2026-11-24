@@ -177,7 +177,7 @@ export function Controls() {
 				Prefetch posts
 			</button>
 
-			<button type="button" onClick={() => router.invalidateCache('/posts')}>
+			<button type="button" onClick={() => router.evict('/posts')}>
 				Invalidate cached posts
 			</button>
 
@@ -197,7 +197,7 @@ const finalPath = await router.go('/posts')
 await router.refresh()
 ```
 
-`router.invalidateCache(path)` removes a cached route payload without changing what is currently rendered. The next navigation to that path fetches fresh data.
+`router.evict(path)` removes the cached route and page segment for a path and clears all cached layout nodes. It does not navigate, refetch, or update other tabs. The next navigation to that path fetches fresh data.
 
 Use `revalidatePath` from a Server Action to invalidate page or layout data:
 
@@ -208,7 +208,7 @@ revalidatePath('/posts')
 revalidatePath('/posts', 'layout')
 ```
 
-Paths may be literal or dynamic route patterns such as `/posts/[slug]` or `/posts/:slug`. Page scope evicts matching pages. Layout scope also evicts layouts and descendants. Invalidation is shared across tabs. Route Handler calls match Next.js and do not update client caches immediately; call `router.refresh()` after the request when an immediate client update is needed.
+Paths may be literal or dynamic route patterns such as `/posts/[slug]` or `/posts/:slug`. Page scope evicts matching pages. Layout scope also evicts layouts and descendants. Invalidation is shared across tabs. Route Handler calls push cache updates to connected clients through a server-sent event stream. The stream is process-local; multi-instance deployments need shared pub/sub. Use `router.refresh()` when the current route must refetch immediately.
 
 `router.refresh()` always refreshes the current browser location at the moment you call it. If you call it after `await router.go('/posts')`, it refreshes `/posts` (or the final redirected path).
 
@@ -482,7 +482,7 @@ If you call `dynamic()` outside `ppr` mode, Solas does not defer that subtree. I
 
 `headers()`, `cookies()`, and `url()` also mark the current render path as dynamic, so they should be treated the same way when you are building a `ppr` shell.
 
-Direct conditional `dynamic()` calls in PPR layouts fail the build. Indirect calls through helpers are not detected; avoid request-time work in PPR layouts or set `prerender = false` for the route.
+Direct conditional `dynamic()` calls and conditional calls through local helpers in PPR layouts fail the build. Imported helpers are not detected; avoid request-time work in PPR layouts or set `prerender = false` for the route.
 
 ### `metadata`
 

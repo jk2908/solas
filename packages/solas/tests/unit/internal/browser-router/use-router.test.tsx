@@ -24,7 +24,7 @@ vi.mock('../../../../src/internal/browser-router/router.js', () => ({
 	}),
 	BrowserRouterContext: createContext<BrowserRouter.Context>({
 		go: async () => '',
-		invalidateCache: () => {},
+		evict: () => {},
 		prefetch: () => {},
 		refresh: async () => '',
 		isNavigating: false,
@@ -43,7 +43,7 @@ function createContextValue(
 ): BrowserRouter.Context {
 	const base: BrowserRouter.Context = {
 		go: vi.fn(),
-		invalidateCache: vi.fn(),
+		evict: vi.fn(),
 		prefetch: vi.fn(),
 		refresh: vi.fn(),
 		isNavigating: false,
@@ -99,23 +99,23 @@ describe('useRouter', () => {
 		expect(go).toHaveBeenCalledWith('/somewhere')
 	})
 
-	it('provides invalidateCache from context', async () => {
-		const invalidateCache = vi.fn()
-		const contextValue = createContextValue({ invalidateCache })
+	it('provides evict from context', async () => {
+		const evict = vi.fn()
+		const contextValue = createContextValue({ evict })
 
-		let capturedInvalidate: BrowserRouter.Context['invalidateCache']
+		let capturedInvalidate: BrowserRouter.Context['evict']
 		await render(
 			<BrowserRouterContext value={contextValue}>
 				<TestComponent
 					onRouter={r => {
-						capturedInvalidate = r.invalidateCache
+						capturedInvalidate = r.evict
 					}}
 				/>
 			</BrowserRouterContext>,
 		)
 
 		capturedInvalidate!('/about')
-		expect(invalidateCache).toHaveBeenCalledWith('/about')
+		expect(evict).toHaveBeenCalledWith('/about')
 	})
 
 	it('provides the url from context', async () => {

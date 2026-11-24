@@ -8,9 +8,8 @@ type AstNode = Record<string, any>
 /**
  * Reject conditional dynamic() calls in PPR layout modules.
  *
- * This is a static guard, not a runtime check. It covers direct calls in
- * conditional statements and expressions; indirect helper calls still need code
- * review.
+ * This is a static guard, not a runtime check. It checks direct calls and
+ * calls through local helper functions; imported helpers still need code review.
  */
 export function validatePprLayout(file: string, source: string) {
 	const parsed = parseSync(file, source)
@@ -47,6 +46,100 @@ export function validatePprLayout(file: string, source: string) {
 		return callee.object?.type === 'Identifier' && namespaceNames.has(callee.object.name)
 	}
 
+	type FunctionInfo = {
+		calls: Set<string>
+		dynamic: boolean
+	}
+
+	const functions = new Map<string, FunctionInfo>()
+	const functionBodies = new Map<string, unknown>()
+
+	function addFunction(name: string | undefined, body: unknown) {
+		if (!name || !body || typeof body !== 'object') return
+		if (functions.has(name)) return
+		functions.set(name, { calls: new Set(), dynamic: false })
+		functionBodies.set(name, body)
+	}
+
+	function collectFunctions(value: unknown) {
+		if (!value || typeof value !== 'object') return
+		if (Array.isArray(value)) {
+			for (const child of value) collectFunctions(child)
+			return
+		}
+
+		const node = value as AstNode
+
+		if (node.type === 'FunctionDeclaration') {
+			addFunction(node.id?.name, node.body)
+		}
+
+		if (node.type === 'VariableDeclarator' && node.id?.type === 'Identifier') {
+			if (
+				node.init?.type === 'ArrowFunctionExpression' ||
+				node.init?.type === 'FunctionExpression'
+			) {
+				addFunction(node.id.name, node.init.body)
+			}
+		}
+
+		for (const key of Object.keys(node)) {
+			if (key === 'type' || key === 'loc' || key === 'start' || key === 'end') continue
+			collectFunctions(node[key])
+		}
+	}
+
+	function collectCalls(value: unknown, info: FunctionInfo) {
+		if (!value || typeof value !== 'object') return
+		if (Array.isArray(value)) {
+			for (const child of value) collectCalls(child, info)
+			return
+		}
+
+		const node = value as AstNode
+
+		if (node.type === 'CallExpression') {
+			if (isDynamicCall(node.callee)) info.dynamic = true
+			else if (
+				node.callee?.type === 'Identifier' &&
+				typeof node.callee.name === 'string'
+			) {
+				info.calls.add(node.callee.name)
+			}
+		}
+
+		for (const key of Object.keys(node)) {
+			if (key === 'type' || key === 'loc' || key === 'start' || key === 'end') continue
+			collectCalls(node[key], info)
+		}
+	}
+
+	function isDynamicHelperCall(callee: AstNode) {
+		if (callee.type !== 'Identifier') return false
+		return functions.get(callee.name)?.dynamic === true
+	}
+
+	collectFunctions(parsed.program)
+
+	for (const [name, info] of functions) {
+		const body = functionBodies.get(name)
+		if (body) collectCalls(body, info)
+	}
+
+	let changed = true
+
+	while (changed) {
+		changed = false
+
+		for (const info of functions.values()) {
+			if (info.dynamic) continue
+			if ([...info.calls].some(name => functions.get(name)?.dynamic)) {
+				info.dynamic = true
+				changed = true
+			}
+		}
+	}
+
 	function visit(value: unknown, conditional: boolean) {
 		if (!value || typeof value !== 'object') return
 		if (Array.isArray(value)) {
@@ -56,7 +149,11 @@ export function validatePprLayout(file: string, source: string) {
 
 		const node = value as AstNode
 
-		if (node.type === 'CallExpression' && isDynamicCall(node.callee) && conditional) {
+		if (
+			node.type === 'CallExpression' &&
+			conditional &&
+			(isDynamicCall(node.callee) || isDynamicHelperCall(node.callee))
+		) {
 			errors.push(
 				`${file}: dynamic() is conditional in a PPR layout. ` +
 					'Use `export const prerender = false` for this route or move the dynamic work to the page.',

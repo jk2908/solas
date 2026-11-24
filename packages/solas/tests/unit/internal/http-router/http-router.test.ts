@@ -29,7 +29,11 @@ const http = (path: string) => new Request(`http://localhost${path}`)
 
 describe('toPathPattern', () => {
 	it('returns root pattern for "/"', () => {
-		expect(toPathPattern('/')).toEqual({ path: '/', wildcardNames: new Set() })
+		expect(toPathPattern('/')).toEqual({
+			path: '/',
+			wildcardNames: new Set(),
+			optionalWildcardNames: new Set(),
+		})
 	})
 
 	it('converts a static route', () => {
@@ -50,6 +54,7 @@ describe('toPathPattern', () => {
 		const r = toPathPattern('/docs/**', ['slug'])
 		expect(r.path).toBe('/docs{/*slug}')
 		expect(r.wildcardNames).toEqual(new Set(['slug']))
+		expect(r.optionalWildcardNames).toEqual(new Set(['slug']))
 	})
 
 	it('escapes regex chars in static segments', () => {
@@ -241,6 +246,44 @@ describe('HttpRouter', () => {
 			expect(await (await router.fetch(http('/docs'))).text()).toBe('optional')
 			expect(await (await router.fetch(http('/docs/a'))).text()).toBe('optional')
 			expect(await (await router.fetch(http('/docs/a/b'))).text()).toBe('optional')
+		})
+
+		it('prefers exact and required wildcard routes over optional wildcards', async () => {
+			const router = createRouter()
+				.add('/docs/**', 'GET', () => new Response('optional'))
+				.add('/docs/*', 'GET', () => new Response('required'))
+				.add('/docs', 'GET', () => new Response('exact'))
+
+			expect(await (await router.fetch(http('/docs'))).text()).toBe('exact')
+			expect(await (await router.fetch(http('/docs/a'))).text()).toBe('required')
+		})
+
+		it('applies trailing slash policy to optional wildcard routes', async () => {
+			const never = createRouter().add('/docs/**', 'GET', ok)
+			expect((await never.fetch(http('/docs/'))).status).toBe(308)
+			expect((await never.fetch(http('/docs/a/'))).status).toBe(308)
+
+			const ignore = new HttpRouter({ trailingSlash: 'ignore' }).add(
+				'/docs/**',
+				'GET',
+				ok,
+			)
+			expect((await ignore.fetch(http('/docs'))).status).toBe(200)
+			expect((await ignore.fetch(http('/docs/'))).status).toBe(200)
+		})
+
+		it('runs middleware for optional wildcard routes', async () => {
+			const calls: string[] = []
+			const router = createRouter()
+				.use(async (_, next) => {
+					calls.push('middleware')
+					return next()
+				})
+				.add('/docs/**', 'GET', () => new Response('ok'))
+
+			await router.fetch(http('/docs'))
+			await router.fetch(http('/docs/a'))
+			expect(calls).toEqual(['middleware', 'middleware'])
 		})
 	})
 

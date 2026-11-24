@@ -36,7 +36,7 @@ export type GoOptions = {
 
 export type Context = {
 	go: Go
-	invalidateCache: (path: string) => void
+	evict: (path: string) => void
 	prefetch: (path: string) => void
 	refresh: Refresh
 	isNavigating: boolean

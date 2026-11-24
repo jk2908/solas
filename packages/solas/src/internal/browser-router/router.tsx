@@ -43,7 +43,7 @@ export * as BrowserRouter from './shared.js'
 
 export const BrowserRouterContext = createContext<BrowserRouter.Context>({
 	go: async () => '',
-	invalidateCache: () => {},
+	evict: () => {},
 	prefetch: () => {},
 	refresh: async () => '',
 	isNavigating: false,
@@ -372,6 +372,27 @@ export function BrowserRouterProvider({
 			channel.broadcast(paths)
 		}
 
+		function onServerRevalidation(e: MessageEvent<string>) {
+			try {
+				const detail = JSON.parse(e.data) as { paths?: unknown }
+				clear(readInvalidatedPaths(detail.paths))
+			} catch {
+				// malformed events are ignored
+			}
+		}
+
+		const source =
+			STATIC || typeof EventSource === 'undefined'
+				? null
+				: new EventSource(
+						new URL(
+							`${Config.ASSETS_DIR}/revalidate`,
+							new URL(import.meta.env.BASE_URL, window.location.origin),
+						),
+					)
+
+		source?.addEventListener('message', onServerRevalidation)
+
 		const hot = import.meta.hot
 		const onHot = () => clear()
 		hot?.on('rsc:update', onHot)
@@ -379,6 +400,8 @@ export function BrowserRouterProvider({
 
 		return () => {
 			hot?.off?.('rsc:update', onHot)
+			source?.removeEventListener('message', onServerRevalidation)
+			source?.close()
 			channel.close()
 			window.removeEventListener(Events.REVALIDATE, onRevalidate)
 		}
@@ -804,7 +827,7 @@ export function BrowserRouterProvider({
 	 * payload. It also clears any cached response for the current path to ensure that the latest
 	 * version is fetched.
 	 */
-	const invalidateCache = useCallback(
+	const evict = useCallback(
 		(path: string) => {
 			const key = BrowserRouter.toCacheKey(path, window.location.origin)
 			if (key) {
@@ -904,7 +927,7 @@ export function BrowserRouterProvider({
 	const value = useMemo(
 		() => ({
 			go,
-			invalidateCache,
+			evict,
 			prefetch,
 			refresh,
 			isNavigating,
@@ -915,7 +938,7 @@ export function BrowserRouterProvider({
 			},
 			history: historyState,
 		}),
-		[go, historyState, invalidateCache, prefetch, refresh, isNavigating, url],
+		[go, historyState, evict, prefetch, refresh, isNavigating, url],
 	)
 
 	return (

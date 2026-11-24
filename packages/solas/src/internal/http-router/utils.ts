@@ -19,6 +19,7 @@ export function isRscRequest(req: Request) {
 export type PathPattern = {
 	path: string
 	wildcardNames: Set<string>
+	optionalWildcardNames: Set<string>
 }
 
 /**
@@ -64,12 +65,17 @@ function escapePathSegment(value: string) {
  */
 export function toPathPattern(route: string, paramNames: string[] = []) {
 	if (route === '/') {
-		return { path: route, wildcardNames: new Set<string>() }
+		return {
+			path: route,
+			wildcardNames: new Set<string>(),
+			optionalWildcardNames: new Set<string>(),
+		}
 	}
 
 	let paramIndex = 0
 	let wildcardIndex = 0
 	const wildcardNames = new Set<string>()
+	const optionalWildcardNames = new Set<string>()
 
 	const path = route
 		.split('/')
@@ -89,6 +95,7 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
 				paramIndex += 1
 				wildcardIndex += 1
 				wildcardNames.add(name)
+				if (segment === '**') optionalWildcardNames.add(name)
 
 				return segment === '**' ? `{/*${name}}` : `/*${name}`
 			}
@@ -97,7 +104,7 @@ export function toPathPattern(route: string, paramNames: string[] = []) {
 		})
 		.join('')
 
-	return { path: path || '/', wildcardNames }
+	return { path: path || '/', wildcardNames, optionalWildcardNames }
 }
 
 /**

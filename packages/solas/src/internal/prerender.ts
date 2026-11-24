@@ -434,7 +434,11 @@ export function getDynamicRouteList(
 ) {
 	if (!staticParams.length) return []
 
-	const { path: compilePath, wildcardNames } = toPathPattern(route, paramNames)
+	const {
+		path: compilePath,
+		wildcardNames,
+		optionalWildcardNames,
+	} = toPathPattern(route, paramNames)
 	const toPath = compile(compilePath)
 
 	return staticParams
@@ -444,13 +448,15 @@ export function getDynamicRouteList(
 					Object.fromEntries(
 						Object.entries(value).map(([key, entry]) => [
 							key,
-							wildcardNames.has(key)
-								? Array.isArray(entry)
-									? entry.map(part => String(part))
-									: [String(entry)]
-								: Array.isArray(entry)
-									? entry.map(part => String(part)).join('/')
-									: String(entry),
+							optionalWildcardNames.has(key) && Array.isArray(entry) && entry.length === 0
+								? undefined
+								: wildcardNames.has(key)
+									? Array.isArray(entry)
+										? entry.map(part => String(part))
+										: [String(entry)]
+									: Array.isArray(entry)
+										? entry.map(part => String(part)).join('/')
+										: String(entry),
 						]),
 					),
 				)

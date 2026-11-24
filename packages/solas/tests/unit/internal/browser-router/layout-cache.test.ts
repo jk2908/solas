@@ -113,6 +113,52 @@ describe('LayoutCache', () => {
 		expect(cache.get('a')).toBeUndefined()
 	})
 
+	it('bounds entries for many parameter combinations', () => {
+		const cache = new LayoutCache({ maxEntries: 50 })
+
+		for (let index = 0; index < 200; index++) {
+			cache.set(`layout-${index}`, { id: String(index) }, index, {
+				expiresAt: Number.POSITIVE_INFINITY,
+				path: `/posts/${index}`,
+			})
+		}
+
+		expect(cache.ids()).toHaveLength(50)
+		expect(cache.get('layout-0', { id: '0' })).toBeUndefined()
+		expect(cache.get('layout-199', { id: '199' })?.value).toBe(199)
+	})
+
+	it('falls back to wildcard invalidation after many paths', () => {
+		const cache = new LayoutCache()
+		cache.set('shared', undefined, 'shared', {
+			expiresAt: Number.POSITIVE_INFINITY,
+			path: '/posts/0',
+		})
+
+		for (let index = 1; index < 40; index++) {
+			cache.touch('shared', undefined, `/posts/${index}`)
+		}
+
+		cache.invalidatePath('/unrelated', 'layout')
+
+		expect(cache.get('shared')).toBeUndefined()
+	})
+
+	it('invalidates many concrete paths through a dynamic pattern', () => {
+		const cache = new LayoutCache()
+
+		for (let index = 0; index < 100; index++) {
+			cache.set(`layout-${index}`, undefined, index, {
+				expiresAt: Number.POSITIVE_INFINITY,
+				path: `/posts/${index}`,
+			})
+		}
+
+		cache.invalidatePath('/posts/[slug]', 'layout')
+
+		expect(cache.ids()).toEqual([])
+	})
+
 	it('keeps layouts for page-scoped invalidation', () => {
 		const cache = new LayoutCache()
 		cache.set('a', undefined, 'a', {

@@ -98,6 +98,12 @@ describe('Build', () => {
 				expect(Finder.toCanonicalRoute('app/[lang]/about/+page.tsx')).toBe('/:lang/about')
 			})
 
+			it('handles optional catch-all routes inside route groups', () => {
+				expect(Finder.toCanonicalRoute('app/(docs)/docs/[[...slug]]/+page.tsx')).toBe(
+					'/docs/**',
+				)
+			})
+
 			it('handles endpoint files with +endpoint.ts', () => {
 				expect(Finder.toCanonicalRoute('app/api/users/+endpoint.ts')).toBe('/api/users')
 			})

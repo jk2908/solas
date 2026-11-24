@@ -6,6 +6,7 @@ export type RevalidatedPath = {
 }
 
 const RevalidationContext = Context.create<RevalidatedPath[]>('revalidation')
+const listeners = new Set<(paths: RevalidatedPath[]) => void>()
 
 /**
  * Run a request with its own invalidation list.
@@ -29,6 +30,23 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 	}
 
 	paths.push({ path: value, scope })
+}
+
+/**
+ * Subscribe to invalidations published to connected clients.
+ */
+export function subscribeRevalidations(listener: (paths: RevalidatedPath[]) => void) {
+	listeners.add(listener)
+	return () => listeners.delete(listener)
+}
+
+/**
+ * Publish request invalidations to connected clients.
+ */
+export function publishRevalidations(paths: RevalidatedPath[]) {
+	if (paths.length === 0) return
+
+	for (const listener of listeners) listener(paths)
 }
 
 /**

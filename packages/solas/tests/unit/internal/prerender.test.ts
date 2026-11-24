@@ -476,6 +476,15 @@ describe('Prerender', () => {
 				const result = getDynamicRouteList('/posts/:id', ['id'], [{ id: 'valid' }])
 				expect(result).toEqual(['/posts/valid'])
 			})
+
+			it('generates optional catch-all routes with empty segments', () => {
+				const result = getDynamicRouteList(
+					'/docs/**',
+					['slug'],
+					[{ slug: ['a', 'b'] }, { slug: [] }],
+				)
+				expect(result).toEqual(['/docs/a/b', '/docs'])
+			})
 		})
 
 		describe('get', () => {

@@ -14,7 +14,8 @@ vi.mock('@vitejs/plugin-rsc/rsc', () => ({
 import type { RuntimeConfig } from '../../../../src/types.js'
 import * as Config from '../../../../src/config.js'
 import { createHandler } from '../../../../src/internal/env/rsc.js'
-import { createSegment } from '../../../utils.js'
+import { revalidatePath } from '../../../../src/internal/server/revalidate.js'
+import { createEndpoint, createSegment } from '../../../utils.js'
 
 const config = {
 	precompress: false,
@@ -158,6 +159,50 @@ describe('createHandler', () => {
 		await handler.fetch(request())
 
 		expect(reads).toBe(1)
+	})
+
+	it('publishes route handler invalidations to the revalidation stream', async () => {
+		const handler = createHandler(
+			config,
+			{ '/api/revalidate': createEndpoint('/api/revalidate') },
+			{
+				'e_/api/revalidate': {
+					endpoint: () => {
+						revalidatePath('/posts')
+						return Response.json({ ok: true })
+					},
+				},
+			},
+		)
+
+		const stream = await handler.fetch(new Request('http://localhost/_solas/revalidate'))
+		const reader = stream.body!.getReader()
+		const decoder = new TextDecoder()
+
+		expect(decoder.decode((await reader.read()).value)).toContain('connected')
+
+		await handler.fetch(new Request('http://localhost/api/revalidate'))
+
+		const event = decoder.decode((await reader.read()).value)
+		expect(event).toContain('data:')
+		expect(event).toContain('/posts')
+
+		await reader.cancel()
+	})
+
+	it('exposes a revalidation stream', async () => {
+		const handler = createHandler(config, {}, {})
+		const response = await handler.fetch(
+			new Request('http://localhost/_solas/revalidate'),
+		)
+
+		expect(response.headers.get('content-type')).toContain('text/event-stream')
+		expect(response.body).not.toBeNull()
+
+		const reader = response.body!.getReader()
+		const first = await reader.read()
+		expect(new TextDecoder().decode(first.value)).toContain('connected')
+		await reader.cancel()
 	})
 
 	it('uses a full artifact mode for a declared PPR route', async () => {
