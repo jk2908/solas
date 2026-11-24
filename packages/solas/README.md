@@ -482,7 +482,7 @@ If you call `dynamic()` outside `ppr` mode, Solas does not defer that subtree. I
 
 `headers()`, `cookies()`, and `url()` also mark the current render path as dynamic, so they should be treated the same way when you are building a `ppr` shell.
 
-Direct conditional `dynamic()` calls and conditional calls through local helpers in PPR layouts fail the build. Local modules imported by a PPR layout are also rejected if they call `dynamic()` anywhere in their relative module graph. Package aliases and non-relative imports are not followed.
+Direct conditional `dynamic()` calls and conditional calls through local helpers in PPR layouts fail the build. Imported helpers are not detected; avoid request-time work in PPR layouts or set `prerender = false` for the route.
 
 ### `metadata`
 

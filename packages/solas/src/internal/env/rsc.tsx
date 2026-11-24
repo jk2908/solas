@@ -41,11 +41,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import {
-	enableRevalidations,
-	getRevalidatedPaths,
-	withRevalidations,
-} from '../server/revalidate.js'
+import { getRevalidatedPaths, withRevalidations } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -647,6 +643,14 @@ export function createHandler(
 	 * applies the final status and headers.
 	 */
 	async function createResponse(request: SolasRequest) {
+		if (request[Config.REQUEST_META_KEY].action) {
+			return withRevalidations(() => renderResponse(request))
+		}
+
+		return renderResponse(request)
+	}
+
+	async function renderResponse(request: SolasRequest) {
 		let opts: {
 			formState?: ReactFormState
 			temporaryReferences?: unknown
@@ -658,7 +662,6 @@ export function createHandler(
 		}
 
 		if (request[Config.REQUEST_META_KEY].action) {
-			enableRevalidations()
 			opts = await processActionRequest(request, {
 				trustedOrigins: config.trustedOrigins,
 				url: config.url,
@@ -1037,16 +1040,7 @@ export function createHandler(
 		})
 	}
 
-	/**
-	 * Run one request with a scoped invalidation list. Server Actions consume the
-	 * list for their response payload; all request invalidations are published
-	 * to connected clients after dispatch.
-	 */
 	async function dispatch(req: Request) {
-		return withRevalidations(() => dispatchRequest(req))
-	}
-
-	async function dispatchRequest(req: Request) {
 		const url = new URL(req.url)
 		const method = req.method.toUpperCase()
 

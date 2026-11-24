@@ -12,7 +12,7 @@
 - PPR routes now prefetch a static shell followed by a page/layout patch. Static layouts are cached independently and reused across navigations.
 - Added `router.cache.maxLayoutEntries` to bound the number of cached layout nodes. Defaults to 100.
 - Added `revalidatePath(path, scope)` for request-scoped path invalidation with literal and dynamic route patterns. Invalidation is shared across tabs through `BroadcastChannel`.
-- Added a build guard for conditional `dynamic()` calls through local helpers and relative imported modules in PPR layouts.
+- Added a build guard for conditional `dynamic()` calls through local helpers in PPR layouts.
 
 ### Fixes
 

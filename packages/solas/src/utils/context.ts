@@ -8,6 +8,9 @@ export function create<T>(name: string) {
 	const storage = new AsyncLocalStorage<T>()
 
 	return {
+		get() {
+			return storage.getStore()
+		},
 		use() {
 			const r = storage.getStore()
 

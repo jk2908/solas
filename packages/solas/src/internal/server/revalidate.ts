@@ -5,25 +5,13 @@ export type RevalidatedPath = {
 	scope: 'page' | 'layout'
 }
 
-type RevalidationState = {
-	paths: RevalidatedPath[]
-	enabled: boolean
-}
-
-const RevalidationContext = Context.create<RevalidationState>('revalidation')
+const RevalidationContext = Context.create<RevalidatedPath[]>('revalidation')
 
 /**
  * Run a request with its own invalidation list.
  */
 export function withRevalidations<T>(fn: () => T): T {
-	return RevalidationContext.write({ paths: [], enabled: false }, fn)
-}
-
-/**
- * Enable revalidation for a Server Action request.
- */
-export function enableRevalidations() {
-	RevalidationContext.use().enabled = true
+	return RevalidationContext.write([], fn)
 }
 
 /**
@@ -34,18 +22,18 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 	const value = path.trim().split(/[?#]/)[0]
 	if (!value) return
 
-	const state = RevalidationContext.use()
+	const paths = RevalidationContext.get()
 
-	if (!state.enabled) {
+	if (!paths) {
 		throw new Error('revalidatePath can only be called from a Server Action')
 	}
 
-	state.paths.push({ path: value, scope })
+	paths.push({ path: value, scope })
 }
 
 /**
  * Snapshot the paths invalidated for a Server Action response.
  */
 export function getRevalidatedPaths() {
-	return [...RevalidationContext.use().paths]
+	return [...RevalidationContext.use()]
 }

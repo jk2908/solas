@@ -1,9 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import {
-	validatePprLayout,
-	validatePprLayoutImports,
-} from '../../../src/internal/ppr-dynamic-validation.js'
+import { validatePprLayout } from '../../../src/internal/ppr-dynamic-validation.js'
 
 const importDynamic = "import { dynamic } from '@jk2908/solas/server'\n"
 
@@ -76,45 +73,5 @@ describe('validatePprLayout', () => {
 		)
 
 		expect(errors).toHaveLength(1)
-	})
-})
-
-describe('validatePprLayoutImports', () => {
-	async function validate(files: Record<string, string>) {
-		return validatePprLayoutImports(
-			'/app/layout.tsx',
-			files['/app/layout.tsx'],
-			async file => {
-				return files[file] ?? null
-			},
-		)
-	}
-
-	it('rejects local helper modules that call dynamic', async () => {
-		const errors = await validate({
-			'/app/layout.tsx': "import { load } from './helper.js'\nload()",
-			'/app/helper.ts': `${importDynamic}export async function load() { await dynamic() }`,
-		})
-
-		expect(errors).toHaveLength(1)
-	})
-
-	it('rejects transitive helper modules that call dynamic', async () => {
-		const errors = await validate({
-			'/app/layout.tsx': "import { load } from './helper.js'\nload()",
-			'/app/helper.ts': "import './nested.js'\nexport async function load() {}",
-			'/app/nested.ts': `${importDynamic}await dynamic()`,
-		})
-
-		expect(errors).toHaveLength(1)
-	})
-
-	it('allows local helper modules without dynamic calls', async () => {
-		const errors = await validate({
-			'/app/layout.tsx': "import { load } from './helper.js'\nload()",
-			'/app/helper.ts': 'export async function load() {}',
-		})
-
-		expect(errors).toEqual([])
 	})
 })
