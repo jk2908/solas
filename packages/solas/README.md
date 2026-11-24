@@ -208,7 +208,7 @@ revalidatePath('/posts')
 revalidatePath('/posts', 'layout')
 ```
 
-Page scope evicts the matching page cache. Layout scope also evicts layouts and their descendants. Invalidation is shared across tabs. Route Handler calls match Next.js and do not update client caches immediately; call `router.refresh()` after the request when an immediate client update is needed.
+Paths may be literal or dynamic route patterns such as `/posts/[slug]` or `/posts/:slug`. Page scope evicts matching pages. Layout scope also evicts layouts and descendants. Invalidation is shared across tabs. Route Handler calls match Next.js and do not update client caches immediately; call `router.refresh()` after the request when an immediate client update is needed.
 
 `router.refresh()` always refreshes the current browser location at the moment you call it. If you call it after `await router.go('/posts')`, it refreshes `/posts` (or the final redirected path).
 

@@ -101,6 +101,18 @@ describe('LayoutCache', () => {
 		expect(cache.get('a')).toBeUndefined()
 	})
 
+	it('invalidates layouts from dynamic route patterns', () => {
+		const cache = new LayoutCache()
+		cache.set('a', undefined, 'a', {
+			expiresAt: Number.POSITIVE_INFINITY,
+			path: '/posts/one',
+		})
+
+		cache.invalidatePath('/posts/[slug]', 'layout')
+
+		expect(cache.get('a')).toBeUndefined()
+	})
+
 	it('keeps layouts for page-scoped invalidation', () => {
 		const cache = new LayoutCache()
 		cache.set('a', undefined, 'a', {

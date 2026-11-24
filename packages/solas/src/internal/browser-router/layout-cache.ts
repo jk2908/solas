@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { layoutSegmentKey, type LayoutCacheParams } from './layout-cache-key.js'
+import { createInvalidationMatcher } from './path-pattern.js'
 
 type Entry = {
 	id: string
@@ -127,11 +128,13 @@ export class LayoutCache {
 	invalidatePath(path: string, scope: 'page' | 'layout') {
 		if (scope !== 'layout') return
 
+		const matches = createInvalidationMatcher(path, scope)
+
 		for (const [key, entry] of this.#entries) {
 			if (
 				entry.paths.size === 0 ||
 				entry.paths.has('*') ||
-				[...entry.paths].some(item => isPathWithin(item, path))
+				[...entry.paths].some(item => matches(item))
 			) {
 				this.#entries.delete(key)
 			}
@@ -164,11 +167,4 @@ export class LayoutCache {
 			this.#entries.delete(oldest)
 		}
 	}
-}
-
-/**
- * Whether a path belongs to another path or one of its descendants.
- */
-function isPathWithin(candidate: string, path: string) {
-	return candidate === path || path === '/' || candidate.startsWith(`${path}/`)
 }

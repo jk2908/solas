@@ -166,6 +166,17 @@ describe('RouterCache', () => {
 		expect(cache.hasSegment('/about')).toBe(false)
 	})
 
+	it('invalidates cached paths from dynamic route patterns', () => {
+		const cache = new RouterCache()
+		cache.setSegment('/posts/one', 'dynamic', {
+			...cached('/posts/one', 10),
+		})
+
+		cache.invalidatePath('/posts/[slug]', 'page')
+
+		expect(cache.hasSegment('/posts/one')).toBe(false)
+	})
+
 	it('does not retain entries when disabled', async () => {
 		const cache = new RouterCache({ enabled: false })
 

@@ -1,6 +1,7 @@
 import type { Route } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
 import type { SegmentMeta } from './segment-slot.js'
+import { createInvalidationMatcher } from './path-pattern.js'
 
 export function isRouterCacheEntryType(
 	value: string | null | undefined,
@@ -220,8 +221,7 @@ export class RouterCache {
 		if (!this.enabled) return
 
 		const target = path.split('?')[0] || '/'
-		const routeKey = this.#routeKey(target)
-		const segmentKey = this.#segmentKey(target)
+		const matches = createInvalidationMatcher(target, scope)
 
 		for (const [key, entry] of this.#cache) {
 			if (
@@ -231,13 +231,11 @@ export class RouterCache {
 				continue
 			}
 
-			const keyMatches =
-				key === routeKey ||
-				key === segmentKey ||
-				(scope === 'layout' &&
-					(isNestedKey(key, routeKey) || isNestedKey(key, segmentKey)))
+			const candidate = key.startsWith('route:')
+				? key.slice('route:'.length)
+				: key.slice('segment:'.length)
 
-			if (keyMatches) this.#delete(key)
+			if (matches(candidate)) this.#delete(key)
 		}
 	}
 
@@ -297,12 +295,4 @@ export class RouterCache {
 
 		this.#cache.delete(key)
 	}
-}
-
-/**
- * Whether a cache key sits below another key. Root keys end with `:/`.
- */
-function isNestedKey(key: string, base: string) {
-	if (base.endsWith(':/')) return key !== base && key.startsWith(base)
-	return key.startsWith(`${base}/`)
 }
