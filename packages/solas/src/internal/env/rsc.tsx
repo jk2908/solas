@@ -614,9 +614,10 @@ function createRevalidationStream(req: Request) {
 
 	return new Response(stream, {
 		headers: {
-			'Cache-Control': 'no-store',
+			'Cache-Control': 'no-store, no-transform',
 			'Content-Type': 'text/event-stream; charset=utf-8',
 			Connection: 'keep-alive',
+			'X-Accel-Buffering': 'no',
 		},
 	})
 }
@@ -1094,10 +1095,9 @@ export function createHandler(
 	}
 
 	/**
-	 * Run one request with a scoped invalidation list.
-	 *
-	 * Server Actions consume the list when building their response payload.
-	 * Route Handler invalidations are intentionally ignored by client caches.
+	 * Run one request with a scoped invalidation list. Server Actions consume the
+	 * list for their response payload; all request invalidations are published
+	 * to connected clients after dispatch.
 	 */
 	async function dispatch(req: Request) {
 		return withRevalidations(async () => {
