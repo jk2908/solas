@@ -1034,7 +1034,10 @@ export function createHandler(
 	}
 
 	/**
-	 * Run one request with its own invalidation list.
+	 * Run one request with a scoped invalidation list.
+	 *
+	 * Server Actions consume the list when building their response payload.
+	 * Route Handler invalidations are intentionally ignored by client caches.
 	 */
 	async function dispatch(req: Request) {
 		return withRevalidations(() => dispatchRequest(req))

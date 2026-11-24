@@ -31,7 +31,7 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 }
 
 /**
- * Read the paths invalidated during the current request.
+ * Read the paths invalidated for a Server Action response.
  */
 export function getRevalidatedPaths() {
 	const paths = RevalidationContext.get()

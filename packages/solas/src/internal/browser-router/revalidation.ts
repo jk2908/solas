@@ -5,6 +5,9 @@ export type InvalidatedPath = {
 	scope: 'page' | 'layout'
 }
 
+/**
+ * Validate invalidation metadata received from another tab.
+ */
 export function readInvalidatedPaths(value: unknown) {
 	if (!Array.isArray(value)) return undefined
 
