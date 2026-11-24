@@ -85,6 +85,11 @@ describe('BrowserRouter', () => {
 			expect(() => toTarget('/docs/*', {})).toThrow('wildcard routes require')
 		})
 
+		it('handles optional wildcard routes with and without params', () => {
+			expect(toTarget('/docs/**', { slug: 'guide/intro' })).toContain('/docs/guide/intro')
+			expect(toTarget('/docs/**', {})).toContain('/docs')
+		})
+
 		it('appends query params', () => {
 			const result = toTarget('/search', undefined, { q: 'test' })
 			expect(result).toContain('?q=test')

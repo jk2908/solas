@@ -273,7 +273,18 @@ export function toTarget(path: string, params?: Record<string, string>, query?: 
 		return encodeURIComponent(value)
 	})
 
-	if (to.includes('*')) {
+	if (to.includes('**')) {
+		const remaining = Object.entries(params ?? {}).filter(([key]) => !used.has(key))
+
+		if (remaining.length > 1) throw new InvalidWildcardParamError()
+
+		const value = remaining[0]?.[1]
+		const suffix = value
+			? `/${value.split('/').filter(Boolean).map(encodeURIComponent).join('/')}`
+			: ''
+
+		to = to.replace('/**', suffix)
+	} else if (to.includes('*')) {
 		const remaining = Object.entries(params ?? {}).filter(([key]) => !used.has(key))
 
 		if (remaining.length !== 1) {
