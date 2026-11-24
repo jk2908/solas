@@ -6,7 +6,6 @@ export type RevalidatedPath = {
 }
 
 const RevalidationContext = Context.create<RevalidatedPath[]>('revalidation')
-const listeners = new Set<(paths: RevalidatedPath[]) => void>()
 
 /**
  * Run a request with its own invalidation list.
@@ -23,41 +22,12 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 	const value = path.trim().split(/[?#]/)[0]
 	if (!value) return
 
-	const paths = RevalidationContext.get()
-
-	if (!paths) {
-		throw new Error('revalidatePath must be called during a request')
-	}
-
-	paths.push({ path: value, scope })
-}
-
-/**
- * Subscribe to invalidations published to connected clients.
- */
-export function subscribeRevalidations(listener: (paths: RevalidatedPath[]) => void) {
-	listeners.add(listener)
-	return () => listeners.delete(listener)
-}
-
-/**
- * Publish request invalidations to connected clients.
- */
-export function publishRevalidations(paths: RevalidatedPath[]) {
-	if (paths.length === 0) return
-
-	for (const listener of listeners) listener(paths)
+	RevalidationContext.use().push({ path: value, scope })
 }
 
 /**
  * Snapshot the paths invalidated for a Server Action response.
  */
 export function getRevalidatedPaths() {
-	const paths = RevalidationContext.get()
-
-	if (!paths) {
-		throw new Error('getRevalidatedPaths must be called during a request')
-	}
-
-	return [...paths]
+	return [...RevalidationContext.use()]
 }

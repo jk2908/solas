@@ -18,7 +18,7 @@
 
 - PPR patch prefetches now return patch payloads instead of the shell artifact.
 - PPR shell artifacts and parsed dynamic layout IDs are cached on the server.
-- Route Handler `revalidatePath` calls now push cache invalidations to connected clients through the revalidation stream.
+- Route Handler `revalidatePath` calls are request-scoped and do not update client caches.
 - Path invalidation now handles shared layouts, root paths, and concurrent requests correctly.
 - The client layout cache is bounded and least-recently-used entries are evicted.
 

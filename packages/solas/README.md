@@ -208,7 +208,7 @@ revalidatePath('/posts')
 revalidatePath('/posts', 'layout')
 ```
 
-Paths may be literal or dynamic route patterns such as `/posts/[slug]` or `/posts/:slug`. Page scope evicts matching pages. Layout scope also evicts layouts and descendants. Invalidation is shared across tabs. Route Handler calls push cache updates to connected clients through a server-sent event stream. The stream is process-local; multi-instance deployments need shared pub/sub. Use `router.refresh()` when the current route must refetch immediately.
+Paths may be literal or dynamic route patterns such as `/posts/[slug]` or `/posts/:slug`. Page scope evicts matching pages. Layout scope also evicts layouts and descendants. Invalidation is shared across tabs. Route Handler calls are request-scoped and do not update client caches. Use `router.refresh()` when the current route must refetch immediately.
 
 `router.refresh()` always refreshes the current browser location at the moment you call it. If you call it after `await router.go('/posts')`, it refreshes `/posts` (or the final redirected path).
 

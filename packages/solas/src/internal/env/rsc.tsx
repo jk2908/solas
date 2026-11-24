@@ -41,12 +41,7 @@ import { Tree } from '../render/tree.js'
 import { Resolver } from '../resolver.js'
 import { processActionRequest } from '../server/actions.js'
 import { createHeaderResolver } from '../server/headers.js'
-import {
-	getRevalidatedPaths,
-	publishRevalidations,
-	subscribeRevalidations,
-	withRevalidations,
-} from '../server/revalidate.js'
+import { getRevalidatedPaths, withRevalidations } from '../server/revalidate.js'
 import DefaultErr from '../ui/defaults/error.js'
 import { RequestContext } from './request-context.js'
 import { getKnownDigest, isKnownError } from './utils.js'
@@ -565,63 +560,6 @@ type ShellCacheEntry = {
 	dynamicLayouts?: Promise<string[]>
 }
 
-const encoder = new TextEncoder()
-
-function createRevalidationStream(req: Request) {
-	let cleanup = () => {}
-
-	const stream = new ReadableStream<Uint8Array>({
-		start(controller) {
-			let closed = false
-
-			const send = (paths: unknown) => {
-				if (closed) return
-				try {
-					controller.enqueue(encoder.encode(`data: ${JSON.stringify({ paths })}\n\n`))
-				} catch {
-					cleanup()
-				}
-			}
-			const unsubscribe = subscribeRevalidations(send)
-			const heartbeat = setInterval(() => {
-				if (closed) return
-				try {
-					controller.enqueue(encoder.encode(': ping\n\n'))
-				} catch {
-					cleanup()
-				}
-			}, 15_000)
-
-			cleanup = () => {
-				if (closed) return
-				closed = true
-				clearInterval(heartbeat)
-				unsubscribe()
-				try {
-					controller.close()
-				} catch {
-					// already closed
-				}
-			}
-
-			req.signal.addEventListener('abort', cleanup, { once: true })
-			controller.enqueue(encoder.encode(': connected\n\n'))
-		},
-		cancel() {
-			cleanup()
-		},
-	})
-
-	return new Response(stream, {
-		headers: {
-			'Cache-Control': 'no-store, no-transform',
-			'Content-Type': 'text/event-stream; charset=utf-8',
-			Connection: 'keep-alive',
-			'X-Accel-Buffering': 'no',
-		},
-	})
-}
-
 /**
  * Create the object exported by the generated RSC entry. Uses the generated config,
  * route manifest, and import map to build the router once, then returns an object
@@ -1100,13 +1038,7 @@ export function createHandler(
 	 * to connected clients after dispatch.
 	 */
 	async function dispatch(req: Request) {
-		return withRevalidations(async () => {
-			try {
-				return await dispatchRequest(req)
-			} finally {
-				publishRevalidations(getRevalidatedPaths())
-			}
-		})
+		return withRevalidations(() => dispatchRequest(req))
 	}
 
 	async function dispatchRequest(req: Request) {
@@ -1129,10 +1061,6 @@ export function createHandler(
 		) {
 			url.pathname = canonicalPathname
 			return Response.redirect(url.toString(), 308)
-		}
-
-		if (method === 'GET' && routedPath === `${SOLAS_ASSETS_URL_ROOT}/revalidate`) {
-			return createRevalidationStream(req)
 		}
 
 		// block the bare /_solas namespace; only concrete solas asset files

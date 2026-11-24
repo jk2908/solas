@@ -372,27 +372,6 @@ export function BrowserRouterProvider({
 			channel.broadcast(paths)
 		}
 
-		function onServerRevalidation(e: MessageEvent<string>) {
-			try {
-				const detail = JSON.parse(e.data) as { paths?: unknown }
-				clear(readInvalidatedPaths(detail.paths))
-			} catch {
-				// malformed events are ignored
-			}
-		}
-
-		const source =
-			STATIC || typeof EventSource === 'undefined'
-				? null
-				: new EventSource(
-						new URL(
-							`${Config.ASSETS_DIR}/revalidate`,
-							new URL(import.meta.env.BASE_URL, window.location.origin),
-						),
-					)
-
-		source?.addEventListener('message', onServerRevalidation)
-
 		const hot = import.meta.hot
 		const onHot = () => clear()
 		hot?.on('rsc:update', onHot)
@@ -400,8 +379,6 @@ export function BrowserRouterProvider({
 
 		return () => {
 			hot?.off?.('rsc:update', onHot)
-			source?.removeEventListener('message', onServerRevalidation)
-			source?.close()
 			channel.close()
 			window.removeEventListener(Events.REVALIDATE, onRevalidate)
 		}
