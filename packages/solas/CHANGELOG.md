@@ -1,14 +1,21 @@
 # Changelog
 
+## 0.23.3
+
+### Breaking
+
+- Replaced `router.cache.enabled` with `router.cache.mode`. Valid modes are `all`, `prerendered`, `full-only`, and `off`. The default is `prerendered` in production and `off` in development.
+
+### Features
+
+- PPR navigations now cache their static shell, so revisiting a route can commit instantly without a new shell request.
+- In `all` mode, static PPR page patches are now cached indefinitely even when a parent layout is dynamic. Page patches with dynamic work still use the short TTL.
+- Direct dynamic navigations are now cached for `router.cache.ttl` in `all` mode instead of always fetching again.
+
 ## 0.23.2
 
 ### Fixes
 
-- PPR navigations now cache their static shell, so revisiting a route can commit instantly without a new shell request.
-- In `all` mode, static PPR page patches are now cached indefinitely even when a parent layout is dynamic. Page patches with dynamic work still use the short TTL.
-- Added `router.cache.mode` with `all`, `prerendered`, `full-only`, and `off` options. It defaults to `prerendered` in production and `off` in development.
-- Removed `router.cache.enabled`.
-- Direct dynamic navigations are now cached for `router.cache.ttl` in `all` mode instead of always fetching again.
 - Updated the Cloudflare adapter for the current `@cloudflare/vite-plugin` worker configuration shape.
 - Updated the Cloudflare example and peer range to the RC toolchain.
 
