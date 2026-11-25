@@ -251,6 +251,7 @@ async function createPayload({
 	nonce,
 	clientCssByRoute,
 	effectivePrerenderMode,
+	effectiveDynamicPage,
 	invalidatedPaths,
 }: {
 	request: SolasRequest
@@ -264,6 +265,7 @@ async function createPayload({
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
+	effectiveDynamicPage?: boolean
 	invalidatedPaths?: { path: string; scope: 'page' | 'layout' }[]
 }) {
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -310,6 +312,7 @@ async function createPayload({
 	let dynamicLayouts: string[] = []
 
 	if (patchSegment && match) dynamicLayouts = await loadDynamicLayouts(pathname)
+	const pageDynamic = effectiveDynamicPage ?? true
 	const patchLayouts =
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params, dynamicLayouts)
@@ -450,7 +453,9 @@ async function createPayload({
 		segmentable: shell,
 		params: payloadParams,
 		cache: {
-			...(patchSegment ? { layouts: null, page: DEFAULT_PAGE_STALE_MS } : {}),
+			...(patchSegment
+				? { layouts: null, page: pageDynamic ? DEFAULT_PAGE_STALE_MS : null }
+				: {}),
 			...(dynamicLayouts.length > 0 ? { dynamicLayouts } : {}),
 			...(invalidatedPaths && invalidatedPaths.length > 0 ? { invalidatedPaths } : {}),
 		},
@@ -693,7 +698,9 @@ export function createHandler(
 
 		const requestPathname = new URL(request.url).pathname
 		const requestLookupPath = normaliseTrailingSlash(requestPathname, prerenderPathMode)
-		const effectivePrerenderMode = runtimeManifest?.artifacts[requestLookupPath]?.mode
+		const effectiveArtifact = runtimeManifest?.artifacts[requestLookupPath]
+		const effectivePrerenderMode = effectiveArtifact?.mode
+		const effectiveDynamicPage = effectiveArtifact?.dynamicPage
 		const {
 			stream: rscStream,
 			status,
@@ -713,6 +720,7 @@ export function createHandler(
 			nonce,
 			clientCssByRoute,
 			effectivePrerenderMode,
+			effectiveDynamicPage,
 			invalidatedPaths,
 		})
 
@@ -779,6 +787,7 @@ export function createHandler(
 					nonce,
 					clientCssByRoute,
 					effectivePrerenderMode,
+					effectiveDynamicPage,
 					invalidatedPaths,
 				})
 

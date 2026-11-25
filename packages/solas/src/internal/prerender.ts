@@ -30,14 +30,19 @@ export type Value = {
 	html: string
 	shell?: string
 	postponed?: unknown
+	dynamicPage?: boolean
 }
 
-export type Metadata = Pick<Value, 'schema' | 'route' | 'createdAt' | 'mode'>
+export type Metadata = Pick<
+	Value,
+	'schema' | 'route' | 'createdAt' | 'mode' | 'dynamicPage'
+>
 
 export type Artifact = {
 	mode: Mode
 	files?: readonly File[]
 	csp?: CspHashes
+	dynamicPage?: boolean
 }
 
 export type ArtifactManifest = Record<string, Artifact>
@@ -227,16 +232,19 @@ export async function loadMetadata(pathname: string, assets: Assets = nodeAssets
 		const route = (value as { route?: unknown }).route
 		const createdAt = (value as { createdAt?: unknown }).createdAt
 		const mode = (value as { mode?: unknown }).mode
+		const dynamicPage = (value as { dynamicPage?: unknown }).dynamicPage
 		if (typeof schema !== 'string') return null
 		if (typeof route !== 'string') return null
 		if (typeof createdAt !== 'number') return null
 		if (mode !== 'full' && mode !== 'ppr') return null
+		if (dynamicPage !== undefined && typeof dynamicPage !== 'boolean') return null
 
 		return {
 			schema,
 			route,
 			createdAt,
 			mode,
+			...(dynamicPage === undefined ? {} : { dynamicPage }),
 		} satisfies Metadata
 	} catch {
 		return null
@@ -576,6 +584,87 @@ export async function* run(
 
 		enqueue()
 	}
+}
+
+const lazySegmentReference = /\$L([0-9a-f]+)/g
+
+/**
+ * Check whether a page segment contains postponed work. A static page under a
+ * dynamic layout can be cached indefinitely, unlike a page with dynamic holes.
+ */
+export function getDynamicPage(shell: string, pageId?: string) {
+	const rows = parsePayloadRows(shell)
+	const root = rows.get('0')
+
+	if (pageId === undefined && root && typeof root === 'object') {
+		const page = (root as { segments?: { page?: unknown } }).segments?.page
+		if (typeof page === 'string') pageId = page
+	}
+
+	const seen = new Set<unknown>()
+	let pageValue: unknown
+	let found = false
+
+	function findPageSlot(value: unknown) {
+		if (!value || typeof value !== 'object' || seen.has(value)) return
+		seen.add(value)
+
+		if (Array.isArray(value)) {
+			if (value[0] === '$' && value[3] && typeof value[3] === 'object') {
+				const props = value[3] as Record<string, unknown>
+
+				if (props.id === pageId && 'children' in props) {
+					found = true
+					pageValue = props.children
+					return
+				}
+			}
+
+			for (const item of value) findPageSlot(item)
+			return
+		}
+
+		for (const item of Object.values(value)) findPageSlot(item)
+	}
+
+	for (const row of rows.values()) {
+		findPageSlot(row)
+		if (found) break
+	}
+
+	// be conservative when the shell shape is not understood
+	if (!found) return true
+
+	const visited = new Set<unknown>()
+	const visitedReferences = new Set<string>()
+
+	function hasMissingReference(value: unknown): boolean {
+		if (typeof value === 'string') {
+			for (const match of value.matchAll(lazySegmentReference)) {
+				const id = match[1]
+				const row = rows.get(id)
+
+				if (!rows.has(id) || row === null) return true
+				if (visitedReferences.has(id)) continue
+
+				visitedReferences.add(id)
+				if (hasMissingReference(row)) return true
+			}
+
+			return false
+		}
+
+		if (!value || typeof value !== 'object' || visited.has(value)) return false
+		visited.add(value)
+
+		if (Array.isArray(value)) {
+			return value.some(hasMissingReference)
+		}
+
+		return Object.values(value).some(hasMissingReference)
+	}
+
+	return hasMissingReference(pageValue)
 }
 
 /**

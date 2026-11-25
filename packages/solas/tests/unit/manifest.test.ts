@@ -41,6 +41,28 @@ describe('loadManifest', () => {
 		expect(manifest?.artifacts['/'].mode).toBe('full')
 	})
 
+	it('loads the PPR page cache policy', async () => {
+		const manifest = await loadManifest(
+			assetsWith({
+				artifacts: {
+					'/static-page': {
+						mode: 'ppr',
+						files: ['metadata', 'prelude', 'shell'],
+						dynamicPage: false,
+					},
+					'/dynamic-page': {
+						mode: 'ppr',
+						files: ['metadata', 'prelude', 'shell'],
+						dynamicPage: true,
+					},
+				},
+			}),
+		)
+
+		expect(manifest?.artifacts['/static-page'].dynamicPage).toBe(false)
+		expect(manifest?.artifacts['/dynamic-page'].dynamicPage).toBe(true)
+	})
+
 	it('loads per-route client CSS', async () => {
 		const manifest = await loadManifest(
 			assetsWith({

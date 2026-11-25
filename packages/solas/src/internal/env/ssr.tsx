@@ -162,7 +162,10 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		// postponed work for the later resume response
 		const partialPayload = await captureBuffered(s2)
 		const [htmlPayload, shellPayload] = partialPayload.tee()
-		const shell = completeShellPayload(await new Response(shellPayload).text())
+		const shellSource = await new Response(shellPayload).text()
+		// check the source before missing rows are replaced with fallbacks
+		const dynamicPage = Prerender.getDynamicPage(shellSource)
+		const shell = completeShellPayload(shellSource)
 
 		return {
 			schema,
@@ -174,6 +177,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 			).text(),
 			shell,
 			postponed,
+			dynamicPage,
 		}
 	}
 

@@ -5,6 +5,7 @@
 ### Fixes
 
 - PPR navigations now cache their static shell, so revisiting a route can commit instantly without a new shell request.
+- In `all` mode, static PPR page patches are now cached indefinitely even when a parent layout is dynamic. Page patches with dynamic work still use the short TTL.
 - Added `router.cache.mode` with `all`, `prerendered`, `full-only`, and `off` options. It defaults to `prerendered` in production and `off` in development.
 - Removed `router.cache.enabled`.
 - Direct dynamic navigations are now cached for `router.cache.ttl` in `all` mode instead of always fetching again.

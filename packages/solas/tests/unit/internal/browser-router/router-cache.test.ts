@@ -96,6 +96,19 @@ describe('RouterCache', () => {
 		vi.useRealTimers()
 	})
 
+	it('keeps static page segments with a null ttl', () => {
+		vi.useFakeTimers()
+		const cache = new RouterCache({ mode: 'all', ttl: 1000 })
+		cache.setSegment('/static-page', 'dynamic', cached('/static-page', 10), {
+			ttl: null,
+		})
+
+		vi.advanceTimersByTime(5000)
+
+		expect(cache.hasSegment('/static-page')).toBe(true)
+		vi.useRealTimers()
+	})
+
 	it('keeps ppr shells until the cache is cleared', () => {
 		vi.useFakeTimers()
 		const cache = new RouterCache({ ttl: 1000 })
