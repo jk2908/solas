@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { ErrorCode } from '../../../../src/utils/errors.js'
+
 import {
 	BrowserRouterError,
 	ExternalUrlError,
@@ -18,10 +20,10 @@ describe('browser router errors', () => {
 		const wildcard = new InvalidWildcardParamError()
 
 		expect(missing).toBeInstanceOf(RouteTargetError)
-		expect(missing.code).toBe('missing-param')
-		expect(wildcard.code).toBe('invalid-wildcard')
+		expect(missing.code).toBe(ErrorCode.LinkMissingParam)
+		expect(wildcard.code).toBe(ErrorCode.LinkInvalidWildcard)
 		expect(isRouteTargetError(missing)).toBe(true)
-		expect(isRouteTargetError({ code: 'invalid-wildcard' })).toBe(true)
+		expect(isRouteTargetError({ code: ErrorCode.LinkInvalidWildcard })).toBe(true)
 	})
 
 	it('exposes stable navigation codes', () => {
@@ -30,10 +32,10 @@ describe('browser router errors', () => {
 		const payload = new InvalidNavigationPayloadError()
 
 		expect(external).toBeInstanceOf(BrowserRouterError)
-		expect(external.code).toBe('external-url')
-		expect(invalid.code).toBe('invalid-url')
-		expect(payload.code).toBe('invalid-payload')
+		expect(external.code).toBe(ErrorCode.RouterExternalUrl)
+		expect(invalid.code).toBe(ErrorCode.RouterInvalidUrl)
+		expect(payload.code).toBe(ErrorCode.RouterInvalidPayload)
 		expect(isBrowserRouterError(external)).toBe(true)
-		expect(isBrowserRouterError({ code: 'invalid-url' })).toBe(true)
+		expect(isBrowserRouterError({ code: ErrorCode.RouterInvalidUrl })).toBe(true)
 	})
 })

@@ -17,12 +17,15 @@ import {
 } from '@vitejs/plugin-rsc/browser'
 
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
+import { createLogger } from '../../utils/logger.js'
 
 import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from './rsc.js'
 import * as Events from '../../events.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
+
+const logger = createLogger('hmr')
 import { ErrorBoundary } from '../ui/error-boundary.js'
 import { rscStream } from './flight.js'
 
@@ -131,7 +134,7 @@ export async function browser(config: BrowserConfig = {}) {
 				)
 				payloadSetter.current(p)
 			} catch (err) {
-				console.error('[hmr] failed to refresh rsc payload', err)
+				logger.error('Failed to refresh the RSC payload after an HMR update', err)
 			}
 		})
 	}

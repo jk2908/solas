@@ -474,7 +474,7 @@ describe('HttpRouter', () => {
 			)
 
 			await expect(router.fetch(http('/test'))).rejects.toThrow(
-				'next() called more than once',
+				'next() was called more than once',
 			)
 		})
 	})

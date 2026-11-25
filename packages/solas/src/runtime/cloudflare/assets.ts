@@ -1,3 +1,5 @@
+import { ErrorCode, SolasError } from '../../utils/errors.js'
+
 import type { AssetNamespace, AssetRef, Assets } from '../../internal/assets.js'
 import { getMimeTypeFromPath } from '../../internal/mime.js'
 
@@ -52,8 +54,10 @@ export function createCloudflareAssets(env: CloudflareEnv): Assets {
 	const assets = env.ASSETS
 
 	if (!assets || typeof assets.fetch !== 'function') {
-		throw new Error(
-			'[solas] createCloudflareAssets requires an `ASSETS` binding. Add an assets binding to your Worker.',
+		throw new SolasError(
+			ErrorCode.AssetsBindingMissing,
+			'createCloudflareAssets() requires an ASSETS binding',
+			{ hint: 'Add an assets binding to your Worker.' },
 		)
 	}
 
@@ -80,7 +84,10 @@ export function createCloudflareAssets(env: CloudflareEnv): Assets {
 		const res = await read(asset)
 
 		if (!res) {
-			throw new Error(`[solas] asset not found: ${asset.namespace}/${asset.path}`)
+			throw new SolasError(
+				ErrorCode.AssetNotFound,
+				`asset not found: ${asset.namespace}/${asset.path}`,
+			)
 		}
 
 		return res

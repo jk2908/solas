@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { Logger } from '../../../src/utils/logger.js'
+import { ErrorCode, SolasError } from '../../../src/utils/errors.js'
+import { Logger, createLogger } from '../../../src/utils/logger.js'
 
 describe('Logger', () => {
 	let logSpy: ReturnType<typeof vi.spyOn>
@@ -104,22 +105,36 @@ describe('Logger', () => {
 	})
 
 	describe('message formatting', () => {
-		it('includes [Solas] prefix', () => {
-			const logger = new Logger('info')
+		it('does not include a timestamp by default', () => {
+			const logger = new Logger({ scope: 'build' })
 			logger.info('hello')
-			expect(logSpy.mock.calls[0][0]).toContain('[Solas]')
+			expect(logSpy.mock.calls[0][0]).not.toMatch(/\d{2}:\d{2}:\d{2}/)
 		})
 
-		it('includes level tag', () => {
-			const logger = new Logger('info')
+		it('includes the scope', () => {
+			const logger = createLogger('build')
 			logger.info('hello')
-			expect(logSpy.mock.calls[0][0]).toContain('[INFO]')
+			expect(logSpy.mock.calls[0][0]).toContain('build')
 		})
 
-		it('includes timestamp', () => {
-			const logger = new Logger('info')
+		it('creates a scoped logger with options', () => {
+			const logger = createLogger('build', { timestamps: 'time' })
 			logger.info('hello')
-			expect(logSpy.mock.calls[0][0]).toMatch(/\[\d+\]/)
+			expect(logSpy.mock.calls[0][0]).toContain('build')
+			expect(logSpy.mock.calls[0][0]).toMatch(/\d{2}:\d{2}:\d{2}/)
+		})
+
+		it('includes a level symbol', () => {
+			const logger = new Logger('debug')
+			logger.info('hello')
+			logger.success('done')
+			logger.warn('careful')
+			logger.error('failed')
+
+			expect(logSpy.mock.calls[0][0]).toContain('›')
+			expect(logSpy.mock.calls[1][0]).toContain('✓')
+			expect(warnSpy.mock.calls[0][0]).toContain('!')
+			expect(errorSpy.mock.calls[0][0]).toContain('✖')
 		})
 
 		it('includes message', () => {
@@ -133,6 +148,24 @@ describe('Logger', () => {
 			logger.info('hello', 'world')
 			expect(logSpy.mock.calls[0][0]).toContain('hello world')
 		})
+
+		it('does not emit ANSI escapes when colour is unavailable', () => {
+			const logger = new Logger('info')
+			logger.info('hello')
+			expect(logSpy.mock.calls[0][0]).not.toContain('\u001B[')
+		})
+
+		it('can include a short timestamp', () => {
+			const logger = new Logger({ timestamps: 'time' })
+			logger.info('hello')
+			expect(logSpy.mock.calls[0][0]).toMatch(/\d{2}:\d{2}:\d{2}/)
+		})
+
+		it('can include an ISO timestamp', () => {
+			const logger = new Logger({ timestamps: 'iso' })
+			logger.info('hello')
+			expect(logSpy.mock.calls[0][0]).toMatch(/\d{4}-\d{2}-\d{2}T/)
+		})
 	})
 
 	describe('error handling', () => {
@@ -141,7 +174,7 @@ describe('Logger', () => {
 			const err = new Error('boom')
 			logger.error('failed', err)
 			expect(errorSpy).toHaveBeenCalledOnce()
-			expect(errorSpy.mock.calls[0][1]).toContain('boom')
+			expect(errorSpy.mock.calls[0][0]).toContain('boom')
 		})
 
 		it('attaches error for fatal-level logs', () => {
@@ -149,7 +182,25 @@ describe('Logger', () => {
 			const err = new Error('fatal')
 			logger.fatal('crash', err)
 			expect(errorSpy).toHaveBeenCalledOnce()
-			expect(errorSpy.mock.calls[0][1]).toContain('fatal')
+			expect(errorSpy.mock.calls[0][0]).toContain('fatal')
+		})
+
+		it('includes the hint and code from a SolasError', () => {
+			const logger = new Logger('error')
+			const err = new SolasError(ErrorCode.RouteConflict, 'failed', {
+				hint: 'try again',
+			})
+			logger.error(err)
+			expect(errorSpy.mock.calls[0][0]).toContain('hint  try again')
+			expect(errorSpy.mock.calls[0][0]).toContain('code  SOLAS_ROUTE_CONFLICT')
+		})
+
+		it('does not repeat the message when the error is the headline', () => {
+			const logger = new Logger('error')
+			const err = new SolasError(ErrorCode.RouteConflict, 'route conflict')
+			logger.error(err)
+			const output = String(errorSpy.mock.calls[0][0])
+			expect(output.match(/route conflict/g)).toHaveLength(1)
 		})
 	})
 

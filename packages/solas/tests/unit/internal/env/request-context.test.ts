@@ -6,7 +6,7 @@ import { RequestContext } from '../../../../src/internal/env/request-context.js'
 describe('RequestContext', () => {
 	describe('use', () => {
 		it('throws when no context is available', () => {
-			expect(() => RequestContext.use()).toThrow('No request context available')
+			expect(() => RequestContext.use()).toThrow('no request context is available')
 		})
 	})
 

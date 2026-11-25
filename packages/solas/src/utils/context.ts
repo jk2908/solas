@@ -1,8 +1,9 @@
 import { AsyncLocalStorage } from 'node:async_hooks'
 
-import { Logger } from './logger.js'
+import { ErrorCode, SolasError } from './errors.js'
+import { createLogger } from './logger.js'
 
-const logger = new Logger()
+const logger = createLogger('context')
 
 export function create<T>(name: string) {
 	const storage = new AsyncLocalStorage<T>()
@@ -15,8 +16,14 @@ export function create<T>(name: string) {
 			const r = storage.getStore()
 
 			if (!r) {
-				const error = new Error(`No ${name} context available`)
-				logger.error(`[Context:create] ${error.message}`, error)
+				const error = new SolasError(
+					ErrorCode.ContextMissing,
+					`no ${name} context is available`,
+					{
+						hint: 'Call this after the runtime has set up the request context.',
+					},
+				)
+				logger.error(error)
 
 				throw error
 			}

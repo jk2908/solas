@@ -2,11 +2,11 @@ import path from 'node:path'
 
 import type { Plugin } from 'vite'
 
-import { Logger } from '../utils/logger.js'
+import { createLogger } from '../utils/logger.js'
 
 import { ENDPOINT_FILE_RE, ROUTE_EXTENSION_RE } from '../config.js'
 
-const logger = new Logger()
+const logger = createLogger('adapter')
 
 /**
  * Build features a platform may not support, as flags so they combine:
@@ -60,8 +60,8 @@ export function guards(supports: Feature = Features.All) {
 
 			warned.add(file)
 			logger.warn(
-				`[build] this build uses ${LABEL[feature]} (${path.relative(cwd, file)}), ` +
-					`which the adapter does not support`,
+				`This build uses ${LABEL[feature]} (${path.relative(cwd, file)}), ` +
+					'which the adapter does not support',
 			)
 		},
 	} satisfies Plugin

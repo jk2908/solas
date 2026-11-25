@@ -1,12 +1,15 @@
-export type RouteTargetErrorCode = 'missing-param' | 'invalid-wildcard'
+import { ErrorCode, SolasError } from '../../utils/errors.js'
 
-export class RouteTargetError extends Error {
-	readonly code: RouteTargetErrorCode
+export type RouteTargetErrorCode =
+	| typeof ErrorCode.LinkMissingParam
+	| typeof ErrorCode.LinkInvalidWildcard
 
-	constructor(code: RouteTargetErrorCode, message: string) {
-		super(message)
+export class RouteTargetError extends SolasError {
+	declare readonly code: RouteTargetErrorCode
+
+	constructor(code: RouteTargetErrorCode, message: string, hint?: string) {
+		super(code, message, { hint })
 		this.name = 'RouteTargetError'
-		this.code = code
 	}
 }
 
@@ -14,7 +17,11 @@ export class MissingRouteParamError extends RouteTargetError {
 	readonly param: string
 
 	constructor(param: string) {
-		super('missing-param', `[Link]: missing route param: ${param}`)
+		super(
+			ErrorCode.LinkMissingParam,
+			`Link is missing the route parameter "${param}"`,
+			`Pass it in the params prop, for example params={{ ${param}: value }}.`,
+		)
 		this.name = 'MissingRouteParamError'
 		this.param = param
 	}
@@ -23,42 +30,51 @@ export class MissingRouteParamError extends RouteTargetError {
 export class InvalidWildcardParamError extends RouteTargetError {
 	constructor() {
 		super(
-			'invalid-wildcard',
-			'[Link]: wildcard routes require exactly one unmatched param',
+			ErrorCode.LinkInvalidWildcard,
+			'a wildcard route requires exactly one unmatched parameter',
 		)
 		this.name = 'InvalidWildcardParamError'
 	}
 }
 
-export type BrowserRouterErrorCode = 'external-url' | 'invalid-url' | 'invalid-payload'
+export type BrowserRouterErrorCode =
+	| typeof ErrorCode.RouterExternalUrl
+	| typeof ErrorCode.RouterInvalidUrl
+	| typeof ErrorCode.RouterInvalidPayload
 
-export class BrowserRouterError extends Error {
-	readonly code: BrowserRouterErrorCode
+export class BrowserRouterError extends SolasError {
+	declare readonly code: BrowserRouterErrorCode
 
-	constructor(code: BrowserRouterErrorCode, message: string) {
-		super(message)
+	constructor(code: BrowserRouterErrorCode, message: string, hint?: string) {
+		super(code, message, { hint })
 		this.name = 'BrowserRouterError'
-		this.code = code
 	}
 }
 
 export class ExternalUrlError extends BrowserRouterError {
 	constructor() {
-		super('external-url', '[router.go]: External URLs are not supported. Use <a> instead')
+		super(
+			ErrorCode.RouterExternalUrl,
+			'router.go() only supports internal URLs',
+			'Use an <a> element for external links.',
+		)
 		this.name = 'ExternalUrlError'
 	}
 }
 
 export class InvalidNavigationUrlError extends BrowserRouterError {
 	constructor() {
-		super('invalid-url', '[router.go]: Invalid navigation url')
+		super(ErrorCode.RouterInvalidUrl, 'router.go() received an invalid URL')
 		this.name = 'InvalidNavigationUrlError'
 	}
 }
 
 export class InvalidNavigationPayloadError extends BrowserRouterError {
 	constructor() {
-		super('invalid-payload', '[router.go]: route response did not contain a payload')
+		super(
+			ErrorCode.RouterInvalidPayload,
+			'the route response did not include an RSC payload',
+		)
 		this.name = 'InvalidNavigationPayloadError'
 	}
 }
@@ -69,9 +85,9 @@ export function isBrowserRouterError(error: unknown): error is BrowserRouterErro
 		(typeof error === 'object' &&
 			error !== null &&
 			'code' in error &&
-			(error.code === 'external-url' ||
-				error.code === 'invalid-url' ||
-				error.code === 'invalid-payload'))
+			(error.code === ErrorCode.RouterExternalUrl ||
+				error.code === ErrorCode.RouterInvalidUrl ||
+				error.code === ErrorCode.RouterInvalidPayload))
 	)
 }
 
@@ -81,6 +97,7 @@ export function isRouteTargetError(error: unknown): error is RouteTargetError {
 		(typeof error === 'object' &&
 			error !== null &&
 			'code' in error &&
-			(error.code === 'missing-param' || error.code === 'invalid-wildcard'))
+			(error.code === ErrorCode.LinkMissingParam ||
+				error.code === ErrorCode.LinkInvalidWildcard))
 	)
 }

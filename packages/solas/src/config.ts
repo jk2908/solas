@@ -1,3 +1,4 @@
+import { ErrorCode, SolasError } from './utils/errors.js'
 import { isRecord, isStringArray } from './utils/validation.js'
 
 import type { BrowserConfig, PluginConfig } from './types.js'
@@ -158,7 +159,13 @@ export function validate(input: unknown, envUrl?: string) {
 	const errors: string[] = []
 
 	if (!isRecord(input)) {
-		throw new Error(`[${NAME}] Invalid config:\n- Expected plugin config to be an object`)
+		throw new SolasError(
+			ErrorCode.ConfigInvalid,
+			'invalid Solas configuration: expected an object',
+			{
+				hint: 'Pass a configuration object to solas(), for example solas({}).',
+			},
+		)
 	}
 
 	for (const key of Object.keys(input)) {
@@ -389,7 +396,10 @@ export function validate(input: unknown, envUrl?: string) {
 	}
 
 	if (errors.length > 0) {
-		throw new Error(`[${NAME}] Invalid config:\n- ${errors.join('\n- ')}`)
+		throw new SolasError(
+			ErrorCode.ConfigInvalid,
+			`invalid Solas configuration:\n  • ${errors.join('\n  • ')}`,
+		)
 	}
 
 	return input as PluginConfig

@@ -1,4 +1,5 @@
 import * as Context from '../../utils/context.js'
+import { ErrorCode, SolasError } from '../../utils/errors.js'
 
 export type RevalidatedPath = {
 	path: string
@@ -25,7 +26,11 @@ export function revalidatePath(path: string, scope: 'page' | 'layout' = 'page') 
 	const paths = RevalidationContext.get()
 
 	if (!paths) {
-		throw new Error('revalidatePath can only be called from a Server Action')
+		throw new SolasError(
+			ErrorCode.RevalidateOutsideAction,
+			'revalidatePath() can only be called from a Server Action',
+			{ hint: 'Call revalidatePath() inside a function marked with "use server".' },
+		)
 	}
 
 	paths.push({ path: value, scope })

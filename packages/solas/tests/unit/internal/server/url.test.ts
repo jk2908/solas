@@ -59,6 +59,6 @@ describe('url', () => {
 		Object.defineProperty(req, 'url', { get: () => '::invalid::' })
 		setupContext(req)
 
-		await expect(url()).rejects.toThrow('Invalid request url')
+		await expect(url()).rejects.toThrow('invalid request URL')
 	})
 })

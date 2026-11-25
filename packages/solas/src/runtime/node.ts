@@ -4,6 +4,11 @@ import http from 'node:http'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
+import { ErrorCode, SolasError } from '../utils/errors.js'
+import { createLogger } from '../utils/logger.js'
+
+const logger = createLogger('server', { timestamps: 'iso' })
+
 export type ServeOptions = {
 	/**
 	 * Port to listen on. Defaults to `process.env.PORT` or `3000`.
@@ -104,7 +109,13 @@ async function loadHandler(entry: string) {
 		typeof mod === 'object' && mod !== null && 'default' in mod ? mod.default : undefined
 
 	if (!isFetchHandler(handler)) {
-		throw new Error(`[solas] ${entry} does not export a fetch handler`)
+		throw new SolasError(
+			ErrorCode.ServerHandlerMissing,
+			`the server entry ${entry} does not export a default fetch handler`,
+			{
+				hint: 'Export an object with a fetch(request) method as the default export.',
+			},
+		)
 	}
 
 	return handler
@@ -273,7 +284,7 @@ async function handleRequest(req: NodeRequest, res: NodeResponse, handler: Fetch
 
 		await sendResponse(res, response)
 	} catch (err) {
-		console.error('[solas] request failed', err)
+		logger.error('Request failed', err)
 
 		if (res.headersSent) {
 			res.destroy()

@@ -14,7 +14,7 @@ describe('Context', () => {
 	describe('use', () => {
 		it('throws when no context is available', () => {
 			const ctx = create<{ value: string }>('test')
-			expect(() => ctx.use()).toThrow('No test context available')
+			expect(() => ctx.use()).toThrow('no test context is available')
 		})
 
 		it('returns the current context value', async () => {

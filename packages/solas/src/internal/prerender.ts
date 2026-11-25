@@ -3,7 +3,8 @@ import path from 'node:path'
 import { compile } from 'path-to-regexp'
 
 import { applyBasePath } from '../utils/base-path.js'
-import { Logger } from '../utils/logger.js'
+import { ErrorCode, SolasError } from '../utils/errors.js'
+import { createLogger } from '../utils/logger.js'
 import { isRecord } from '../utils/validation.js'
 
 import type { BuildContext } from '../types.js'
@@ -16,7 +17,7 @@ import { addNonceToBootstrap } from './csp.js'
 import { parsePayloadRows } from './env/flight.js'
 import { toPathPattern } from './http-router/utils.js'
 
-const logger = new Logger()
+const logger = createLogger('prerender')
 
 const DEFAULT_CONCURRENCY = 4
 
@@ -73,7 +74,10 @@ export function getArtifactPath(outDir: string, pathname: string) {
 
 	// this also runs at request time, so make sure the pathname cannot escape the artifact folder
 	if (artifactPath !== root && !artifactPath.startsWith(`${root}${path.sep}`)) {
-		throw new Error('[prerender] invalid artifact path')
+		throw new SolasError(
+			ErrorCode.ArtifactPathInvalid,
+			'invalid artifact path: it must stay inside the prerender output directory',
+		)
 	}
 
 	return artifactPath
@@ -85,14 +89,20 @@ export function getArtifactPath(outDir: string, pathname: string) {
  */
 export function getArtifactAssetPath(pathname: string, fileName: string) {
 	if (!isArtifactFileName(fileName)) {
-		throw new Error('[prerender] invalid artifact file name')
+		throw new SolasError(
+			ErrorCode.ArtifactNameInvalid,
+			`invalid artifact file name: ${fileName}`,
+		)
 	}
 
 	const dir = pathname === '/' ? 'index' : pathname.replace(/^\//, '')
 
 	// this also runs at request time, so keep the pathname inside the artifact folder
 	if (dir.includes('..') || path.isAbsolute(dir)) {
-		throw new Error('[prerender] invalid artifact path')
+		throw new SolasError(
+			ErrorCode.ArtifactPathInvalid,
+			'invalid artifact path: it must stay inside the prerender output directory',
+		)
 	}
 
 	return `ppr/${dir}/${fileName}`
@@ -106,7 +116,7 @@ export function staticRoutePath(pathname: string, mode: 'always' | 'never') {
 	const clean = pathname === '/' ? '' : pathname.replace(/^\//, '').replace(/\/+$/, '')
 
 	if (clean.includes('..')) {
-		throw new Error('[prerender] invalid static path')
+		throw new SolasError(ErrorCode.StaticPathInvalid, `invalid static path: ${pathname}`)
 	}
 
 	if (clean === '') return 'index.html'
@@ -127,8 +137,7 @@ export async function loadPostponedState(pathname: string, assets: Assets = node
 		}
 	} catch (err) {
 		logger.warn(
-			`[prerender:artifacts] rejected postponed state path for ${pathname}`,
-			Logger.print(err),
+			`Rejected the postponed state path for ${pathname}: ${err instanceof Error ? err.message : String(err)}`,
 		)
 		return null
 	}
@@ -155,8 +164,7 @@ export async function loadPrelude(pathname: string, assets: Assets = nodeAssets)
 		}
 	} catch (err) {
 		logger.warn(
-			`[prerender:artifacts] rejected prelude path for ${pathname}`,
-			Logger.print(err),
+			`Rejected the prelude path for ${pathname}: ${err instanceof Error ? err.message : String(err)}`,
 		)
 		return null
 	}
@@ -184,8 +192,7 @@ export async function loadShell(pathname: string, assets: Assets = nodeAssets) {
 		}
 	} catch (err) {
 		logger.warn(
-			`[prerender:artifacts] rejected shell path for ${pathname}`,
-			Logger.print(err),
+			`Rejected the shell path for ${pathname}: ${err instanceof Error ? err.message : String(err)}`,
 		)
 		return null
 	}
@@ -212,8 +219,7 @@ export async function loadMetadata(pathname: string, assets: Assets = nodeAssets
 		}
 	} catch (err) {
 		logger.warn(
-			`[prerender:artifacts] rejected metadata path for ${pathname}`,
-			Logger.print(err),
+			`Rejected the metadata path for ${pathname}: ${err instanceof Error ? err.message : String(err)}`,
 		)
 		return null
 	}
@@ -411,7 +417,7 @@ export async function getStaticParams(filePath: string, buildContext: BuildConte
 	} catch (err) {
 		// a route that cannot be evaluated here should still remain in the route
 		// graph and render at request time
-		logger.error(`[prerender:staticParams] ${filePath}`, err)
+		logger.error(`Failed to read static params from ${filePath}`, err)
 
 		return []
 	}
@@ -486,7 +492,7 @@ export async function get(
 
 	if (!(res instanceof Response)) {
 		const error = new TypeError(`Invalid response for ${route}`)
-		logger.error(`[prerender:get] ${error.message}`, error)
+		logger.error(error.message, error)
 
 		throw error
 	}
@@ -513,7 +519,10 @@ export async function getRscPayload(
 	)
 
 	if (!(res instanceof Response) || !res.ok) {
-		throw new Error(`[prerender] RSC payload for ${route} was not served`)
+		throw new SolasError(
+			ErrorCode.RscPayloadMissing,
+			`the RSC payload for ${route} was not served`,
+		)
 	}
 
 	return res.text()

@@ -1,6 +1,6 @@
 import { lazy } from 'react'
 
-import { Logger } from '../utils/logger.js'
+import { createLogger } from '../utils/logger.js'
 import { trimTrailingSlash } from '../utils/path.js'
 
 import type {
@@ -63,7 +63,7 @@ export namespace Resolver {
 	}
 }
 
-const logger = new Logger()
+const logger = createLogger('resolver')
 const IS_DEV = import.meta.env.DEV
 
 /**
@@ -204,9 +204,7 @@ export class Resolver {
 		const entry = Resolver.#load(loader)
 
 		logger.debug(
-			'[#view]',
-			loader.toString().slice(0, 60),
-			entry.module ? 'SYNC' : 'LAZY',
+			`Resolved view ${loader.toString().slice(0, 60)} (${entry.module ? 'sync' : 'lazy'})`,
 		)
 
 		if (entry.module?.default) {
@@ -278,7 +276,7 @@ export class Resolver {
 		const cached = IS_DEV ? undefined : Resolver.#enhancedMatchCache.get(__id)
 
 		if (cached) {
-			logger.debug('[enhance]', __id, 'CACHED')
+			logger.debug(`Reused the cached match for ${__id}`)
 			// cached ui can be reused, but params and errors still come from
 			// this request
 			return Resolver.#withRequestState(cached, match)
@@ -515,14 +513,14 @@ export class Resolver {
 			// metadata execution still happens per request because params and errors
 			// can differ
 			Metadata.tasks(metadataSources, { params, error }, err => {
-				logger.error(`[enhance.metadata]: ${__id}`, err)
+				logger.error(`Failed to resolve metadata for ${__id}`, err)
 			})
 
 		enhanced.metadataSegments = ({ params, error }: Metadata.Input<HttpRouter.Params>) =>
 			segmentMetadataSources.map(({ id, sources }) => ({
 				id,
 				tasks: Metadata.tasks(sources, { params, error }, err => {
-					logger.error(`[enhance.metadataSegments]: ${__id}`, err)
+					logger.error(`Failed to resolve segment metadata for ${__id}`, err)
 				}),
 			}))
 

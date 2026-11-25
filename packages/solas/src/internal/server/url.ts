@@ -1,9 +1,10 @@
-import { Logger } from '../../utils/logger.js'
+import { ErrorCode, SolasError } from '../../utils/errors.js'
+import { createLogger } from '../../utils/logger.js'
 
 import { RequestContext } from '../env/request-context.js'
 import { dynamic } from './dynamic.js'
 
-const logger = new Logger()
+const logger = createLogger('request')
 
 /**
  * Get the request url as a URL instance.
@@ -25,8 +26,10 @@ export async function url() {
 	} catch (err) {
 		// if we throw the original error here, the rest of the code gets a messy parsing error
 		// instead of a simple 'invalid request url' failure
-		logger.error(`[url] invalid request url: ${request.url}`, err)
-		throw new Error('Invalid request url', { cause: err })
+		logger.error(`Invalid request URL: ${request.url}`, err)
+		throw new SolasError(ErrorCode.RequestUrlInvalid, 'invalid request URL', {
+			cause: err,
+		})
 	}
 
 	cache.url = parsed

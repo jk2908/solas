@@ -1,11 +1,11 @@
 import { use } from 'react'
 
-import { Logger } from '../../utils/logger.js'
+import { createLogger } from '../../utils/logger.js'
 
 import * as Config from '../../config.js'
 import { type Metadata as Collection } from '../metadata.js'
 
-const logger = new Logger()
+const logger = createLogger('metadata')
 const cache = new WeakMap<object, Promise<Collection.Item>>()
 
 /**
@@ -28,7 +28,7 @@ function toSafeUsable(metadata: Collection.Item | Promise<Collection.Item>) {
 	if (cached) return cached
 
 	const safe = Promise.resolve(metadata).catch(err => {
-		logger.error('[head] failed to resolve metadata', err)
+		logger.error('Failed to resolve metadata', err)
 		return {} as Collection.Item
 	})
 

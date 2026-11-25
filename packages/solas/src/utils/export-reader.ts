@@ -3,6 +3,7 @@ import type { Program, StaticExport, StaticExportEntry } from 'oxc-parser'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { ErrorCode, SolasError } from './errors.js'
 import { parseModuleSource, type SourceLoader } from './module.js'
 
 type ModuleLoader = (filePath: string) => Promise<Record<string, unknown>>
@@ -43,11 +44,17 @@ export class ExportReader {
 		const result = parseModuleSource(filePath, await this.raw(filePath))
 
 		if (!result) {
-			throw new Error(`Unsupported module extension in ${filePath}`)
+			throw new SolasError(
+				ErrorCode.ModuleExtensionUnsupported,
+				`unsupported module extension: ${filePath}`,
+			)
 		}
 
 		if (result.errors.length > 0) {
-			throw new Error(result.errors[0]?.message ?? `Failed to parse ${filePath}`)
+			throw new SolasError(
+				ErrorCode.ModuleParseFailed,
+				`failed to parse ${filePath}: ${result.errors[0]?.message ?? 'unknown parser error'}`,
+			)
 		}
 
 		return result

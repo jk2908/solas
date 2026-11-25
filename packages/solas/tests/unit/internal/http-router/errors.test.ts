@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
+import { ErrorCode } from '../../../../src/utils/errors.js'
+
 import {
 	HttpRouterError,
 	InvalidRouteGroupError,
@@ -17,11 +19,11 @@ describe('http router errors', () => {
 		const next = new MiddlewareNextCalledMultipleTimesError()
 
 		expect(missing).toBeInstanceOf(HttpRouterError)
-		expect(missing.code).toBe('missing-endpoint')
-		expect(group.code).toBe('invalid-route-group')
-		expect(page.code).toBe('missing-page-entry')
-		expect(next.code).toBe('middleware-next-called-multiple-times-multiple-times')
+		expect(missing.code).toBe(ErrorCode.HttpMissingEndpoint)
+		expect(group.code).toBe(ErrorCode.HttpInvalidRouteGroup)
+		expect(page.code).toBe(ErrorCode.HttpMissingPageEntry)
+		expect(next.code).toBe(ErrorCode.HttpMiddlewareNextMultiple)
 		expect(isHttpRouterError(missing)).toBe(true)
-		expect(isHttpRouterError({ code: 'invalid-route-group' })).toBe(true)
+		expect(isHttpRouterError({ code: ErrorCode.HttpInvalidRouteGroup })).toBe(true)
 	})
 })

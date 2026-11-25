@@ -3,7 +3,7 @@ import type { ReactFormState } from 'react-dom/client'
 import { renderToReadableStream } from '@vitejs/plugin-rsc/rsc'
 
 import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/base-path.js'
-import { Logger } from '../../utils/logger.js'
+import { createLogger } from '../../utils/logger.js'
 import { normalisePath, trimTrailingSlash } from '../../utils/path.js'
 
 import type {
@@ -90,7 +90,7 @@ export type RscPayload = {
 	}
 }
 
-const logger = new Logger()
+const logger = createLogger('rsc')
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
 const nullBodyStatuses = new Set([101, 204, 205, 304])
 // page patches may change without a path revalidation, so keep them short-lived
@@ -486,7 +486,7 @@ async function createPayload({
 			segment: patchSegment ? ('patch' as const) : false,
 		}
 	} catch (err) {
-		logger.error('[rsc:render]', err)
+		logger.error('Failed to render the RSC payload', err)
 
 		const title =
 			err instanceof Error
@@ -1142,5 +1142,5 @@ function onError(err: unknown) {
 	if (digest) return digest
 	if (isKnownError(err)) return
 
-	logger.error('[rsc]', err)
+	logger.error('RSC rendering failed', err)
 }

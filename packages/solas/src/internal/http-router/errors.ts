@@ -1,16 +1,17 @@
+import { ErrorCode, SolasError } from '../../utils/errors.js'
+
 export type HttpRouterErrorCode =
-	| 'missing-endpoint'
-	| 'invalid-route-group'
-	| 'missing-page-entry'
-	| 'middleware-next-called-multiple-times-multiple-times'
+	| typeof ErrorCode.HttpMissingEndpoint
+	| typeof ErrorCode.HttpInvalidRouteGroup
+	| typeof ErrorCode.HttpMissingPageEntry
+	| typeof ErrorCode.HttpMiddlewareNextMultiple
 
-export class HttpRouterError extends Error {
-	readonly code: HttpRouterErrorCode
+export class HttpRouterError extends SolasError {
+	declare readonly code: HttpRouterErrorCode
 
-	constructor(code: HttpRouterErrorCode, message: string) {
-		super(message)
+	constructor(code: HttpRouterErrorCode, message: string, hint?: string) {
+		super(code, message, { hint })
 		this.name = 'HttpRouterError'
-		this.code = code
 	}
 }
 
@@ -18,7 +19,10 @@ export class MissingEndpointHandlerError extends HttpRouterError {
 	readonly endpointId: string
 
 	constructor(endpointId: string) {
-		super('missing-endpoint', `Missing endpoint handler for ${endpointId}`)
+		super(
+			ErrorCode.HttpMissingEndpoint,
+			`no handler was found for endpoint "${endpointId}"`,
+		)
 		this.name = 'MissingEndpointHandlerError'
 		this.endpointId = endpointId
 	}
@@ -26,24 +30,24 @@ export class MissingEndpointHandlerError extends HttpRouterError {
 
 export class InvalidRouteGroupError extends HttpRouterError {
 	constructor(message: string) {
-		super('invalid-route-group', message)
+		super(ErrorCode.HttpInvalidRouteGroup, message)
 		this.name = 'InvalidRouteGroupError'
 	}
 }
 
 export class MissingPageEntryError extends HttpRouterError {
 	constructor() {
-		super('missing-page-entry', 'Unified route group missing page entry')
+		super(
+			ErrorCode.HttpMissingPageEntry,
+			'the unified route group is missing a page entry',
+		)
 		this.name = 'MissingPageEntryError'
 	}
 }
 
 export class MiddlewareNextCalledMultipleTimesError extends HttpRouterError {
 	constructor() {
-		super(
-			'middleware-next-called-multiple-times-multiple-times',
-			'next() called more than once',
-		)
+		super(ErrorCode.HttpMiddlewareNextMultiple, 'next() was called more than once')
 		this.name = 'MiddlewareNextCalledMultipleTimesError'
 	}
 }
@@ -54,9 +58,9 @@ export function isHttpRouterError(error: unknown): error is HttpRouterError {
 		(typeof error === 'object' &&
 			error !== null &&
 			'code' in error &&
-			(error.code === 'missing-endpoint' ||
-				error.code === 'invalid-route-group' ||
-				error.code === 'missing-page-entry' ||
-				error.code === 'middleware-next-called-multiple-times-multiple-times'))
+			(error.code === ErrorCode.HttpMissingEndpoint ||
+				error.code === ErrorCode.HttpInvalidRouteGroup ||
+				error.code === ErrorCode.HttpMissingPageEntry ||
+				error.code === ErrorCode.HttpMiddlewareNextMultiple))
 	)
 }

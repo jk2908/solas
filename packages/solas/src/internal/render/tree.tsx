@@ -1,5 +1,7 @@
 import { Suspense } from 'react'
 
+import { ErrorCode, SolasError } from '../../utils/errors.js'
+
 import type { Metadata } from '../metadata.js'
 import type { Resolver } from '../resolver.js'
 import {
@@ -93,7 +95,15 @@ export function Tree({
 	} = ui
 
 	const Shell = layouts[0]
-	if (!Shell) throw new Error('Shell layout is required in the route tree')
+	if (!Shell) {
+		throw new SolasError(
+			ErrorCode.ShellLayoutMissing,
+			'the route tree is missing a shell layout',
+			{
+				hint: 'Add an app/+layout.tsx file at the root of the app directory.',
+			},
+		)
+	}
 
 	if (patch) {
 		const filter = layoutFilter ? new Set(layoutFilter) : null

@@ -112,7 +112,7 @@ describe('Tree', () => {
 	it('throws when shell layout is missing', async () => {
 		await expect(
 			render(<Tree depth={0} params={{}} ui={makeUI({ layouts: [] })} />),
-		).rejects.toThrow('Shell layout is required')
+		).rejects.toThrow('missing a shell layout')
 	})
 
 	it('renders shell without page when no page and no error', async () => {

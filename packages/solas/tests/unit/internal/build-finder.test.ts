@@ -232,7 +232,7 @@ describe('Finder', () => {
 					'app/(b)': ['about/'],
 					'app/(b)/about': ['+page.tsx'],
 				},
-				error: /Route conflict: \/about is declared by two pages/,
+				error: /route conflict: \/about is declared by two pages/,
 			},
 			{
 				name: 'two endpoints for the same method',
@@ -243,7 +243,7 @@ describe('Finder', () => {
 					'app/(b)': ['users/'],
 					'app/(b)/users': ['+endpoint.ts'],
 				},
-				error: /Route conflict: GET \/users is declared by two endpoints/,
+				error: /route conflict: GET \/users is declared by two endpoints/,
 			},
 			{
 				name: 'two routes with the same shape',
@@ -265,7 +265,7 @@ describe('Finder', () => {
 					'app/(bad name)': ['about/'],
 					'app/(bad name)/about': ['+page.tsx'],
 				},
-				error: /Invalid route group "\(bad name\)"/,
+				error: /invalid route group "\(bad name\)"/,
 			},
 		]
 

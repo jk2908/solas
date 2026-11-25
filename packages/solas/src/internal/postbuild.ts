@@ -2,7 +2,7 @@ import fs from 'node:fs/promises'
 import path from 'node:path'
 
 import * as Compress from '../utils/compress.js'
-import { Logger } from '../utils/logger.js'
+import { createLogger } from '../utils/logger.js'
 import { normalisePath } from '../utils/path.js'
 
 import type { BuildManifest, CspConfig } from '../types.js'
@@ -13,7 +13,7 @@ import { buildPolicy } from './csp.js'
 import { hashInlineAssets } from './hash-inline-assets.js'
 import * as Prerender from './prerender.js'
 
-const logger = new Logger()
+const logger = createLogger('build')
 const CSP_HEADER_SIZE_LIMIT = 8 * 1024
 
 type App = Parameters<typeof Prerender.run>[0]
@@ -57,7 +57,7 @@ export async function postbuild(
 		const raw = await fs.readFile(manifestPath, 'utf-8')
 		manifest = JSON.parse(raw)
 	} catch (err) {
-		logger.error('[build] failed to read build manifest', err)
+		logger.error('Failed to read the build manifest', err)
 		throw err
 	}
 
@@ -83,8 +83,7 @@ export async function postbuild(
 		const pendingWrites = new Set<Promise<void>>()
 
 		logger.info(
-			'[prerender]',
-			`prerendering ${manifest.prerenderRoutes.length} routes (concurrency: ${concurrency})...`,
+			`Prerendering ${manifest.prerenderRoutes.length} routes (concurrency: ${concurrency})`,
 		)
 
 		// the generated RSC entry loads the runtime manifest when it is imported.
@@ -125,13 +124,14 @@ export async function postbuild(
 
 			if ('error' in result) {
 				logger.error(
-					`[prerender]: Failed ${route}: ${result.error}. This often means unresolved async work (for example external fetches or dynamic rendering in full mode)`,
+					`Failed to prerender ${route}: ${result.error} ` +
+						'(usually unresolved async work, such as an external fetch or dynamic rendering in full mode)',
 				)
 				continue
 			}
 
 			if ('status' in result) {
-				logger.warn(`[prerender]: Skipped ${route}: ${result.status}`)
+				logger.warn(`Skipped ${route}: status ${result.status}`)
 				continue
 			}
 
@@ -188,7 +188,7 @@ export async function postbuild(
 							...hashes,
 						}
 
-						logger.info('[prerender]', `${route} (ppr)`)
+						logger.success(`${route} (ppr)`)
 						return
 					}
 
@@ -220,10 +220,11 @@ export async function postbuild(
 						...hashes,
 					}
 
-					logger.info(`[prerender]: ${route} (full)`)
+					logger.success(`${route} (full)`)
 				} catch (err) {
 					logger.error(
-						`[prerender]: Failed ${route}: ${err}. This often means unresolved async work (for example external fetches or dynamic rendering in full mode).`,
+						`Failed to write prerender artifacts for ${route}: ${err} ` +
+							'(usually unresolved async work, such as an external fetch or dynamic rendering in full mode)',
 					)
 				}
 			})
@@ -248,8 +249,7 @@ export async function postbuild(
 
 		if (hasFullPrerender && hasStrictDynamic) {
 			logger.warn(
-				'[csp]',
-				`'strict-dynamic' is set, but this build has full prerendered routes. Full pages use hashed bootstrap scripts, which cannot load their dynamic imports under 'strict-dynamic'. Use 'self' for those routes or make them dynamic or PPR.`,
+				`CSP: 'strict-dynamic' is set, but this build has full prerendered routes. Full pages use hashed bootstrap scripts, which cannot load their dynamic imports under 'strict-dynamic'. Use 'self' for those routes, or make them dynamic or PPR`,
 			)
 		}
 
@@ -279,8 +279,7 @@ export async function postbuild(
 
 		if (largestSize > CSP_HEADER_SIZE_LIMIT) {
 			logger.warn(
-				'[csp]',
-				`Generated CSP header for ${largestRoute} is about ${largestSize} bytes. ${CSP_HEADER_SIZE_LIMIT} bytes is a conservative warning threshold; check the response-header limit of your server or proxy. Reduce prerendered style hashes or raise that limit if needed.`,
+				`CSP: the header for ${largestRoute} is about ${largestSize} bytes. ${CSP_HEADER_SIZE_LIMIT} bytes is a conservative warning threshold. Check the response-header limit of your server or proxy, and reduce prerendered style hashes or raise that limit if needed`,
 			)
 		}
 	}
@@ -321,7 +320,7 @@ export async function postbuild(
 		]
 
 		generatedPublicFiles.push('/sitemap.xml')
-		logger.info('[sitemap]', `generated ${manifest.sitemapRoutes.length} urls`)
+		logger.success(`Generated sitemap with ${manifest.sitemapRoutes.length} URLs`)
 
 		if (robots) {
 			writes.push(
@@ -330,7 +329,7 @@ export async function postbuild(
 			)
 
 			generatedPublicFiles.push('/robots.txt')
-			logger.info('[robots]', 'generated robots.txt')
+			logger.success('Generated robots.txt')
 		}
 
 		await Promise.all(writes)
@@ -347,7 +346,9 @@ export async function postbuild(
 	await fs.writeFile(Manifest.getManifestPath(outDir), JSON.stringify(runtimeManifest))
 
 	if (manifest.precompress) {
-		logger.info('[precompress]', 'compressing assets...')
+		logger.info('Compressing assets')
+
+		let compressedCount = 0
 
 		for await (const { input, compressed } of Compress.run(outDir, {
 			filter: filePath => {
@@ -377,11 +378,18 @@ export async function postbuild(
 			},
 		})) {
 			await fs.writeFile(`${input}.br`, compressed)
-			logger.info('[precompress]', `${path.basename(input)}.br`)
+			logger.debug(`${path.basename(input)}.br`)
+			compressedCount += 1
 		}
+
+		logger.success(
+			compressedCount === 0
+				? 'No assets needed compression'
+				: `Compressed ${compressedCount} assets`,
+		)
 	}
 
 	await fs.unlink(manifestPath).catch(() => {})
 
-	logger.info('[build]', 'done')
+	logger.success('Build complete')
 }

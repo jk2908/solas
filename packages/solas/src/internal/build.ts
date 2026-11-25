@@ -3,8 +3,9 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
+import { ErrorCode, SolasError, type SolasErrorOptions } from '../utils/errors.js'
 import { hash } from '../utils/hash.js'
-import { Logger } from '../utils/logger.js'
+import { createLogger } from '../utils/logger.js'
 import { normalisePath } from '../utils/path.js'
 
 import type {
@@ -66,23 +67,25 @@ type PreparedSegment = ScanResult['segments'][number] & {
 	route: string
 }
 
-class BuildError extends Error {
-	constructor(message: string) {
-		super(message)
+class BuildError extends SolasError {
+	constructor(code: ErrorCode, message: string, options: SolasErrorOptions = {}) {
+		super(code, message, options)
 		this.name = 'BuildError'
 	}
 }
 
 class RouteConflictError extends BuildError {
 	constructor(message: string) {
-		super(message)
+		super(ErrorCode.RouteConflict, message)
 		this.name = 'RouteConflictError'
 	}
 }
 
 class MissingMiddlewareExportError extends BuildError {
 	constructor(file: string) {
-		super(`Missing middleware export in ${file}`)
+		super(ErrorCode.MiddlewareExportMissing, `missing middleware export in ${file}`, {
+			hint: 'Export a `middleware` function from the file, or remove the export reference.',
+		})
 		this.name = 'MissingMiddlewareExportError'
 	}
 }
@@ -153,7 +156,7 @@ const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] 
 // these appear in the generated manifest and import map
 export { EntryKind } from './entry-kind.js'
 
-const logger = new Logger()
+const logger = createLogger('build')
 
 // file extensions recognised for page components vs api endpoints
 const EXTENSIONS = {
@@ -336,7 +339,8 @@ export class Finder {
 			for (const segment of normalised.split('/')) {
 				if (Config.ROUTE_GROUP_LIKE_RE.test(segment) && !Finder.isRouteGroup(segment)) {
 					throw new BuildError(
-						`Invalid route group "${segment}" in ${normalised}. Group names must start with a letter or number and contain only letters, numbers, dots, underscores or hyphens.`,
+						ErrorCode.RouteGroupInvalid,
+						`invalid route group "${segment}" in ${normalised}. Group names must start with a letter or number and contain only letters, numbers, dots, underscores or hyphens`,
 					)
 				}
 			}
@@ -363,7 +367,7 @@ export class Finder {
 
 			if (owner && owner.route !== route) {
 				throw new RouteConflictError(
-					`Route conflict: ${owner.route} and ${route} match the same URLs (${owner.file} and ${file}). Use the same parameter name in both routes.`,
+					`route conflict: ${owner.route} and ${route} match the same URLs (${owner.file} and ${file}). Use the same parameter name in both routes`,
 				)
 			}
 
@@ -374,7 +378,7 @@ export class Finder {
 
 				if (existing) {
 					throw new RouteConflictError(
-						`Route conflict: ${route} is declared by two pages (${existing} and ${segment.page}).`,
+						`route conflict: ${route} is declared by two pages (${existing} and ${segment.page})`,
 					)
 				}
 
@@ -384,7 +388,7 @@ export class Finder {
 
 				if (existing) {
 					throw new RouteConflictError(
-						`Route conflict: ${route} has two layout-only segments (${existing} and ${segment.dir}).`,
+						`route conflict: ${route} has two layout-only segments (${existing} and ${segment.dir})`,
 					)
 				}
 
@@ -431,7 +435,7 @@ export class Finder {
 		try {
 			return await this.process(await this.#scan(Config.APP_DIR))
 		} catch (err) {
-			logger.error('[Build:Finder:run]: failed to build manifest', err)
+			logger.error('Failed to build the route manifest', err)
 			throw err
 		}
 	}
@@ -527,7 +531,12 @@ export class Finder {
 						currentPage = relative
 
 						const segment = buildSegment(dir, relative, extendChains(prev, state))
-						if (!segment) throw new BuildError('Missing app shell')
+						if (!segment) {
+							throw new BuildError(
+								ErrorCode.AppShellMissing,
+								'missing the app shell layout',
+							)
+						}
 						res.segments.push(segment)
 					}
 				}
@@ -541,7 +550,8 @@ export class Finder {
 				(state['401'] || state['403'] || state['404'] || state['500'] || state.loader)
 			) {
 				logger.warn(
-					`[Build:Finder:#scan]: ${dir} has status route files or +loading but no +page or +layout. This path will not be routable (404), but these files will still be inherited by child routes`,
+					`${dir} has status route files or +loading but no +page or +layout. ` +
+						'This path will not be routable (404), but these files will still be inherited by child routes',
 				)
 			}
 
@@ -561,7 +571,7 @@ export class Finder {
 		} catch (err) {
 			if (err instanceof BuildError) throw err
 
-			logger.error(`[Build:Finder:#scan]: Failed to compose manifest from ${dir}`, err)
+			logger.error(`Failed to compose the manifest from ${dir}`, err)
 
 			return {
 				segments: [],
@@ -846,7 +856,9 @@ export class Finder {
 
 						const source = await fs.readFile(layoutFile, 'utf8')
 						const errors = validatePprLayout(layoutFile, source)
-						if (errors.length > 0) throw new BuildError(errors.join('\n'))
+						if (errors.length > 0) {
+							throw new BuildError(ErrorCode.BuildFailed, errors.join('\n'))
+						}
 					}
 				}
 
@@ -933,7 +945,7 @@ export class Finder {
 			} catch (err) {
 				if (err instanceof BuildError) throw err
 
-				logger.error('[Build:Finder:process]: failed to process segment', err)
+				logger.error('Failed to process a route segment', err)
 			}
 		}
 
@@ -962,8 +974,7 @@ export class Finder {
 				for (const method of endpointExports) {
 					if (!HTTP_VERBS.includes(method as HttpMethod)) {
 						logger.warn(
-							'[Build:Finder:process]',
-							`Ignoring unsupported HTTP verb: ${method} in ${endpointFilePath}`,
+							`Ignoring unsupported HTTP verb "${method}" in ${endpointFilePath}`,
 						)
 						continue
 					}
@@ -973,7 +984,7 @@ export class Finder {
 
 						if (shapeOwner && shapeOwner.route !== route) {
 							throw new RouteConflictError(
-								`Route conflict: ${shapeOwner.route} and ${route} match the same URLs (${shapeOwner.file} and ${endpointFilePath}). Use the same parameter name in both routes.`,
+								`route conflict: ${shapeOwner.route} and ${route} match the same URLs (${shapeOwner.file} and ${endpointFilePath}). Use the same parameter name in both routes`,
 							)
 						}
 
@@ -989,7 +1000,7 @@ export class Finder {
 
 					if (owner) {
 						throw new RouteConflictError(
-							`Route conflict: ${method} ${route} is declared by two endpoints (${owner} and ${endpointFilePath}).`,
+							`route conflict: ${method} ${route} is declared by two endpoints (${owner} and ${endpointFilePath})`,
 						)
 					}
 
@@ -1074,7 +1085,7 @@ export class Finder {
 			} catch (err) {
 				if (err instanceof BuildError) throw err
 
-				logger.error('[Build:Finder:process]: failed to process route', err)
+				logger.error('Failed to process a route', err)
 			}
 		}
 

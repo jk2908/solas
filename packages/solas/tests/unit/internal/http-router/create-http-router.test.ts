@@ -61,7 +61,7 @@ describe('createHttpRouter', () => {
 		const importMap: any = { api: {} }
 
 		expect(() => createHttpRouter({}, manifest, importMap, rsc)).toThrow(
-			'Missing endpoint handler',
+			'no handler was found for endpoint',
 		)
 	})
 
@@ -109,7 +109,7 @@ describe('createHttpRouter', () => {
 	it('throws for over-length route groups', () => {
 		const manifest: any = { '/bad': [{}, {}, {}] }
 		expect(() => createHttpRouter({}, manifest, {}, rsc)).toThrow(
-			'Unexpected route group length',
+			'unexpected route group length',
 		)
 	})
 
@@ -117,7 +117,7 @@ describe('createHttpRouter', () => {
 		const manifest: any = {
 			'/bad': [endpointEntry('/bad', 'e'), endpointEntry('/bad', 'e2')],
 		}
-		expect(() => createHttpRouter({}, manifest, {}, rsc)).toThrow('missing page entry')
+		expect(() => createHttpRouter({}, manifest, {}, rsc)).toThrow('missing a page entry')
 	})
 
 	it('runs middleware before serving a full prerender', async () => {

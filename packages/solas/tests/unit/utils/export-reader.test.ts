@@ -183,7 +183,7 @@ describe('ExportReader', () => {
 			mockReadFile.mockResolvedValue('export const x = 1')
 			const reader = new ExportReader()
 			await expect(reader.exports('/file.py')).rejects.toThrow(
-				'Unsupported module extension',
+				'unsupported module extension',
 			)
 		})
 	})

@@ -5,7 +5,7 @@ import { prerender as reactPrerender } from 'react-dom/static.edge'
 
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 
-import { Logger } from '../../utils/logger.js'
+import { createLogger } from '../../utils/logger.js'
 
 import type { RscPayload } from './rsc.js'
 import * as Solas from '../../solas.js'
@@ -23,7 +23,7 @@ type Opts = {
 	route?: string
 }
 
-const logger = new Logger()
+const logger = createLogger('ssr')
 
 function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
 	const payload = use(payloadPromise)
@@ -70,7 +70,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 				if (digest) return digest
 				if (isKnownError(err)) return
 
-				logger.error('[ssr:ppr]', err)
+				logger.error('Failed to render the PPR prelude', err)
 			},
 		})
 
@@ -88,7 +88,7 @@ async function ssr(rscStream: ReadableStream<Uint8Array>, opts: Opts = {}) {
 			if (digest) return digest
 			if (isKnownError(err)) return
 
-			logger.error('[ssr]', err)
+			logger.error('Failed to render the page', err)
 		},
 	})
 
@@ -103,8 +103,8 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 	const { ppr = false, nonce, route } = opts
 
 	if (!route) {
-		const err = new Error('missing route in ssr.prerender() opts')
-		logger.error('[ssr:prerender]', err)
+		const err = new Error('Missing route in ssr.prerender() options.')
+		logger.error('Failed to prerender: no route was provided', err)
 
 		throw err
 	}
@@ -139,7 +139,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 					if (digest) return digest
 					if (isKnownError(err)) return
 
-					logger.error('[ssr:prerender:ppr]', err)
+					logger.error('Failed to prerender the PPR shell', err)
 				},
 			},
 		)
@@ -188,7 +188,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 			if (digest) return digest
 			if (isKnownError(err)) return
 
-			logger.error('[ssr:prerender:full]', err)
+			logger.error('Failed to prerender the page', err)
 		},
 	})
 
@@ -226,7 +226,7 @@ async function resume(
 				if (digest) return digest
 				if (isKnownError(err)) return
 
-				logger.error('[ssr:resume]', err)
+				logger.error('Failed to resume the PPR shell', err)
 			},
 		},
 	)

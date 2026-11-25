@@ -124,7 +124,7 @@ export function createHttpRouter(
 		}
 
 		if (group.length > 2)
-			throw new InvalidRouteGroupError('Unexpected route group length')
+			throw new InvalidRouteGroupError('unexpected route group length')
 
 		const page = group.find((entry): entry is Segment => 'paths' in entry)
 		const endpointEntry = group.find((entry): entry is Endpoint => !('paths' in entry))

@@ -156,7 +156,7 @@ export function validatePprLayout(file: string, source: string) {
 		) {
 			errors.push(
 				`${file}: dynamic() is conditional in a PPR layout. ` +
-					'Use `export const prerender = false` for this route or move the dynamic work to the page.',
+					'Use `export const prerender = false` for this route or move the dynamic work to the page',
 			)
 		}
 

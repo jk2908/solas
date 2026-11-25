@@ -12,7 +12,7 @@ import {
 import { createFromReadableStream } from '@vitejs/plugin-rsc/browser'
 
 import { getDocumentNonce } from '../../utils/get-document-nonce.js'
-import { Logger } from '../../utils/logger.js'
+import { Logger, createLogger } from '../../utils/logger.js'
 
 import type { BrowserConfig } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
@@ -69,7 +69,7 @@ const DEFAULT_GO_CONFIG = {
 	replace: false,
 } satisfies BrowserRouter.GoOptions
 
-const logger = new Logger()
+const logger = createLogger('router')
 
 const STATIC = import.meta.env.SOLAS_ADAPTER === 'static'
 
@@ -703,11 +703,15 @@ export function BrowserRouterProvider({
 								isBrowserRouterError(err) || isRouteTargetError(err)
 									? err.code
 									: undefined,
+							hint:
+								err instanceof Error && 'hint' in err && typeof err.hint === 'string'
+									? err.hint
+									: undefined,
 						},
 					}),
 				)
 
-				logger.error('[navigation] failed', err)
+				logger.error('Navigation failed', err)
 			} finally {
 				// only clear the controller if this navigation is still current
 				if (navigationId === id.current) controller.current = null

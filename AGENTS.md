@@ -19,6 +19,18 @@ Guidance for agents working in this repo.
 - README and CHANGELOG use British English (`normalise`, `behaviour`, `favour`) with no em dashes or AI jargon.
 - The CHANGELOG follows Keep a Changelog, with `### Breaking` / `### Features` / `### Fixes` / `### Changed` sections.
 
+## Messaging
+
+- Use one module-scoped logger per subsystem: `const log = createLogger('build')`. Do not create a logger per message category or phase. Use `logger.child(scope)` only for a genuinely nested subsystem.
+- Do not put a `[scope]:` tag inside the message.
+- Error messages start lowercase unless the first word is a proper noun or acronym, and do not end with punctuation. Put the fix in a one-line `hint`, which may be a full sentence with punctuation.
+- CLI lines are sentence case and do not end with punctuation. Debug lines can be shorter.
+- Throw `SolasError` (or a subclass) for framework errors. Pass the `ErrorCode` constant first, then the message, then an optional `hint`.
+- Code values use `SCREAMING_SNAKE_CASE` with a `SOLAS_` prefix, for example `SOLAS_ROUTE_CONFLICT`. Add new values to `ErrorCode`; never invent a code at the call site.
+- Keep colour out of thrown errors and raw strings. The logger applies colour only when the output is a TTY, so piped and CI output stays plain.
+- CLI output uses symbols and columns: `build        ✓  Build complete`. Use `info` for progress, `success` for completed steps, `warn` for warnings, and `error` for failures. Do not log per-file work at `info`; use `debug` with a summary at `success`.
+- Timestamps are off by default for CLI output. Server loggers pass `timestamps: 'iso'`.
+
 ## Adapters
 
 - Build adapters live under `@jk2908/solas/adapters/*` and default-export a function named `adapter` (`cloudflare()`, the static adapter), so `import adapter from '@jk2908/solas/adapters/static'`. They return the `Adapter` shape (`name`, `plugins`, optional `prerender`) and are passed to `solas({ adapter })`. A platform with no server sets `prerender` on the returned `Adapter` to force the mode it needs.

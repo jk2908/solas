@@ -1,5 +1,3 @@
-import * as Config from '../../config.js'
-
 export type RedirectStatusCode = 301 | 302 | 307 | 308
 
 export type RedirectLike = Pick<Error, 'name' | 'message' | 'stack'> &
@@ -35,15 +33,13 @@ export const REDIRECT_DIGEST_PREFIX = 'REDIRECT'
  */
 function validate(url: string) {
 	if (url.startsWith('//')) {
-		throw new TypeError(
-			`[${Config.NAME}] redirect() does not allow protocol-relative urls`,
-		)
+		throw new TypeError('redirect() does not allow protocol-relative URLs')
 	}
 
 	// reject urls with control characters to prevent header injection
 	for (const char of url) {
 		if (char === '\r' || char === '\n') {
-			throw new TypeError(`[${Config.NAME}] redirect() does not allow control characters`)
+			throw new TypeError('redirect() does not allow control characters')
 		}
 	}
 
@@ -55,15 +51,11 @@ function validate(url: string) {
 	try {
 		parsed = new URL(url)
 	} catch {
-		throw new TypeError(
-			`[${Config.NAME}] redirect() only supports relative paths or absolute http/https urls`,
-		)
+		throw new TypeError('redirect() expects a relative path or an absolute http(s) URL')
 	}
 
 	if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-		throw new TypeError(
-			`[${Config.NAME}] redirect() only supports http:// and https:// urls`,
-		)
+		throw new TypeError('redirect() only supports http:// and https:// URLs')
 	}
 }
 
@@ -120,7 +112,7 @@ export function toRedirect(err: unknown): Redirect {
 			: undefined)
 
 	if (!url) {
-		throw new TypeError(`[${Config.NAME}] failed to reconstruct redirect`)
+		throw new TypeError('could not reconstruct the redirect target')
 	}
 
 	return new Redirect(url, status)

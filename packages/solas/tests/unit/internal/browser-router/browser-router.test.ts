@@ -73,7 +73,7 @@ describe('BrowserRouter', () => {
 		})
 
 		it('throws for missing params', () => {
-			expect(() => toTarget('/posts/:id', {})).toThrow('missing route param')
+			expect(() => toTarget('/posts/:id', {})).toThrow('missing the route parameter')
 		})
 
 		it('handles wildcard routes', () => {
@@ -82,7 +82,7 @@ describe('BrowserRouter', () => {
 		})
 
 		it('throws when wildcard has no remaining param', () => {
-			expect(() => toTarget('/docs/*', {})).toThrow('wildcard routes require')
+			expect(() => toTarget('/docs/*', {})).toThrow('wildcard route requires')
 		})
 
 		it('handles optional wildcard routes with and without params', () => {

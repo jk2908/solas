@@ -14,8 +14,9 @@ import {
 
 import rsc, { getPluginApi } from '@vitejs/plugin-rsc'
 
+import { ErrorCode, SolasError } from './utils/errors.js'
 import { ExportReader } from './utils/export-reader.js'
-import { Logger } from './utils/logger.js'
+import { Logger, createLogger } from './utils/logger.js'
 import { normalisePath } from './utils/path.js'
 import { debounce } from './utils/time.js'
 
@@ -77,7 +78,8 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 	if (config.logger?.level) Logger.defaultLevel = config.logger.level
 
-	const logger = new Logger()
+	const buildLog = createLogger('build')
+	const devLog = createLogger('dev')
 	const exportReader = new ExportReader()
 
 	const buildContext: BuildContext = {
@@ -126,7 +128,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 				return path.relative(process.cwd(), filePath)
 			} catch (err) {
-				logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
+				buildLog.error(`Failed to write ${filePath}`, err)
 				return null
 			}
 		} catch (err) {
@@ -138,12 +140,12 @@ function solas(c?: PluginConfig): PluginOption[] {
 
 					return path.relative(process.cwd(), filePath)
 				} catch (err) {
-					logger.error(`[maybeWrite] Failed to write file: ${filePath}`, err)
+					buildLog.error(`Failed to write ${filePath}`, err)
 					return null
 				}
 			}
 
-			logger.error(`[maybeWrite] Failed to read file: ${filePath}`, err)
+			buildLog.error(`Failed to read ${filePath}`, err)
 
 			return null
 		}
@@ -255,9 +257,9 @@ function solas(c?: PluginConfig): PluginOption[] {
 					try {
 						const changed = await build()
 
-						if (changed) logger.info('[watch]', `route graph rebuilt (${rebuildReason})`)
+						if (changed) devLog.success(`Route graph rebuilt (${rebuildReason})`)
 					} catch (err) {
-						logger.error('[watch] route rebuild failed', err)
+						devLog.error('Route rebuild failed', err)
 					}
 				} while (rebuildQueued)
 				rebuildRunning = false
@@ -293,7 +295,12 @@ function solas(c?: PluginConfig): PluginOption[] {
 	// `params()`
 	async function getScanEnvironment() {
 		if (scanEnvironment) return scanEnvironment
-		if (!resolvedViteConfig) throw new Error('Vite config not resolved yet')
+		if (!resolvedViteConfig) {
+			throw new SolasError(
+				ErrorCode.ViteConfigUnresolved,
+				'the Vite config has not been resolved yet',
+			)
+		}
 
 		const scanConfig = await resolveConfig(
 			{
@@ -330,11 +337,17 @@ function solas(c?: PluginConfig): PluginOption[] {
 			)
 
 			if (typeof pkg.name !== 'string' || pkg.name.length === 0) {
-				throw new Error(`Missing ${Config.NAME} package name`)
+				throw new SolasError(
+					ErrorCode.PackageNameMissing,
+					`the ${Config.NAME} package is missing its name`,
+				)
 			}
 
 			if (typeof pkg.version !== 'string' || pkg.version.length === 0) {
-				throw new Error(`Missing ${Config.NAME} package version`)
+				throw new SolasError(
+					ErrorCode.PackageVersionMissing,
+					`the ${Config.NAME} package is missing its version`,
+				)
 			}
 
 			viteConfig.build ??= {}
@@ -421,7 +434,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 		},
 		configureServer(server: ViteDevServer) {
 			devServer = server
-			logger.info('[configureServer]', `Watching for changes in ./${Config.APP_DIR}...`)
+			devLog.info(`Watching for changes in ./${Config.APP_DIR}`)
 
 			server.watcher
 				.on('add', (p: string) => rebuild('add', p))
@@ -449,7 +462,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 			return `export const clientCssByRoute = ${JSON.stringify(devClientCssCache)}`
 		},
 		async buildStart() {
-			logger.info('[buildStart]', 'building route graph...')
+			buildLog.info('Building the route graph')
 
 			// attach a module loader for ExportReader.value to execute route modules
 			if (buildContext.command === 'build') {
@@ -504,7 +517,12 @@ function solas(c?: PluginConfig): PluginOption[] {
 		buildApp: {
 			order: 'post' as const,
 			async handler() {
-				if (!resolvedViteConfig) throw new Error('Vite config not resolved yet')
+				if (!resolvedViteConfig) {
+					throw new SolasError(
+						ErrorCode.ViteConfigUnresolved,
+						'the Vite config has not been resolved yet',
+					)
+				}
 
 				const load = await config.adapter?.postbuild?.(resolvedViteConfig)
 				const pluginApi = getPluginApi(resolvedViteConfig)
@@ -541,3 +559,5 @@ function solas(c?: PluginConfig): PluginOption[] {
 export default solas
 export * as Solas from './solas.js'
 export type * from './types.js'
+export { ErrorCode, SolasError, isSolasError } from './utils/errors.js'
+export type { SolasErrorOptions } from './utils/errors.js'

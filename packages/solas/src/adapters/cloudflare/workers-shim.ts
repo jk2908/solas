@@ -8,6 +8,9 @@
  * `undefined` rather than throwing, and the classes are inert stubs so a module
  * that extends one still loads. None of this runs on the deployed Worker.
  */
+import { createLogger } from '../../utils/logger.js'
+
+const logger = createLogger('cloudflare')
 const warned = new Set<PropertyKey>()
 
 function binding(): Record<string, unknown> {
@@ -18,10 +21,8 @@ function binding(): Record<string, unknown> {
 				if (!warned.has(key)) {
 					warned.add(key)
 
-					console.warn(
-						`[solas] "${String(key)}" was read during the build-time ` +
-							`prerender, where no bindings exist. It returned undefined. ` +
-							`Read it at request time, or guard it with a fallback.`,
+					logger.warn(
+						`"${String(key)}" was read during the build-time prerender, where no bindings exist. It returned undefined. Read it at request time, or guard it with a fallback`,
 					)
 				}
 
