@@ -312,8 +312,9 @@ async function createPayload({
 	let dynamicLayouts: string[] = []
 
 	if (patchSegment && match) dynamicLayouts = await loadDynamicLayouts(pathname)
-	// missing metadata is treated as dynamic so older artifacts keep the short TTL
-	const pageDynamic = effectiveDynamicPage ?? true
+	// if the manifest has no page cache policy, assume the page is dynamic and
+	// keep the short TTL for backward compatibility
+	const pageIsDynamic = effectiveDynamicPage ?? true
 	const patchLayouts =
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params, dynamicLayouts)
@@ -455,7 +456,7 @@ async function createPayload({
 		params: payloadParams,
 		cache: {
 			...(patchSegment
-				? { layouts: null, page: pageDynamic ? DEFAULT_PAGE_STALE_MS : null }
+				? { layouts: null, page: pageIsDynamic ? DEFAULT_PAGE_STALE_MS : null }
 				: {}),
 			...(dynamicLayouts.length > 0 ? { dynamicLayouts } : {}),
 			...(invalidatedPaths && invalidatedPaths.length > 0 ? { invalidatedPaths } : {}),

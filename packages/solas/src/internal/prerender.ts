@@ -598,13 +598,11 @@ export function hasDynamicPage(rows: PayloadRows, pageId?: string) {
 
 	if (pageId === undefined) return true
 
-	const seen = new Set<unknown>()
 	let pageValue: unknown
 	let found = false
 
 	function findPageSlot(value: unknown) {
-		if (!value || typeof value !== 'object' || seen.has(value)) return
-		seen.add(value)
+		if (found || !value || typeof value !== 'object') return
 
 		if (Array.isArray(value)) {
 			const props = value[3]
@@ -626,10 +624,7 @@ export function hasDynamicPage(rows: PayloadRows, pageId?: string) {
 		for (const item of Object.values(value)) findPageSlot(item)
 	}
 
-	for (const row of rows.values()) {
-		findPageSlot(row)
-		if (found) break
-	}
+	findPageSlot(root)
 
 	// be conservative when the shell shape is not understood
 	if (!found) return true
@@ -641,12 +636,12 @@ export function hasDynamicPage(rows: PayloadRows, pageId?: string) {
 		if (typeof value === 'string') {
 			for (const match of value.matchAll(lazySegmentReference)) {
 				const id = match[1]
-				const row = rows.get(id)
-
-				if (!rows.has(id) || row === null) return true
 				if (visitedReferences.has(id)) continue
 
 				visitedReferences.add(id)
+
+				const row = rows.get(id)
+				if (row === null || (row === undefined && !rows.has(id))) return true
 				if (hasMissingReference(row)) return true
 			}
 
@@ -685,7 +680,7 @@ export function getDynamicLayouts(shell: string) {
 
 			const childId = child.slice(2)
 			const row = rows.get(childId)
-			if (!rows.has(childId) || row === null) dynamic.add(id)
+			if (row === null || (row === undefined && !rows.has(childId))) dynamic.add(id)
 		}
 
 		visit(props)

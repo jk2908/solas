@@ -170,7 +170,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		const shellSource = await new Response(shellPayload).text()
 		const rows = parsePayloadRows(shellSource)
 		// check the source before missing rows are replaced with fallbacks
-		const dynamicPage = Prerender.hasDynamicPage(rows)
+		const pageIsDynamic = Prerender.hasDynamicPage(rows)
 		const shell = completeShellPayload(shellSource, rows)
 
 		return {
@@ -183,7 +183,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 			).text(),
 			shell,
 			postponed,
-			dynamicPage,
+			dynamicPage: pageIsDynamic,
 		}
 	}
 

@@ -1,3 +1,5 @@
+import { isRecord } from '../../utils/validation.js'
+
 type Chunk = string | Uint8Array
 
 type Opts = {
@@ -83,9 +85,7 @@ export function parsePayloadRows(payload: string) {
  * prefetch shell without keeping the render stream open.
  */
 export function completeShellPayload(payload: string, rows = parsePayloadRows(payload)) {
-	const rowIds = new Set(rows.keys())
-
-	if (rowIds.size === 0) return payload
+	if (rows.size === 0) return payload
 
 	const suspenseRows = new Set(
 		[...rows].filter(([, value]) => value === '$Sreact.suspense').map(([id]) => id),
@@ -96,7 +96,7 @@ export function completeShellPayload(payload: string, rows = parsePayloadRows(pa
 		if (typeof value === 'string') {
 			for (const match of value.matchAll(lazyReference)) {
 				const id = match[1]
-				if (!rowIds.has(id) && !missing.has(id)) missing.set(id, fallback)
+				if (!rows.has(id) && !missing.has(id)) missing.set(id, fallback)
 			}
 			return
 		}
@@ -108,19 +108,17 @@ export function completeShellPayload(payload: string, rows = parsePayloadRows(pa
 				tag === '$' &&
 				typeof type === 'string' &&
 				type.startsWith('$') &&
-				props &&
-				typeof props === 'object'
+				isRecord(props)
 			) {
-				const propsRecord = props as Record<string, unknown>
-				const child = propsRecord.children
+				const child = props.children
 				const typeId = type.slice(1)
 				const isSuspense = type === '$Sreact.suspense' || suspenseRows.has(typeId)
 
 				if (isSuspense && typeof child === 'string' && child.startsWith('$L')) {
 					const id = child.slice(2)
-					if (!rowIds.has(id)) {
-						missing.set(id, propsRecord.fallback ?? null)
-						visit(propsRecord.fallback)
+					if (!rows.has(id)) {
+						missing.set(id, props.fallback ?? null)
+						visit(props.fallback)
 					}
 				}
 			}
