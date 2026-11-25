@@ -131,24 +131,29 @@ async function copyOutput(cwd: string) {
  * and render RSC otherwise, while non-HTML assets still come straight from the
  * asset layer.
  */
-type WorkerConfigCustomizerFn = Extract<
-	WorkerConfigCustomizer,
-	(...args: never[]) => unknown
->
-type ParsedWorkerConfig = Parameters<WorkerConfigCustomizerFn>[0]
+type ParsedCloudflareConfig = Parameters<NonNullable<WorkerConfigCustomizer>>[0]
 
 function withAdapterConfig(
 	config: WorkerConfigCustomizer | undefined,
 ): WorkerConfigCustomizer {
-	return (workerConfig: ParsedWorkerConfig) => {
+	return (cloudflareConfig: ParsedCloudflareConfig) => {
 		const base =
-			typeof config === 'function' ? (config(workerConfig) ?? {}) : (config ?? {})
+			typeof config === 'function'
+				? (config(cloudflareConfig) ?? cloudflareConfig)
+				: cloudflareConfig
 
 		return {
 			...base,
-			entrypoint: VIRTUAL_ENTRY,
-			assets: { htmlHandling: 'none', notFoundHandling: 'none', ...base.assets },
-			env: { ...base.env, ASSETS: { type: 'assets' } },
+			worker: {
+				...base.worker,
+				entrypoint: VIRTUAL_ENTRY,
+				assets: {
+					htmlHandling: 'none',
+					notFoundHandling: 'none',
+					...base.worker.assets,
+				},
+				env: { ...base.worker.env, ASSETS: { type: 'assets' } },
+			},
 		}
 	}
 }

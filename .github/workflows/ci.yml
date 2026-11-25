@@ -43,3 +43,8 @@ jobs:
         run: |
           cd packages/solas
           bun run prepublishOnly
+
+      - name: Cloudflare example build
+        run: |
+          cd examples/cloudflare
+          bun run build

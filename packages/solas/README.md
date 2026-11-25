@@ -673,7 +673,7 @@ Solas ships a Cloudflare adapter that runs the RSC server as a Worker and serves
 It targets the **Cloudflare Vite plugin beta** and the **`cf` CLI** workflow, where the Worker is configured by `cloudflare.config.ts`. Install the beta plugin (and `cf` for deploys):
 
 ```sh
-npm install -D @cloudflare/vite-plugin@beta cf
+npm install -D @cloudflare/vite-plugin@^2.0.0-rc.0 cf@^1.0.0-rc.5
 ```
 
 ```ts

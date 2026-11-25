@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.23.2
+
+### Fixes
+
+- Updated the Cloudflare adapter for the current `@cloudflare/vite-plugin` worker configuration shape.
+- Updated the Cloudflare example and peer range to the RC toolchain.
+
 ## 0.23.1
 
 ### Fixes
