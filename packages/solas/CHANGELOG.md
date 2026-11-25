@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.24.0
+
+### Breaking
+
+- Router error codes now use `SCREAMING_SNAKE_CASE` with a `SOLAS_` prefix. For example, `external-url` is now `SOLAS_ROUTER_EXTERNAL_URL`, and `missing-param` is now `SOLAS_LINK_MISSING_PARAM`. Update any code that reads `error.code` from navigation events.
+
+### Changed
+
+- Reworked log and error messages. CLI output now uses aligned symbols and colour on a TTY, and messages no longer carry `[scope]:` prefixes.
+- Added `createLogger(scope, options)` and use one module-scoped logger per subsystem. Per-file compression logs moved to debug with a summary at the end.
+- Error messages and CLI lines no longer end with punctuation. Hints remain full sentences.
+- Added a typed `ErrorCode` registry and exported `SolasError`, `ErrorCode` and `isSolasError` from the package root. `SolasError` now takes a code first, then the message and an optional hint.
+- CLI timestamps are off by default. Server logs use ISO timestamps.
+
 ## 0.23.4
 
 ### Fixes
