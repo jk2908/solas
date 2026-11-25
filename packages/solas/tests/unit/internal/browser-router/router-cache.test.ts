@@ -14,12 +14,16 @@ function cached(path: string, bytes: number): RouterCache.CachedPayload {
 	}
 }
 
-function stream(path: string, bytes: number): RouterCache.DecodedStream {
+function stream(
+	path: string,
+	bytes: number,
+	type: RouterCache.Type = 'full',
+): RouterCache.DecodedStream {
 	return {
 		payload: Promise.resolve({ root: null, url: { pathname: path } }),
 		bytes: Promise.resolve(bytes),
 		url: path,
-		type: 'full',
+		type,
 	}
 }
 
@@ -187,5 +191,67 @@ describe('RouterCache', () => {
 		expect(cache.has('/about')).toBe(false)
 		expect(cache.get('/about')).toBeUndefined()
 		expect(cache.has('/test')).toBe(false)
+	})
+
+	it('does not double count a replaced entry', () => {
+		const cache = new RouterCache({ maxBytes: 20 })
+
+		cache.setReady('/a', 'full', cached('/a', 10))
+		cache.setReady('/a', 'full', cached('/a', 10))
+		cache.setReady('/b', 'full', cached('/b', 10))
+
+		expect(cache.has('/a')).toBe(true)
+		expect(cache.has('/b')).toBe(true)
+	})
+
+	it('only retains full payloads in full-only mode', () => {
+		const cache = new RouterCache({ mode: 'full-only' })
+
+		cache.setReady('/full', 'full', cached('/full', 10))
+		cache.setReady('/ppr', 'ppr', cached('/ppr', 10))
+		cache.setReady('/dynamic', 'dynamic', cached('/dynamic', 10))
+		cache.setSegment('/ppr', 'dynamic', cached('/ppr', 10))
+
+		expect(cache.has('/full')).toBe(true)
+		expect(cache.has('/ppr')).toBe(false)
+		expect(cache.has('/dynamic')).toBe(false)
+		expect(cache.hasSegment('/ppr')).toBe(false)
+	})
+
+	it('retains prerendered payloads but not dynamic data', () => {
+		const cache = new RouterCache({ mode: 'prerendered' })
+
+		cache.setReady('/full', 'full', cached('/full', 10))
+		cache.setReady('/ppr', 'ppr', cached('/ppr', 10))
+		cache.setReady('/dynamic', 'dynamic', cached('/dynamic', 10))
+		cache.setSegment('/ppr', 'dynamic', cached('/ppr', 10))
+
+		expect(cache.has('/full')).toBe(true)
+		expect(cache.has('/ppr')).toBe(true)
+		expect(cache.has('/dynamic')).toBe(false)
+		expect(cache.hasSegment('/ppr')).toBe(false)
+	})
+
+	it('drops a promoted dynamic payload in prerendered mode', async () => {
+		const cache = new RouterCache({ mode: 'prerendered' })
+		const promise = Promise.resolve(stream('/dynamic', 10, 'dynamic'))
+
+		cache.set('/dynamic', promise)
+		expect(cache.get('/dynamic')?.status).toBe('pending')
+
+		await promise
+		await settle()
+
+		expect(cache.has('/dynamic')).toBe(false)
+	})
+
+	it('retains dynamic payloads and segments in all mode', () => {
+		const cache = new RouterCache({ mode: 'all' })
+
+		cache.setReady('/dynamic', 'dynamic', cached('/dynamic', 10))
+		cache.setSegment('/dynamic', 'dynamic', cached('/dynamic', 10))
+
+		expect(cache.has('/dynamic')).toBe(true)
+		expect(cache.hasSegment('/dynamic')).toBe(true)
 	})
 })

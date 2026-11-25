@@ -19,6 +19,7 @@ export const LOG_LEVELS = ['debug', 'info', 'warn', 'error', 'fatal'] as const
 export const PRERENDER_MODES = ['full', 'ppr'] as const
 export const PRERENDER_OPTIONS = [...PRERENDER_MODES, false] as const
 export const TRAILING_SLASH_MODES = ['always', 'never', 'ignore'] as const
+export const ROUTER_CACHE_MODES = ['all', 'prerendered', 'full-only', 'off'] as const
 export const RUNTIME_MANIFEST = 'runtime-manifest.json'
 
 /**
@@ -115,11 +116,13 @@ const LOGGER_KEYS = new Set(['level'])
  * Select the configuration fields that are safe and useful in the browser.
  */
 export function parseBrowserConfig(config: PluginConfig): BrowserConfig {
+	const mode = config.router?.cache?.mode
 	const enabled = config.router?.cache?.enabled
 	const maxBytes = config.router?.cache?.maxBytes
 	const ttl = config.router?.cache?.ttl
 	const maxLayoutEntries = config.router?.cache?.maxLayoutEntries
 	const cache = {
+		...(mode === undefined ? {} : { mode }),
 		...(enabled === undefined ? {} : { enabled }),
 		...(maxBytes === undefined ? {} : { maxBytes }),
 		...(ttl === undefined ? {} : { ttl }),
@@ -206,6 +209,7 @@ export function validate(input: unknown, envUrl?: string) {
 				} else {
 					for (const key of Object.keys(input.router.cache)) {
 						if (
+							key !== 'mode' &&
 							key !== 'enabled' &&
 							key !== 'maxBytes' &&
 							key !== 'ttl' &&
@@ -213,6 +217,19 @@ export function validate(input: unknown, envUrl?: string) {
 						) {
 							errors.push(`Unknown router.cache key: ${key}`)
 						}
+					}
+
+					const mode = input.router.cache.mode
+					if (
+						mode !== undefined &&
+						!(
+							typeof mode === 'string' &&
+							(ROUTER_CACHE_MODES as readonly string[]).includes(mode)
+						)
+					) {
+						errors.push(
+							`router.cache.mode must be one of ${ROUTER_CACHE_MODES.map(value => `"${value}"`).join(', ')}`,
+						)
 					}
 
 					const enabled = input.router.cache.enabled

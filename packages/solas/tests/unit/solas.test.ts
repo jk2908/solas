@@ -145,7 +145,19 @@ describe('Solas', () => {
 				).toHaveProperty('router.cache.maxLayoutEntries', 25)
 			})
 
-			it('accepts a router cache enabled flag', () => {
+			it('accepts a router cache mode', () => {
+				expect(
+					Config.validate({ router: { cache: { mode: 'prerendered' } } }),
+				).toHaveProperty('router.cache.mode', 'prerendered')
+			})
+
+			it('rejects invalid router cache modes', () => {
+				expect(() => Config.validate({ router: { cache: { mode: 'yes' } } })).toThrow(
+					'router.cache.mode must be one of',
+				)
+			})
+
+			it('accepts the legacy router cache enabled flag', () => {
 				expect(Config.validate({ router: { cache: { enabled: false } } })).toHaveProperty(
 					'router.cache.enabled',
 					false,

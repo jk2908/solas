@@ -11,6 +11,7 @@ type Entry = {
 }
 
 type LayoutCacheOptions = {
+	enabled?: boolean
 	maxEntries?: number
 }
 
@@ -25,9 +26,11 @@ const WILDCARD_PATH = '*'
  */
 export class LayoutCache {
 	#entries = new Map<string, Entry>()
+	enabled: boolean
 	maxEntries: number
 
-	constructor({ maxEntries = 100 }: LayoutCacheOptions = {}) {
+	constructor({ enabled = true, maxEntries = 100 }: LayoutCacheOptions = {}) {
+		this.enabled = enabled
 		this.maxEntries = maxEntries
 	}
 
@@ -35,6 +38,8 @@ export class LayoutCache {
 	 * Read a live layout node.
 	 */
 	get(id: string, params?: LayoutCacheParams) {
+		if (!this.enabled) return undefined
+
 		const key = layoutSegmentKey(id, params)
 		const entry = this.#entries.get(key)
 
@@ -83,6 +88,8 @@ export class LayoutCache {
 		value: ReactNode,
 		options: { expiresAt: number; path?: string },
 	) {
+		if (!this.enabled) return
+
 		const key = layoutSegmentKey(id, params)
 		const paths = this.#entries.get(key)?.paths ?? new Set<string>()
 
@@ -113,6 +120,8 @@ export class LayoutCache {
 	 * Return the IDs currently held by the cache.
 	 */
 	ids() {
+		if (!this.enabled) return []
+
 		const now = Date.now()
 
 		for (const [key, entry] of this.#entries) {

@@ -32,7 +32,13 @@ describe('writeBrowserConfig', () => {
 		expect(result).toContain('ttl: 500')
 	})
 
-	it('includes the router cache enabled flag', () => {
+	it('includes the router cache mode', () => {
+		const result = writeBrowserConfig({ router: { cache: { mode: 'prerendered' } } })
+
+		expect(result).toContain("mode: 'prerendered'")
+	})
+
+	it('includes the legacy router cache enabled flag', () => {
 		const result = writeBrowserConfig({ router: { cache: { enabled: false } } })
 
 		expect(result).toContain('enabled: false')

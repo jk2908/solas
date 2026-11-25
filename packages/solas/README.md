@@ -153,9 +153,9 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 
 `prefetch={false}` is the default. `intent` prefetches on focus or touch, `hover` after a short mouse hover, `viewport` when the link enters the viewport, and `auto` uses hover on hover-capable devices and intent otherwise. Prefetches are skipped for hidden pages, save-data connections and 2G/slow-2G. Nothing is prefetched unless you opt in with `Link` or call `router.prefetch(...)`.
 
-Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. PPR routes prefetch the static shell and then a page/layout patch. A successful PPR navigation also caches its shell, so revisiting the route can commit instantly. Static layout nodes are cached independently and reused across navigations. A PPR route that produced a full prerender artifact is treated as full for prefetching and caching.
+Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. PPR routes prefetch the static shell and then a page/layout patch. A successful PPR navigation also caches its shell, so revisiting the route can commit instantly. PPR page patches stay reusable for 30 seconds. Static layout nodes are cached independently and reused across navigations. A PPR route that produced a full prerender artifact is treated as full for prefetching and caching.
 
-The router cache is enabled by default in production and disabled in development. Set `router.cache.enabled` to `true` to exercise prefetching and caching in development, or to `false` to disable them in production.
+The router cache is enabled by default in production and disabled in development. Set `router.cache.mode` to `all` to exercise prefetching and caching in development, or to `off` to disable them in production. The legacy `router.cache.enabled` boolean is still accepted: `true` maps to `all` and `false` maps to `off`.
 
 Use `useRouter()` inside client components for programmatic navigation, prefetching, and refreshing the current route:
 
@@ -315,11 +315,11 @@ export default defineConfig({
 })
 ```
 
-### `router.cache.enabled`
+### `router.cache.mode`
 
-Use `router.cache.enabled` to control the client-side route cache and prefetching. It is enabled in production and disabled in development by default. Enabling it in development is useful when you want to exercise the production cache paths locally.
+Use `router.cache.mode` to choose which client payloads are cached and prefetched. Caching is enabled in production and disabled in development by default.
 
-Default: `true` in production, `false` in development
+Default: `all` in production, `off` in development
 
 ```ts
 export default defineConfig({
@@ -327,7 +327,7 @@ export default defineConfig({
 		solas({
 			router: {
 				cache: {
-					enabled: true,
+					mode: 'all',
 				},
 			},
 		}),
@@ -335,7 +335,16 @@ export default defineConfig({
 })
 ```
 
-`enabled` must be a boolean.
+Valid values:
+
+| Mode          | Caches                                                                                                                                                                               |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `all`         | Full payloads, PPR shells, PPR page patches, static layouts, and dynamic route payloads. Dynamic payloads expire after `router.cache.ttl`; PPR page patches expire after 30 seconds. |
+| `prerendered` | Full payloads, PPR shells, and static layouts. PPR page patches and dynamic route payloads are not retained.                                                                         |
+| `full-only`   | Fully prerendered payloads only.                                                                                                                                                     |
+| `off`         | Nothing. Prefetching and all client payload caches are disabled.                                                                                                                     |
+
+`mode` must be one of `all`, `prerendered`, `full-only`, or `off`.
 
 ### `router.cache.maxBytes`
 
@@ -383,7 +392,7 @@ export default defineConfig({
 
 ### `router.cache.ttl`
 
-Use `router.cache.ttl` to control how long dynamically rendered route payloads remain reusable. Fully prerendered routes do not expire.
+Use `router.cache.ttl` to control how long dynamically rendered route payloads remain reusable. This applies to prefetched and directly navigated dynamic routes in `all` mode. Fully prerendered routes do not expire.
 
 Default: `60000` (60 seconds)
 

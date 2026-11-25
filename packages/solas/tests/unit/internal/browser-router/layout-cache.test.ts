@@ -159,6 +159,16 @@ describe('LayoutCache', () => {
 		expect(cache.ids()).toEqual([])
 	})
 
+	it('does not store layouts when disabled', () => {
+		const cache = new LayoutCache({ enabled: false })
+		cache.set('a', undefined, 'a', {
+			expiresAt: Number.POSITIVE_INFINITY,
+		})
+
+		expect(cache.get('a')).toBeUndefined()
+		expect(cache.ids()).toEqual([])
+	})
+
 	it('keeps layouts for page-scoped invalidation', () => {
 		const cache = new LayoutCache()
 		cache.set('a', undefined, 'a', {

@@ -1,4 +1,4 @@
-import type { Route } from '../../types.js'
+import type { Route, RouterCacheMode } from '../../types.js'
 import type { RscPayload } from '../env/rsc.js'
 import type { SegmentMeta } from './segment-slot.js'
 import { createInvalidationMatcher } from './invalidation-pattern.js'
@@ -66,18 +66,33 @@ export class RouterCache {
 	#cache = new Map<string, RouterCache.Entry>()
 	#bytes = 0
 
-	enabled = true
+	enabled: boolean
+	mode: RouterCacheMode
 	maxBytes = 8 * 1024 * 1024
 	ttl = 60_000
 
 	constructor({
-		enabled = true,
+		enabled,
+		mode,
 		maxBytes = 8 * 1024 * 1024,
 		ttl = 60_000,
-	}: { enabled?: boolean; maxBytes?: number; ttl?: number } = {}) {
-		this.enabled = enabled
+	}: {
+		enabled?: boolean
+		mode?: RouterCacheMode
+		maxBytes?: number
+		ttl?: number
+	} = {}) {
+		this.mode = mode ?? (enabled === false ? 'off' : 'all')
+		this.enabled = this.mode !== 'off'
 		this.maxBytes = maxBytes
 		this.ttl = ttl
+	}
+
+	/**
+	 * Whether PPR page patches and layouts can be cached.
+	 */
+	get segmentsEnabled() {
+		return this.mode === 'all'
 	}
 
 	has(key: string) {
@@ -124,6 +139,11 @@ export class RouterCache {
 						const type =
 							stream.type ?? payload.type ?? ('dynamic' satisfies RouterCache.Type)
 
+						if (!this.#allowsRoute(type)) {
+							this.#delete(cacheKey)
+							return
+						}
+
 						const ready: RouterCache.Entry = {
 							kind: 'route',
 							status: 'ready',
@@ -153,7 +173,7 @@ export class RouterCache {
 	}
 
 	setReady(key: string, type: RouterCache.Type, value: RouterCache.CachedPayload) {
-		if (!this.enabled) return
+		if (!this.#allowsRoute(type)) return
 
 		const cacheKey = this.#routeKey(key)
 		this.#delete(cacheKey)
@@ -172,7 +192,7 @@ export class RouterCache {
 	}
 
 	getSegment(key: string) {
-		if (!this.enabled) return
+		if (!this.segmentsEnabled) return
 
 		const cacheKey = this.#segmentKey(key)
 		const entry = this.#cache.get(cacheKey)
@@ -185,7 +205,7 @@ export class RouterCache {
 	}
 
 	hasSegment(key: string) {
-		if (!this.enabled) return false
+		if (!this.segmentsEnabled) return false
 
 		const entry = this.#cache.get(this.#segmentKey(key))
 		return entry?.kind === 'segment'
@@ -197,7 +217,7 @@ export class RouterCache {
 		value: RouterCache.CachedSegment,
 		options?: { ttl?: number | null },
 	) {
-		if (!this.enabled) return
+		if (!this.segmentsEnabled) return
 
 		const cacheKey = this.#segmentKey(key)
 		this.#delete(cacheKey)
@@ -256,6 +276,13 @@ export class RouterCache {
 
 		this.#cache.clear()
 		this.#bytes = 0
+	}
+
+	#allowsRoute(type: RouterCache.Type) {
+		if (this.mode === 'all') return true
+		if (this.mode === 'prerendered') return type === 'full' || type === 'ppr'
+		if (this.mode === 'full-only') return type === 'full'
+		return false
 	}
 
 	#routeKey(key: string) {

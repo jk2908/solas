@@ -56,11 +56,24 @@ export type Adapter = {
 	) => PrerenderImport | undefined | Promise<PrerenderImport | undefined>
 }
 
+export type RouterCacheMode = 'all' | 'prerendered' | 'full-only' | 'off'
+
 export type RouterConfig = {
 	cache?: {
 		/**
-		 * Whether the client route cache and prefetching are enabled. Defaults to
-		 * true in production and false in development.
+		 * Selects which client payloads are kept in the client cache.
+		 *
+		 * - `all`: full payloads, PPR shells, PPR page patches, static layouts,
+		 *   and dynamic route payloads.
+		 * - `prerendered`: full payloads, PPR shells, and static layouts.
+		 * - `full-only`: fully prerendered payloads only.
+		 * - `off`: no client payload caching or prefetching.
+		 *
+		 * Defaults to `all` in production and `off` in development.
+		 */
+		mode?: RouterCacheMode
+		/**
+		 * Legacy boolean alias for `mode`. Prefer `mode`.
 		 */
 		enabled?: boolean
 		/**

@@ -315,14 +315,23 @@ export function BrowserRouterProvider({
 	const focusPending = useRef(false)
 	const mounted = useRef(false)
 
+	const cacheMode =
+		config.router?.cache?.mode ??
+		(config.router?.cache?.enabled === false
+			? 'off'
+			: config.router?.cache?.enabled === true
+				? 'all'
+				: import.meta.env.DEV
+					? 'off'
+					: 'all')
 	const routerCache = useMemo(
 		() =>
 			new RouterCache({
-				enabled: config.router?.cache?.enabled ?? !import.meta.env.DEV,
+				mode: cacheMode,
 				maxBytes: config.router?.cache?.maxBytes,
 				ttl: config.router?.cache?.ttl,
 			}),
-		[config],
+		[cacheMode, config.router?.cache?.maxBytes, config.router?.cache?.ttl],
 	)
 	const [segmentPage, setSegmentPage] = useState<RscPayload | null>(null)
 	const [layouts, setLayouts] = useState<Map<string, React.ReactNode>>(() => new Map())
@@ -332,6 +341,7 @@ export function BrowserRouterProvider({
 	const [layoutCache] = useState(
 		() =>
 			new LayoutCache({
+				enabled: cacheMode === 'all' || cacheMode === 'prerendered',
 				maxEntries: config.router?.cache?.maxLayoutEntries,
 			}),
 	)
@@ -636,9 +646,17 @@ export function BrowserRouterProvider({
 							? (BrowserRouter.toCacheKey(decoded.url, window.location.origin) ?? path)
 							: path
 
-					// full payloads and PPR shells are immutable for a build, so
-					// keep them for instant revisits as well as prefetches
-					const cacheType = navigationType === 'full' ? 'full' : isShell ? 'ppr' : null
+					// the cache mode decides which of these may be retained:
+					// full payloads and PPR shells are build artifacts, while
+					// dynamic payloads expire after the configured ttl
+					const cacheType =
+						navigationType === 'full'
+							? 'full'
+							: isShell
+								? 'ppr'
+								: navigationType === 'dynamic'
+									? 'dynamic'
+									: null
 
 					if (cacheType) {
 						void decoded.bytes
@@ -712,6 +730,7 @@ export function BrowserRouterProvider({
 	 */
 	const prefetchSegmentPatch = useCallback(
 		async (key: string) => {
+			if (!routerCache.segmentsEnabled) return
 			if (routerCache.getSegment(key)) return
 
 			const res = await performNavigationFetch(key, {
@@ -789,7 +808,7 @@ export function BrowserRouterProvider({
 			})
 				.then(decodeRscResponse)
 				.then(decoded => {
-					if (decoded?.segment === 'shell') {
+					if (decoded?.segment === 'shell' && routerCache.segmentsEnabled) {
 						// start the patch alongside shell decoding instead of waiting for it
 						void prefetchSegmentPatch(key).catch(() => {})
 					}

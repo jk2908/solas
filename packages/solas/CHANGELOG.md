@@ -5,6 +5,8 @@
 ### Fixes
 
 - PPR navigations now cache their static shell, so revisiting a route can commit instantly without a new shell request.
+- Added `router.cache.mode` with `all`, `prerendered`, `full-only`, and `off` options. `router.cache.enabled` remains available as a legacy boolean alias.
+- Direct dynamic navigations are now cached for `router.cache.ttl` in `all` mode instead of always fetching again.
 - Updated the Cloudflare adapter for the current `@cloudflare/vite-plugin` worker configuration shape.
 - Updated the Cloudflare example and peer range to the RC toolchain.
 
