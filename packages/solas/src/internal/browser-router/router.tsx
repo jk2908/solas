@@ -636,11 +636,14 @@ export function BrowserRouterProvider({
 							? (BrowserRouter.toCacheKey(decoded.url, window.location.origin) ?? path)
 							: path
 
-					// only full prerendered payloads are cached indefinitely
-					if (navigationType === 'full') {
+					// full payloads and PPR shells are immutable for a build, so
+					// keep them for instant revisits as well as prefetches
+					const cacheType = navigationType === 'full' ? 'full' : isShell ? 'ppr' : null
+
+					if (cacheType) {
 						void decoded.bytes
 							.then(bytes => {
-								routerCache.setReady(path, 'full', {
+								routerCache.setReady(path, cacheType, {
 									payload: loadedPayload,
 									url: resolvedPath,
 									bytes,

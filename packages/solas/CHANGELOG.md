@@ -4,6 +4,7 @@
 
 ### Fixes
 
+- PPR navigations now cache their static shell, so revisiting a route can commit instantly without a new shell request.
 - Updated the Cloudflare adapter for the current `@cloudflare/vite-plugin` worker configuration shape.
 - Updated the Cloudflare example and peer range to the RC toolchain.
 
