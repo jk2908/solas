@@ -117,13 +117,11 @@ const LOGGER_KEYS = new Set(['level'])
  */
 export function parseBrowserConfig(config: PluginConfig): BrowserConfig {
 	const mode = config.router?.cache?.mode
-	const enabled = config.router?.cache?.enabled
 	const maxBytes = config.router?.cache?.maxBytes
 	const ttl = config.router?.cache?.ttl
 	const maxLayoutEntries = config.router?.cache?.maxLayoutEntries
 	const cache = {
 		...(mode === undefined ? {} : { mode }),
-		...(enabled === undefined ? {} : { enabled }),
 		...(maxBytes === undefined ? {} : { maxBytes }),
 		...(ttl === undefined ? {} : { ttl }),
 		...(maxLayoutEntries === undefined ? {} : { maxLayoutEntries }),
@@ -210,7 +208,6 @@ export function validate(input: unknown, envUrl?: string) {
 					for (const key of Object.keys(input.router.cache)) {
 						if (
 							key !== 'mode' &&
-							key !== 'enabled' &&
 							key !== 'maxBytes' &&
 							key !== 'ttl' &&
 							key !== 'maxLayoutEntries'
@@ -230,11 +227,6 @@ export function validate(input: unknown, envUrl?: string) {
 						errors.push(
 							`router.cache.mode must be one of ${ROUTER_CACHE_MODES.map(value => `"${value}"`).join(', ')}`,
 						)
-					}
-
-					const enabled = input.router.cache.enabled
-					if (enabled !== undefined && typeof enabled !== 'boolean') {
-						errors.push('router.cache.enabled must be a boolean')
 					}
 
 					const maxBytes = input.router.cache.maxBytes

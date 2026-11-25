@@ -69,13 +69,9 @@ export type RouterConfig = {
 		 * - `full-only`: fully prerendered payloads only.
 		 * - `off`: no client payload caching or prefetching.
 		 *
-		 * Defaults to `all` in production and `off` in development.
+		 * Defaults to `prerendered` in production and `off` in development.
 		 */
 		mode?: RouterCacheMode
-		/**
-		 * Legacy boolean alias for `mode`. Prefer `mode`.
-		 */
-		enabled?: boolean
 		/**
 		 * Maximum bytes retained by the client route cache. Defaults to 8 MiB.
 		 */

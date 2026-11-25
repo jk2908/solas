@@ -38,12 +38,6 @@ describe('writeBrowserConfig', () => {
 		expect(result).toContain("mode: 'prerendered'")
 	})
 
-	it('includes the legacy router cache enabled flag', () => {
-		const result = writeBrowserConfig({ router: { cache: { enabled: false } } })
-
-		expect(result).toContain('enabled: false')
-	})
-
 	it('omits router config when cache settings are unset', () => {
 		const result = writeBrowserConfig({})
 

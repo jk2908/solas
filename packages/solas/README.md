@@ -155,7 +155,7 @@ Use `Link` for same-origin app navigation. Prefetching is opt-in:
 
 Fully prerendered and dynamic routes prefetch their complete payload. Fully prerendered payloads stay cached until the byte budget evicts them; dynamic payloads remain reusable until `router.cache.ttl` expires. PPR routes prefetch the static shell and then a page/layout patch. A successful PPR navigation also caches its shell, so revisiting the route can commit instantly. PPR page patches stay reusable for 30 seconds. Static layout nodes are cached independently and reused across navigations. A PPR route that produced a full prerender artifact is treated as full for prefetching and caching.
 
-The router cache is enabled by default in production and disabled in development. Set `router.cache.mode` to `all` to exercise prefetching and caching in development, or to `off` to disable them in production. The legacy `router.cache.enabled` boolean is still accepted: `true` maps to `all` and `false` maps to `off`.
+The router cache uses `prerendered` mode by default in production and is disabled in development. Set `router.cache.mode` to `all` or `prerendered` to exercise prefetching and caching in development, or to `off` to disable them in production.
 
 Use `useRouter()` inside client components for programmatic navigation, prefetching, and refreshing the current route:
 
@@ -319,7 +319,7 @@ export default defineConfig({
 
 Use `router.cache.mode` to choose which client payloads are cached and prefetched. Caching is enabled in production and disabled in development by default.
 
-Default: `all` in production, `off` in development
+Default: `prerendered` in production, `off` in development
 
 ```ts
 export default defineConfig({

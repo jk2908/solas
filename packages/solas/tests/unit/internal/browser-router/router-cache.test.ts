@@ -65,7 +65,7 @@ describe('RouterCache', () => {
 
 	it('expires dynamic payloads after the ttl', async () => {
 		vi.useFakeTimers()
-		const cache = new RouterCache({ ttl: 1000 })
+		const cache = new RouterCache({ mode: 'all', ttl: 1000 })
 		cache.setReady('/dynamic', 'dynamic', cached('/dynamic', 10))
 
 		vi.advanceTimersByTime(999)
@@ -76,7 +76,7 @@ describe('RouterCache', () => {
 	})
 
 	it('stores page segments in the same cache', () => {
-		const cache = new RouterCache()
+		const cache = new RouterCache({ mode: 'all' })
 		cache.setSegment('/page:/about', 'static', cached('/about', 10))
 
 		expect(cache.getSegment('/page:/about')?.value.payload.url.pathname).toBe('/about')
@@ -86,7 +86,7 @@ describe('RouterCache', () => {
 
 	it('expires dynamic page segments after the ttl', () => {
 		vi.useFakeTimers()
-		const cache = new RouterCache({ ttl: 1000 })
+		const cache = new RouterCache({ mode: 'all', ttl: 1000 })
 		cache.setSegment('/page:/about', 'dynamic', cached('/about', 10))
 
 		vi.advanceTimersByTime(999)
@@ -134,7 +134,7 @@ describe('RouterCache', () => {
 	})
 
 	it('invalidates cached segments by path', () => {
-		const cache = new RouterCache()
+		const cache = new RouterCache({ mode: 'all' })
 		cache.setSegment('/about', 'dynamic', {
 			...cached('/about', 10),
 		})
@@ -149,7 +149,7 @@ describe('RouterCache', () => {
 	})
 
 	it('invalidates descendant paths for layout scope', () => {
-		const cache = new RouterCache()
+		const cache = new RouterCache({ mode: 'all' })
 		cache.setSegment('/about/another', 'dynamic', {
 			...cached('/about/another', 10),
 		})
@@ -160,7 +160,7 @@ describe('RouterCache', () => {
 	})
 
 	it('invalidates descendant paths from the root for layout scope', () => {
-		const cache = new RouterCache()
+		const cache = new RouterCache({ mode: 'all' })
 		cache.setSegment('/about', 'dynamic', {
 			...cached('/about', 10),
 		})
@@ -171,7 +171,7 @@ describe('RouterCache', () => {
 	})
 
 	it('invalidates cached paths from dynamic route patterns', () => {
-		const cache = new RouterCache()
+		const cache = new RouterCache({ mode: 'all' })
 		cache.setSegment('/posts/one', 'dynamic', {
 			...cached('/posts/one', 10),
 		})
@@ -182,7 +182,7 @@ describe('RouterCache', () => {
 	})
 
 	it('does not retain entries when disabled', async () => {
-		const cache = new RouterCache({ enabled: false })
+		const cache = new RouterCache({ mode: 'off' })
 
 		cache.set('/about', Promise.resolve(stream('/about', 10)))
 		cache.setReady('/test', 'full', cached('/test', 10))

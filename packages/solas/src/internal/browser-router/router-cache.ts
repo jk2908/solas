@@ -72,17 +72,15 @@ export class RouterCache {
 	ttl = 60_000
 
 	constructor({
-		enabled,
-		mode,
+		mode = 'prerendered',
 		maxBytes = 8 * 1024 * 1024,
 		ttl = 60_000,
 	}: {
-		enabled?: boolean
 		mode?: RouterCacheMode
 		maxBytes?: number
 		ttl?: number
 	} = {}) {
-		this.mode = mode ?? (enabled === false ? 'off' : 'all')
+		this.mode = mode
 		this.enabled = this.mode !== 'off'
 		this.maxBytes = maxBytes
 		this.ttl = ttl

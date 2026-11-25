@@ -157,16 +157,9 @@ describe('Solas', () => {
 				)
 			})
 
-			it('accepts the legacy router cache enabled flag', () => {
-				expect(Config.validate({ router: { cache: { enabled: false } } })).toHaveProperty(
-					'router.cache.enabled',
-					false,
-				)
-			})
-
-			it('rejects invalid router cache enabled flags', () => {
-				expect(() => Config.validate({ router: { cache: { enabled: 'yes' } } })).toThrow(
-					'router.cache.enabled must be a boolean',
+			it('rejects the removed router cache enabled flag', () => {
+				expect(() => Config.validate({ router: { cache: { enabled: true } } })).toThrow(
+					'Unknown router.cache key: enabled',
 				)
 			})
 

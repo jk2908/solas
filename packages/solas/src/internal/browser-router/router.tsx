@@ -316,14 +316,7 @@ export function BrowserRouterProvider({
 	const mounted = useRef(false)
 
 	const cacheMode =
-		config.router?.cache?.mode ??
-		(config.router?.cache?.enabled === false
-			? 'off'
-			: config.router?.cache?.enabled === true
-				? 'all'
-				: import.meta.env.DEV
-					? 'off'
-					: 'all')
+		config.router?.cache?.mode ?? (import.meta.env.DEV ? 'off' : 'prerendered')
 	const routerCache = useMemo(
 		() =>
 			new RouterCache({
