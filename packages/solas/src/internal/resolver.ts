@@ -11,7 +11,7 @@ import type {
 	Primitive,
 	View,
 } from '../types.js'
-import * as Build from './build.js'
+import { EntryKind } from './entry-kind.js'
 import { HttpRouter } from './http-router/router.js'
 import { Metadata } from './metadata.js'
 import { HttpException, isHttpException } from './navigation/http-exception.js'
@@ -113,10 +113,10 @@ export class Resolver {
 	 */
 	static narrow(entry?: ManifestEntry | ManifestEntry[]) {
 		if (Array.isArray(entry)) {
-			return entry.find(e => e.__kind === Build.EntryKind.PAGE) || null
+			return entry.find(e => e.__kind === EntryKind.PAGE) || null
 		}
 
-		return entry?.__kind === Build.EntryKind.PAGE ? entry : null
+		return entry?.__kind === EntryKind.PAGE ? entry : null
 	}
 
 	/**
@@ -403,7 +403,7 @@ export class Resolver {
 
 			addMetadataSource(
 				{
-					priority: Metadata.PRIORITY[Build.EntryKind.SHELL],
+					priority: Metadata.PRIORITY[EntryKind.SHELL],
 					load: () => Promise.resolve(shell.metadata),
 				},
 				match.paths.layouts[0],
@@ -417,7 +417,7 @@ export class Resolver {
 
 				addMetadataSource(
 					{
-						priority: Metadata.PRIORITY[Build.EntryKind.LAYOUT],
+						priority: Metadata.PRIORITY[EntryKind.LAYOUT],
 						load: () =>
 							loaded.module
 								? Promise.resolve(loaded.module.metadata)
@@ -433,7 +433,7 @@ export class Resolver {
 
 			addMetadataSource(
 				{
-					priority: Metadata.PRIORITY[Build.EntryKind.PAGE],
+					priority: Metadata.PRIORITY[EntryKind.PAGE],
 					load: () =>
 						loaded.module
 							? Promise.resolve(loaded.module.metadata)
@@ -449,7 +449,7 @@ export class Resolver {
 				const loaded = Resolver.#load(errLoader)
 
 				metadataSources.push({
-					priority: Metadata.PRIORITY[Build.EntryKind['401']],
+					priority: Metadata.PRIORITY[EntryKind['401']],
 					when: 'error',
 					status: 401,
 					load: () =>
@@ -466,7 +466,7 @@ export class Resolver {
 				const loaded = Resolver.#load(errLoader)
 
 				metadataSources.push({
-					priority: Metadata.PRIORITY[Build.EntryKind['403']],
+					priority: Metadata.PRIORITY[EntryKind['403']],
 					when: 'error',
 					status: 403,
 					load: () =>
@@ -483,7 +483,7 @@ export class Resolver {
 				const loaded = Resolver.#load(errLoader)
 
 				metadataSources.push({
-					priority: Metadata.PRIORITY[Build.EntryKind['404']],
+					priority: Metadata.PRIORITY[EntryKind['404']],
 					when: 'error',
 					status: 404,
 					load: () =>
@@ -500,7 +500,7 @@ export class Resolver {
 				const loaded = Resolver.#load(errLoader)
 
 				metadataSources.push({
-					priority: Metadata.PRIORITY[Build.EntryKind['500']],
+					priority: Metadata.PRIORITY[EntryKind['500']],
 					when: 'error',
 					status: 500,
 					load: () =>

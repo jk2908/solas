@@ -1,26 +1,24 @@
 import type { HttpException } from './navigation/http-exception.js'
-import * as Build from './build.js'
+import { EntryKind } from './entry-kind.js'
 import { isHttpException } from './navigation/http-exception.js'
-
-type EntryKind = typeof Build.EntryKind
 
 const TITLE_TEMPLATE_STR = '%s'
 
 export namespace Metadata {
 	type EntrySource = Exclude<
-		EntryKind[keyof EntryKind],
-		typeof Build.EntryKind.ENDPOINT | typeof Build.EntryKind.MIDDLEWARE
+		(typeof EntryKind)[keyof typeof EntryKind],
+		typeof EntryKind.ENDPOINT | typeof EntryKind.MIDDLEWARE
 	>
 
 	export const PRIORITY: Record<EntrySource, number> = {
-		[Build.EntryKind.SHELL]: 10,
-		[Build.EntryKind.LAYOUT]: 20,
-		[Build.EntryKind.PAGE]: 30,
-		[Build.EntryKind['401']]: 40,
-		[Build.EntryKind['403']]: 40,
-		[Build.EntryKind['404']]: 40,
-		[Build.EntryKind['500']]: 40,
-		[Build.EntryKind.LOADING]: 50,
+		[EntryKind.SHELL]: 10,
+		[EntryKind.LAYOUT]: 20,
+		[EntryKind.PAGE]: 30,
+		[EntryKind['401']]: 40,
+		[EntryKind['403']]: 40,
+		[EntryKind['404']]: 40,
+		[EntryKind['500']]: 40,
+		[EntryKind.LOADING]: 50,
 	} as const
 
 	type TagValue = string | number | boolean | undefined

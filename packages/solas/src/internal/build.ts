@@ -16,6 +16,7 @@ import type {
 	Segment,
 } from '../types.js'
 import * as Config from '../config.js'
+import { EntryKind } from './entry-kind.js'
 import { normaliseTrailingSlash } from './http-router/utils.js'
 import { validatePprLayout } from './ppr-dynamic-validation.js'
 import * as Prerender from './prerender.js'
@@ -150,18 +151,7 @@ const HTTP_VERBS = ['GET', 'HEAD', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'] 
 
 // short prefixes used to namespace entry ids by kind.
 // these appear in the generated manifest and import map
-export const EntryKind = {
-	SHELL: '$S',
-	LAYOUT: '$L',
-	PAGE: '$P',
-	401: '$401',
-	403: '$403',
-	404: '$404',
-	500: '$500',
-	LOADING: '$LOAD',
-	MIDDLEWARE: '$MW',
-	ENDPOINT: '$E',
-} as const
+export { EntryKind } from './entry-kind.js'
 
 const logger = new Logger()
 

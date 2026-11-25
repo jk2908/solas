@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.1
+
+### Fixes
+
+- Build-time parser code no longer enters runtime worker bundles. This fixes Cloudflare dev startup failing while loading a WASM parser binding.
+
 ## 0.23.0
 
 ### Breaking
