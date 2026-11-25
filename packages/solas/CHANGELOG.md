@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.4
+
+### Fixes
+
+- Removed automatic indefinite caching of static PPR page patches. Page patches now always use the 30-second TTL, avoiding stale request data when conditional dynamic work is missed at build time.
+
 ## 0.23.3
 
 ### Breaking

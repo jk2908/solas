@@ -13,7 +13,7 @@ import * as Config from '../config.js'
 import * as Solas from '../solas.js'
 import { nodeAssets } from './assets.js'
 import { addNonceToBootstrap } from './csp.js'
-import { parsePayloadRows, type PayloadRows } from './env/flight.js'
+import { parsePayloadRows } from './env/flight.js'
 import { toPathPattern } from './http-router/utils.js'
 
 const logger = new Logger()
@@ -31,19 +31,14 @@ export type Value = {
 	html: string
 	shell?: string
 	postponed?: unknown
-	dynamicPage?: boolean
 }
 
-export type Metadata = Pick<
-	Value,
-	'schema' | 'route' | 'createdAt' | 'mode' | 'dynamicPage'
->
+export type Metadata = Pick<Value, 'schema' | 'route' | 'createdAt' | 'mode'>
 
 export type Artifact = {
 	mode: Mode
 	files?: readonly File[]
 	csp?: CspHashes
-	dynamicPage?: boolean
 }
 
 export type ArtifactManifest = Record<string, Artifact>
@@ -229,18 +224,14 @@ export async function loadMetadata(pathname: string, assets: Assets = nodeAssets
 		const value: unknown = JSON.parse(await assets.readText(asset))
 		if (!isRecord(value)) return null
 
-		const { schema, route, createdAt, mode, dynamicPage } = value
+		const { schema, route, createdAt, mode } = value
 
 		if (typeof schema !== 'string') return null
 		if (typeof route !== 'string') return null
 		if (typeof createdAt !== 'number') return null
 		if (mode !== 'full' && mode !== 'ppr') return null
-		if (dynamicPage !== undefined && typeof dynamicPage !== 'boolean') return null
 
-		const metadata: Metadata = { schema, route, createdAt, mode }
-		if (dynamicPage !== undefined) metadata.dynamicPage = dynamicPage
-
-		return metadata
+		return { schema, route, createdAt, mode } satisfies Metadata
 	} catch {
 		return null
 	}
@@ -579,86 +570,6 @@ export async function* run(
 
 		enqueue()
 	}
-}
-
-const lazySegmentReference = /\$L([0-9a-f]+)/g
-
-/**
- * Check whether a page segment contains postponed work. A static page under a
- * dynamic layout can be cached indefinitely, unlike a page with dynamic holes.
- */
-export function hasDynamicPage(rows: PayloadRows, pageId?: string) {
-	const root = rows.get('0')
-
-	if (pageId === undefined && isRecord(root)) {
-		const segments = root.segments
-		const page = isRecord(segments) ? segments.page : undefined
-		if (typeof page === 'string') pageId = page
-	}
-
-	if (pageId === undefined) return true
-
-	let pageValue: unknown
-	let found = false
-
-	function findPageSlot(value: unknown) {
-		if (found || !value || typeof value !== 'object') return
-
-		if (Array.isArray(value)) {
-			const props = value[3]
-			if (
-				value[0] === '$' &&
-				isRecord(props) &&
-				props.id === pageId &&
-				'children' in props
-			) {
-				found = true
-				pageValue = props.children
-				return
-			}
-
-			for (const item of value) findPageSlot(item)
-			return
-		}
-
-		for (const item of Object.values(value)) findPageSlot(item)
-	}
-
-	findPageSlot(root)
-
-	// be conservative when the shell shape is not understood
-	if (!found) return true
-
-	const visited = new Set<unknown>()
-	const visitedReferences = new Set<string>()
-
-	function hasMissingReference(value: unknown): boolean {
-		if (typeof value === 'string') {
-			for (const match of value.matchAll(lazySegmentReference)) {
-				const id = match[1]
-				if (visitedReferences.has(id)) continue
-
-				visitedReferences.add(id)
-
-				const row = rows.get(id)
-				if (row === null || (row === undefined && !rows.has(id))) return true
-				if (hasMissingReference(row)) return true
-			}
-
-			return false
-		}
-
-		if (!value || typeof value !== 'object' || visited.has(value)) return false
-		visited.add(value)
-
-		if (Array.isArray(value)) {
-			return value.some(hasMissingReference)
-		}
-
-		return Object.values(value).some(hasMissingReference)
-	}
-
-	return hasMissingReference(pageValue)
 }
 
 /**

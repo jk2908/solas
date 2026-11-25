@@ -156,9 +156,6 @@ export async function postbuild(
 									route: artifact.route,
 									createdAt: artifact.createdAt,
 									mode: artifact.mode,
-									...(artifact.dynamicPage === undefined
-										? {}
-										: { dynamicPage: artifact.dynamicPage }),
 								}),
 							),
 						]
@@ -188,9 +185,6 @@ export async function postbuild(
 						artifactManifest[route] = {
 							mode: artifact.mode,
 							files,
-							...(artifact.dynamicPage === undefined
-								? {}
-								: { dynamicPage: artifact.dynamicPage }),
 							...hashes,
 						}
 

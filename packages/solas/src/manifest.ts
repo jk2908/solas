@@ -95,16 +95,11 @@ export async function loadManifest(assets: Assets = nodeAssets) {
 		for (const [route, entry] of Object.entries(artifacts)) {
 			if (!isRecord(entry)) return null
 
-			const { mode, files, csp, dynamicPage } = entry
+			const { mode, files, csp } = entry
 
 			if (mode !== 'full' && mode !== 'ppr') return null
 
 			const artifact: Prerender.Artifact = { mode }
-
-			if (dynamicPage !== undefined) {
-				if (typeof dynamicPage !== 'boolean') return null
-				artifact.dynamicPage = dynamicPage
-			}
 
 			if (files !== undefined) {
 				if (!Array.isArray(files)) return null

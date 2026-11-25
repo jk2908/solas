@@ -251,7 +251,6 @@ async function createPayload({
 	nonce,
 	clientCssByRoute,
 	effectivePrerenderMode,
-	effectiveDynamicPage,
 	invalidatedPaths,
 }: {
 	request: SolasRequest
@@ -265,7 +264,6 @@ async function createPayload({
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
-	effectiveDynamicPage?: boolean
 	invalidatedPaths?: { path: string; scope: 'page' | 'layout' }[]
 }) {
 	const prerender = request.headers.get(`x-${Config.SLUG}-prerender`) === '1'
@@ -312,9 +310,6 @@ async function createPayload({
 	let dynamicLayouts: string[] = []
 
 	if (patchSegment && match) dynamicLayouts = await loadDynamicLayouts(pathname)
-	// if the manifest has no page cache policy, assume the page is dynamic and
-	// keep the short TTL for backward compatibility
-	const pageIsDynamic = effectiveDynamicPage ?? true
 	const patchLayouts =
 		patchSegment && match
 			? requiredLayoutIds(routerState, match.paths.layouts, match.params, dynamicLayouts)
@@ -455,9 +450,7 @@ async function createPayload({
 		segmentable: shell,
 		params: payloadParams,
 		cache: {
-			...(patchSegment
-				? { layouts: null, page: pageIsDynamic ? DEFAULT_PAGE_STALE_MS : null }
-				: {}),
+			...(patchSegment ? { layouts: null, page: DEFAULT_PAGE_STALE_MS } : {}),
 			...(dynamicLayouts.length > 0 ? { dynamicLayouts } : {}),
 			...(invalidatedPaths && invalidatedPaths.length > 0 ? { invalidatedPaths } : {}),
 		},
@@ -700,9 +693,7 @@ export function createHandler(
 
 		const requestPathname = new URL(request.url).pathname
 		const requestLookupPath = normaliseTrailingSlash(requestPathname, prerenderPathMode)
-		const effectiveArtifact = runtimeManifest?.artifacts[requestLookupPath]
-		const effectivePrerenderMode = effectiveArtifact?.mode
-		const effectiveDynamicPage = effectiveArtifact?.dynamicPage
+		const effectivePrerenderMode = runtimeManifest?.artifacts[requestLookupPath]?.mode
 		const {
 			stream: rscStream,
 			status,
@@ -722,7 +713,6 @@ export function createHandler(
 			nonce,
 			clientCssByRoute,
 			effectivePrerenderMode,
-			effectiveDynamicPage,
 			invalidatedPaths,
 		})
 
@@ -789,7 +779,6 @@ export function createHandler(
 					nonce,
 					clientCssByRoute,
 					effectivePrerenderMode,
-					effectiveDynamicPage,
 					invalidatedPaths,
 				})
 

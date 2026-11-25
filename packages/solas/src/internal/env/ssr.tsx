@@ -13,12 +13,7 @@ import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import * as Prerender from '../prerender.js'
 import { ErrorBoundary } from '../ui/error-boundary.js'
-import {
-	captureBuffered,
-	completeShellPayload,
-	injectPayload,
-	parsePayloadRows,
-} from './flight.js'
+import { captureBuffered, completeShellPayload, injectPayload } from './flight.js'
 import { getKnownDigest, isKnownError } from './utils.js'
 
 type Opts = {
@@ -168,10 +163,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 		const partialPayload = await captureBuffered(s2)
 		const [htmlPayload, shellPayload] = partialPayload.tee()
 		const shellSource = await new Response(shellPayload).text()
-		const rows = parsePayloadRows(shellSource)
-		// check the source before missing rows are replaced with fallbacks
-		const pageIsDynamic = Prerender.hasDynamicPage(rows)
-		const shell = completeShellPayload(shellSource, rows)
+		const shell = completeShellPayload(shellSource)
 
 		return {
 			schema,
@@ -183,7 +175,6 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 			).text(),
 			shell,
 			postponed,
-			dynamicPage: pageIsDynamic,
 		}
 	}
 
