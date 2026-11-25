@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+import { parsePayloadRows } from '../../../src/internal/env/flight.js'
 import {
 	composePreludeAndResume,
 	get,
@@ -15,7 +16,7 @@ import {
 	loadPostponedState,
 	loadPrelude,
 	getDynamicLayouts,
-	getDynamicPage,
+	hasDynamicPage,
 	loadShell,
 	Postponed,
 	staticRoutePath,
@@ -539,7 +540,7 @@ describe('getDynamicLayouts', () => {
 	})
 })
 
-describe('getDynamicPage', () => {
+describe('hasDynamicPage', () => {
 	it('marks a static page as cacheable', () => {
 		const shell = [
 			'1:I[..."SegmentSlot",1]',
@@ -547,7 +548,17 @@ describe('getDynamicPage', () => {
 			'5:["$","div",null,{"children":"static"}]',
 		].join('\n')
 
-		expect(getDynamicPage(shell, 'page')).toBe(false)
+		expect(hasDynamicPage(parsePayloadRows(shell), 'page')).toBe(false)
+	})
+
+	it('infers the page id from the payload', () => {
+		const shell = [
+			'1:I[..."SegmentSlot",1]',
+			'0:{"segments":{"page":"page"},"root":["$","$L1",null,{"id":"page","children":"$L5"}]}',
+			'5:["$","div",null,{"children":"static"}]',
+		].join('\n')
+
+		expect(hasDynamicPage(parsePayloadRows(shell))).toBe(false)
 	})
 
 	it('marks a postponed page as dynamic', () => {
@@ -557,7 +568,7 @@ describe('getDynamicPage', () => {
 			'5:null',
 		].join('\n')
 
-		expect(getDynamicPage(shell, 'page')).toBe(true)
+		expect(hasDynamicPage(parsePayloadRows(shell), 'page')).toBe(true)
 	})
 
 	it('finds postponed work nested inside the page', () => {
@@ -569,7 +580,7 @@ describe('getDynamicPage', () => {
 			'6:["$","div",null,{"children":"$L7"}]',
 		].join('\n')
 
-		expect(getDynamicPage(shell, 'page')).toBe(true)
+		expect(hasDynamicPage(parsePayloadRows(shell), 'page')).toBe(true)
 	})
 
 	it('ignores client references that are present', () => {
@@ -580,12 +591,12 @@ describe('getDynamicPage', () => {
 			'5:["$","$L2",null,{}]',
 		].join('\n')
 
-		expect(getDynamicPage(shell, 'page')).toBe(false)
+		expect(hasDynamicPage(parsePayloadRows(shell), 'page')).toBe(false)
 	})
 
 	it('assumes dynamic when the page slot is missing', () => {
 		const shell = ['0:{"root":["$","div",null,{}]}'].join('\n')
 
-		expect(getDynamicPage(shell, 'page')).toBe(true)
+		expect(hasDynamicPage(parsePayloadRows(shell), 'page')).toBe(true)
 	})
 })

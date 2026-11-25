@@ -4,6 +4,7 @@ import { compile } from 'path-to-regexp'
 
 import { applyBasePath } from '../utils/base-path.js'
 import { Logger } from '../utils/logger.js'
+import { isRecord } from '../utils/validation.js'
 
 import type { BuildContext } from '../types.js'
 import type { AssetRef, Assets } from './assets.js'
@@ -12,7 +13,7 @@ import * as Config from '../config.js'
 import * as Solas from '../solas.js'
 import { nodeAssets } from './assets.js'
 import { addNonceToBootstrap } from './csp.js'
-import { parsePayloadRows } from './env/flight.js'
+import { parsePayloadRows, type PayloadRows } from './env/flight.js'
 import { toPathPattern } from './http-router/utils.js'
 
 const logger = new Logger()
@@ -225,27 +226,21 @@ export async function loadMetadata(pathname: string, assets: Assets = nodeAssets
 	if (!(await assets.exists(asset))) return null
 
 	try {
-		const value = JSON.parse(await assets.readText(asset))
-		if (!value || typeof value !== 'object') return null
+		const value: unknown = JSON.parse(await assets.readText(asset))
+		if (!isRecord(value)) return null
 
-		const schema = (value as { schema?: unknown }).schema
-		const route = (value as { route?: unknown }).route
-		const createdAt = (value as { createdAt?: unknown }).createdAt
-		const mode = (value as { mode?: unknown }).mode
-		const dynamicPage = (value as { dynamicPage?: unknown }).dynamicPage
+		const { schema, route, createdAt, mode, dynamicPage } = value
+
 		if (typeof schema !== 'string') return null
 		if (typeof route !== 'string') return null
 		if (typeof createdAt !== 'number') return null
 		if (mode !== 'full' && mode !== 'ppr') return null
 		if (dynamicPage !== undefined && typeof dynamicPage !== 'boolean') return null
 
-		return {
-			schema,
-			route,
-			createdAt,
-			mode,
-			...(dynamicPage === undefined ? {} : { dynamicPage }),
-		} satisfies Metadata
+		const metadata: Metadata = { schema, route, createdAt, mode }
+		if (dynamicPage !== undefined) metadata.dynamicPage = dynamicPage
+
+		return metadata
 	} catch {
 		return null
 	}
@@ -592,14 +587,16 @@ const lazySegmentReference = /\$L([0-9a-f]+)/g
  * Check whether a page segment contains postponed work. A static page under a
  * dynamic layout can be cached indefinitely, unlike a page with dynamic holes.
  */
-export function getDynamicPage(shell: string, pageId?: string) {
-	const rows = parsePayloadRows(shell)
+export function hasDynamicPage(rows: PayloadRows, pageId?: string) {
 	const root = rows.get('0')
 
-	if (pageId === undefined && root && typeof root === 'object') {
-		const page = (root as { segments?: { page?: unknown } }).segments?.page
+	if (pageId === undefined && isRecord(root)) {
+		const segments = root.segments
+		const page = isRecord(segments) ? segments.page : undefined
 		if (typeof page === 'string') pageId = page
 	}
+
+	if (pageId === undefined) return true
 
 	const seen = new Set<unknown>()
 	let pageValue: unknown
@@ -610,14 +607,16 @@ export function getDynamicPage(shell: string, pageId?: string) {
 		seen.add(value)
 
 		if (Array.isArray(value)) {
-			if (value[0] === '$' && value[3] && typeof value[3] === 'object') {
-				const props = value[3] as Record<string, unknown>
-
-				if (props.id === pageId && 'children' in props) {
-					found = true
-					pageValue = props.children
-					return
-				}
+			const props = value[3]
+			if (
+				value[0] === '$' &&
+				isRecord(props) &&
+				props.id === pageId &&
+				'children' in props
+			) {
+				found = true
+				pageValue = props.children
+				return
 			}
 
 			for (const item of value) findPageSlot(item)
@@ -697,9 +696,8 @@ export function getDynamicLayouts(shell: string) {
 		seen.add(value)
 
 		if (Array.isArray(value)) {
-			if (value[0] === '$' && value[3] && typeof value[3] === 'object') {
-				visitElement(value[3] as Record<string, unknown>)
-			}
+			const props = value[3]
+			if (value[0] === '$' && isRecord(props)) visitElement(props)
 
 			for (const item of value) visit(item)
 			return

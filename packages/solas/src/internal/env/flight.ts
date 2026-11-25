@@ -50,12 +50,14 @@ export async function captureBuffered(stream: ReadableStream<Uint8Array>) {
 	})
 }
 
+export type PayloadRows = Map<string, unknown>
+
 /**
  * Parse the JSON rows from a Flight payload. Non-JSON rows are retained as
  * markers so row presence checks remain accurate.
  */
 export function parsePayloadRows(payload: string) {
-	const rows = new Map<string, unknown>()
+	const rows: PayloadRows = new Map()
 
 	for (const line of payload.split('\n')) {
 		const separator = line.indexOf(':')
@@ -80,8 +82,7 @@ export function parsePayloadRows(payload: string) {
  * their nearest suspense fallback. The result can be used as a standalone
  * prefetch shell without keeping the render stream open.
  */
-export function completeShellPayload(payload: string) {
-	const rows = parsePayloadRows(payload)
+export function completeShellPayload(payload: string, rows = parsePayloadRows(payload)) {
 	const rowIds = new Set(rows.keys())
 
 	if (rowIds.size === 0) return payload

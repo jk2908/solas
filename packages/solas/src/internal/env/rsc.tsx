@@ -312,6 +312,7 @@ async function createPayload({
 	let dynamicLayouts: string[] = []
 
 	if (patchSegment && match) dynamicLayouts = await loadDynamicLayouts(pathname)
+	// missing metadata is treated as dynamic so older artifacts keep the short TTL
 	const pageDynamic = effectiveDynamicPage ?? true
 	const patchLayouts =
 		patchSegment && match
