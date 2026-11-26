@@ -43,16 +43,28 @@ export function Head({
 	metadata: m,
 	url,
 	clientCss,
+	clientJs,
 }: {
 	metadata?: Collection.Item | Promise<Collection.Item>
 	url?: { pathname: string }
 	clientCss?: readonly string[]
+	clientJs?: readonly string[]
 }) {
+	const clientScripts = clientJs?.map(href => (
+		<link key={href} rel="modulepreload" href={href} fetchPriority="low" />
+	))
 	const clientLinks = clientCss?.map(href => (
 		<link key={href} rel="stylesheet" href={href} precedence="default" />
 	))
 
-	if (!m) return <>{clientLinks}</>
+	if (!m) {
+		return (
+			<>
+				{clientLinks}
+				{clientScripts}
+			</>
+		)
+	}
 
 	const metadata = use(toSafeUsable(m))
 
@@ -67,6 +79,7 @@ export function Head({
 	return (
 		<>
 			{clientLinks}
+			{clientScripts}
 
 			<meta name="generator" content={Config.NAME} />
 

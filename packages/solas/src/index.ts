@@ -48,6 +48,7 @@ import { collect as collectPublicFiles } from './internal/public-files.js'
 import { createScanCssStubPlugin } from './internal/scan-css.js'
 
 const DEFAULT_CONFIG = {
+	preloadClientChunks: true,
 	precompress: false,
 	prerender: false,
 	trustedOrigins: [],
@@ -509,6 +510,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 					publicFiles: await collectPublicFiles(resolvedViteConfig?.publicDir),
 					prerenderRoutes: Array.from(buildContext.prerenderRoutes),
 					sitemapRoutes,
+					preloadClientChunks: config.preloadClientChunks,
 					precompress: config.precompress,
 					trailingSlash: config.trailingSlash,
 					url: resolvedUrl,

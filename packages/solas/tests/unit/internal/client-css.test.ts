@@ -7,7 +7,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import type { RoutePaths } from '../../../src/types.js'
 import {
 	collectRouteClientReferences,
-	loadClientCssManifest,
+	loadClientAssetManifest,
+	loadClientAssetsByRoute,
 } from '../../../src/internal/client-css.js'
 
 let root: string
@@ -20,25 +21,57 @@ afterEach(async () => {
 	await fs.rm(root, { recursive: true, force: true })
 })
 
-describe('loadClientCssManifest', () => {
-	it('collects entry and client-reference stylesheets', async () => {
+describe('loadClientAssetManifest', () => {
+	it('collects entry and client-reference assets', async () => {
 		await fs.mkdir(path.join(root, 'rsc'), { recursive: true })
 		await fs.writeFile(
 			path.join(root, 'rsc', '__vite_rsc_assets_manifest.js'),
 			`export default ${JSON.stringify({
-				clientEntryDeps: { js: [], css: ['/entry.css'] },
+				clientEntryDeps: {
+					js: ['/entry.js'],
+					css: ['/entry.css'],
+				},
 				clientReferenceDeps: {
-					a: { js: [], css: ['/a.css', '/entry.css'] },
-					b: { js: [], css: ['/b.css'] },
+					a: { js: ['/a.js', '/entry.js'], css: ['/a.css', '/entry.css'] },
+					b: { js: ['/b.js'], css: ['/b.css'] },
 				},
 			})}`,
 		)
 
-		expect(await loadClientCssManifest(root)).toEqual({
-			entry: ['/entry.css'],
+		expect(await loadClientAssetManifest(root)).toEqual({
+			entry: { js: ['/entry.js'], css: ['/entry.css'] },
 			byReference: {
-				a: ['/a.css', '/entry.css'],
-				b: ['/b.css'],
+				a: { js: ['/a.js', '/entry.js'], css: ['/a.css', '/entry.css'] },
+				b: { js: ['/b.js'], css: ['/b.css'] },
+			},
+		})
+	})
+})
+
+describe('loadClientAssetsByRoute', () => {
+	it('maps route references to deduplicated JS and CSS', () => {
+		const plan = loadClientAssetsByRoute(
+			{
+				'/': ['layout', 'page'],
+				'/other': ['layout'],
+			},
+			{
+				entry: { js: ['/entry.js'], css: ['/entry.css'] },
+				byReference: {
+					layout: { js: ['/layout.js'], css: ['/layout.css'] },
+					page: { js: ['/page.js'], css: ['/page.css'] },
+				},
+			},
+		)
+
+		expect(plan).toEqual({
+			'/': {
+				js: ['/entry.js', '/layout.js', '/page.js'],
+				css: ['/entry.css', '/layout.css', '/page.css'],
+			},
+			'/other': {
+				js: ['/entry.js', '/layout.js'],
+				css: ['/entry.css', '/layout.css'],
 			},
 		})
 	})

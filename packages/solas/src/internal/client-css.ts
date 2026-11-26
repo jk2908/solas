@@ -47,19 +47,24 @@ function isRscAssetsManifest(value: unknown): value is RscAssetsManifest {
 }
 
 /**
- * Stylesheets referenced by the client entry and client references in the
+ * Client assets referenced by the client entry and client references in the
  * Vite RSC asset manifest.
  */
-export type ClientCssManifest = {
-	entry: string[]
-	byReference: Record<string, string[]>
+export type ClientAssetManifest = {
+	entry: AssetDeps
+	byReference: Record<string, AssetDeps>
 }
 
+const emptyClientAssets = (): ClientAssetManifest => ({
+	entry: { js: [], css: [] },
+	byReference: {},
+})
+
 /**
- * Collect the stylesheets referenced by the client entry and every client
- * reference in the Vite RSC asset manifest.
+ * Collect the JavaScript and stylesheet dependencies referenced by the client
+ * entry and every client reference in the Vite RSC asset manifest.
  */
-export async function loadClientCssManifest(outDir: string, rscDir?: string) {
+export async function loadClientAssetManifest(outDir: string, rscDir?: string) {
 	// the Vite RSC build emits this next to the RSC bundle
 	const manifestPath = path.join(
 		rscDir ?? path.join(outDir, 'rsc'),
@@ -68,30 +73,33 @@ export async function loadClientCssManifest(outDir: string, rscDir?: string) {
 
 	let manifest: RscAssetsManifest
 
-	// missing or malformed build output means there is no CSS to attach
+	// missing or malformed build output means there are no client assets to attach
 	try {
 		const mod: unknown = await import(/* @vite-ignore */ pathToFileURL(manifestPath).href)
 		const value = isRecord(mod) ? mod.default : undefined
 
-		if (!isRscAssetsManifest(value)) {
-			return { entry: [], byReference: {} } satisfies ClientCssManifest
-		}
+		if (!isRscAssetsManifest(value)) return emptyClientAssets()
 
 		manifest = value
 	} catch {
-		return { entry: [], byReference: {} } satisfies ClientCssManifest
+		return emptyClientAssets()
 	}
 
-	// the client bootstrap's css applies everywhere; component-boundary css is selected per route
-	const entry = [...(manifest.clientEntryDeps?.css ?? [])]
-	const byReference: Record<string, string[]> = {}
+	const entry = {
+		js: [...(manifest.clientEntryDeps?.js ?? [])],
+		css: [...(manifest.clientEntryDeps?.css ?? [])],
+	}
+	const byReference: Record<string, AssetDeps> = {}
 
-	// index references by key so route plans can resolve their CSS quickly
+	// index references by key so route plans can resolve their assets quickly
 	for (const [reference, deps] of Object.entries(manifest.clientReferenceDeps ?? {})) {
-		byReference[reference] = [...deps.css]
+		byReference[reference] = {
+			js: [...deps.js],
+			css: [...deps.css],
+		}
 	}
 
-	return { entry, byReference } satisfies ClientCssManifest
+	return { entry, byReference } satisfies ClientAssetManifest
 }
 
 type BuildChunk = {
@@ -197,27 +205,32 @@ export function collectRouteClientReferences(
 }
 
 /**
- * Map each route's client reference keys to the stylesheets in the Vite RSC
+ * Map each route's client reference keys to the assets in the Vite RSC
  * asset manifest.
  */
-export function loadClientCssByRoute(
+export function loadClientAssetsByRoute(
 	routeReferences: Record<string, string[]> | undefined,
-	manifest: ClientCssManifest,
+	manifest: ClientAssetManifest,
 ) {
-	// no route plan means no client CSS to attach
+	// no route plan means no client assets to attach
 	if (!routeReferences) return
 
-	const plan: Record<string, string[]> = {}
+	const plan: Record<string, AssetDeps> = {}
 
 	for (const [route, references] of Object.entries(routeReferences)) {
-		// entry CSS always applies; reference CSS is route-specific
-		const css = new Set<string>(manifest.entry)
+		// entry assets always apply; reference assets are route-specific
+		const js = new Set<string>(manifest.entry.js)
+		const css = new Set<string>(manifest.entry.css)
 
 		for (const reference of references) {
-			for (const href of manifest.byReference[reference] ?? []) css.add(href)
+			const deps = manifest.byReference[reference]
+			if (!deps) continue
+
+			for (const href of deps.js) js.add(href)
+			for (const href of deps.css) css.add(href)
 		}
 
-		plan[route] = [...css]
+		plan[route] = { js: [...js], css: [...css] }
 	}
 
 	return plan

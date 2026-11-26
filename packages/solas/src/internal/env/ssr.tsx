@@ -34,6 +34,7 @@ function A({ payloadPromise }: { payloadPromise: Promise<RscPayload> }) {
 				url={payload.url}
 				metadata={payload.metadata}
 				clientCss={payload.clientCss}
+				clientJs={payload.clientJs}
 				segments={payload.segments}
 				params={payload.params}>
 				<ErrorBoundary fallback={null}>

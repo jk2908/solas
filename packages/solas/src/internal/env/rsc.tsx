@@ -69,6 +69,7 @@ export type RscPayload = {
 	clientCss?: string[]
 	metadata?: Promise<Metadata.Item>
 	type?: Route.PrerenderMode | 'dynamic'
+	clientJs?: string[]
 	segments?: RscSegment
 	segmentable?: boolean
 	params?: Record<string, string | string[]>
@@ -245,6 +246,7 @@ async function createPayload({
 	temporaryReferences,
 	nonce,
 	clientCssByRoute,
+	clientJsByRoute,
 	effectivePrerenderMode,
 	invalidatedPaths,
 }: {
@@ -258,6 +260,7 @@ async function createPayload({
 	temporaryReferences?: unknown
 	nonce?: string
 	clientCssByRoute?: Record<string, string[]>
+	clientJsByRoute?: Record<string, string[]>
 	effectivePrerenderMode?: Route.PrerenderMode
 	invalidatedPaths?: { path: string; scope: 'page' | 'layout' }[]
 }) {
@@ -299,6 +302,7 @@ async function createPayload({
 	const effectiveNonce = prerender || routeType === 'full' ? undefined : nonce
 
 	const matchedClientCss = match ? (clientCssByRoute?.[match.__path] ?? []) : []
+	const matchedClientJs = match ? (clientJsByRoute?.[match.__path] ?? []) : []
 	// route params can have a null prototype; normalise before sending them over
 	// the RSC boundary
 	const payloadParams = match ? { ...match.params } : undefined
@@ -436,6 +440,7 @@ async function createPayload({
 		returnValue,
 		formState,
 		clientCss: matchedClientCss,
+		clientJs: matchedClientJs,
 		metadata,
 		type: routeType,
 		segments: {
@@ -570,6 +575,7 @@ export function createHandler(
 	const runtimeManifest = options.runtimeManifest ?? null
 	const clientCssByRoute =
 		runtimeManifest?.clientCssByRoute ?? options.devClientCssByRoute ?? {}
+	const clientJsByRoute = runtimeManifest?.clientJsByRoute ?? {}
 	// requests for /_solas and /_solas/* are reserved
 	const SOLAS_ASSETS_URL_ROOT = `/${Config.ASSETS_DIR}`
 
@@ -707,6 +713,7 @@ export function createHandler(
 			temporaryReferences: opts.temporaryReferences,
 			nonce,
 			clientCssByRoute,
+			clientJsByRoute,
 			effectivePrerenderMode,
 			invalidatedPaths,
 		})
@@ -773,6 +780,7 @@ export function createHandler(
 					temporaryReferences: opts.temporaryReferences,
 					nonce,
 					clientCssByRoute,
+					clientJsByRoute,
 					effectivePrerenderMode,
 					invalidatedPaths,
 				})

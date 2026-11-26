@@ -41,6 +41,21 @@ describe('loadManifest', () => {
 		expect(manifest?.artifacts['/'].mode).toBe('full')
 	})
 
+	it('loads per-route client preloads', async () => {
+		const manifest = await loadManifest(
+			assetsWith({
+				artifacts: {},
+				clientJsByRoute: {
+					'/': ['/_solas/index.js', '/_solas/page.js'],
+				},
+			}),
+		)
+
+		expect(manifest?.clientJsByRoute).toEqual({
+			'/': ['/_solas/index.js', '/_solas/page.js'],
+		})
+	})
+
 	it('loads per-route client CSS', async () => {
 		const manifest = await loadManifest(
 			assetsWith({

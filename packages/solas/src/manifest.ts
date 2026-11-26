@@ -12,6 +12,7 @@ export type Manifest = {
 	publicFiles: ReadonlySet<string>
 	csp?: CspConfig
 	clientCssByRoute?: Record<string, string[]>
+	clientJsByRoute?: Record<string, string[]>
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
 }
 
@@ -71,6 +72,22 @@ export async function loadManifest(assets: Assets = nodeAssets) {
 			}
 
 			clientCssByRoute = byRoute
+		}
+
+		let clientJsByRoute: Record<string, string[]> | undefined
+
+		if (value.clientJsByRoute !== undefined) {
+			if (!isRecord(value.clientJsByRoute)) return null
+
+			const byRoute: Record<string, string[]> = {}
+
+			for (const [route, js] of Object.entries(value.clientJsByRoute)) {
+				if (!isStringArray(js)) return null
+
+				byRoute[route] = js
+			}
+
+			clientJsByRoute = byRoute
 		}
 
 		let cspConfig: CspConfig | undefined
@@ -138,6 +155,7 @@ export async function loadManifest(assets: Assets = nodeAssets) {
 			publicFiles: parsedPublicFiles,
 			csp: cspConfig,
 			clientCssByRoute,
+			clientJsByRoute,
 			trailingSlash,
 		}
 	} catch {

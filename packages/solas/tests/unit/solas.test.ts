@@ -126,6 +126,16 @@ describe('Solas', () => {
 				expect(Config.validate({ precompress: true })).toHaveProperty('precompress', true)
 			})
 
+			it('accepts and validates preloadClientChunks', () => {
+				expect(Config.validate({ preloadClientChunks: false })).toHaveProperty(
+					'preloadClientChunks',
+					false,
+				)
+				expect(() => Config.validate({ preloadClientChunks: 'yes' })).toThrow(
+					'preloadClientChunks must be a boolean',
+				)
+			})
+
 			it('accepts a positive router cache byte budget', () => {
 				expect(Config.validate({ router: { cache: { maxBytes: 1024 } } })).toHaveProperty(
 					'router.cache.maxBytes',

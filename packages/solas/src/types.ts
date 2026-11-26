@@ -89,6 +89,7 @@ export type RouterConfig = {
 
 type PluginConfigBase = {
 	precompress?: boolean
+	preloadClientChunks?: boolean
 	prerender?: Route.PrerenderMode | false
 	metadata?: Metadata.Item
 	trailingSlash?: (typeof Config.TRAILING_SLASH_MODES)[number]
@@ -209,6 +210,7 @@ export type BuildManifest = {
 	prerenderRoutes: string[]
 	sitemapRoutes: string[]
 	precompress: boolean
+	preloadClientChunks: boolean
 	trailingSlash: (typeof Config.TRAILING_SLASH_MODES)[number]
 	url?: string
 	adapter?: string

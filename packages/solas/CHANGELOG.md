@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+### Features
+
+- Added manifest-driven `preloadClientChunks` links for each route's client entry and client chunks. Disable with `preloadClientChunks: false`.
+
 ### Fixes
 
 - Fixed prerendering of dynamic routes whose modules import CSS indirectly. The build-time scan environment now stubs CSS imports, so `staticParams` is read without triggering Vite's uninitialised CSS cache.

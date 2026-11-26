@@ -63,6 +63,7 @@ export async function browser(config: BrowserConfig = {}) {
 					url={p.url}
 					metadata={p.metadata}
 					clientCss={p.clientCss}
+					clientJs={p.clientJs}
 					segments={p.segments}
 					params={p.params}
 					config={config}>

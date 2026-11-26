@@ -299,6 +299,22 @@ export default defineConfig({
 
 Beyond sitemap URLs, the resolved origin is used to write a `<link rel="canonical">` into each document's head (unless a route declares its own canonical link in `metadata`).
 
+### `preloadClientChunks`
+
+Use `preloadClientChunks` to emit low-priority `<link rel="modulepreload">` hints for the client entry and route-specific client chunks.
+
+Default: `true`
+
+```ts
+export default defineConfig({
+	plugins: [
+		solas({
+			preloadClientChunks: false,
+		}),
+	],
+})
+```
+
 ### `precompress`
 
 Use `precompress` to control whether Solas writes compressed browser-served build assets (like `.js`, `.css`, etc.).

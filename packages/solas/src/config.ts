@@ -103,6 +103,7 @@ const CONFIG_KEYS = new Set([
 	'headers',
 	'logger',
 	'metadata',
+	'preloadClientChunks',
 	'precompress',
 	'prerender',
 	'router',
@@ -191,6 +192,12 @@ export function validate(input: unknown, envUrl?: string) {
 			!Array.isArray(adapter.plugins)
 		) {
 			errors.push('adapter must be an object with a string `name` and a `plugins` array')
+		}
+	}
+
+	if ('preloadClientChunks' in input && input.preloadClientChunks !== undefined) {
+		if (typeof input.preloadClientChunks !== 'boolean') {
+			errors.push('preloadClientChunks must be a boolean')
 		}
 	}
 

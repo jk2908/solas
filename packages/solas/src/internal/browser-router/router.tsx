@@ -291,6 +291,7 @@ export function BrowserRouterProvider({
 	url,
 	metadata,
 	clientCss,
+	clientJs,
 	segments,
 	params,
 	config = {},
@@ -305,6 +306,7 @@ export function BrowserRouterProvider({
 	}
 	metadata?: RscPayload['metadata']
 	clientCss?: RscPayload['clientCss']
+	clientJs?: RscPayload['clientJs']
 	segments?: RscPayload['segments']
 	params?: RscPayload['params']
 	config?: BrowserConfig
@@ -945,6 +947,7 @@ export function BrowserRouterProvider({
 						metadata={pageHead ?? segmentPage?.metadata ?? metadata}
 						url={segmentPage?.url ?? url}
 						clientCss={segmentPage?.clientCss ?? clientCss}
+						clientJs={segmentPage?.clientJs ?? clientJs}
 					/>
 				</Suspense>
 				<BrowserRouterActionsContext value={actions}>

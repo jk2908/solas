@@ -8,7 +8,7 @@ import { normalisePath } from '../utils/path.js'
 import type { BuildManifest, CspConfig } from '../types.js'
 import * as Config from '../config.js'
 import * as Manifest from '../manifest.js'
-import { loadClientCssByRoute, loadClientCssManifest } from './client-css.js'
+import { loadClientAssetManifest, loadClientAssetsByRoute } from './client-css.js'
 import { buildPolicy } from './csp.js'
 import { hashInlineAssets } from './hash-inline-assets.js'
 import * as Prerender from './prerender.js'
@@ -63,8 +63,21 @@ export async function postbuild(
 
 	const outDir = path.resolve(cwd, Config.OUT_DIR)
 	const rscDir = path.resolve(cwd, configuredRscDir ?? path.join(Config.OUT_DIR, 'rsc'))
-	const clientCssManifest = await loadClientCssManifest(outDir, rscDir)
-	const clientCssByRoute = loadClientCssByRoute(routeReferences ?? {}, clientCssManifest)
+	const clientAssetManifest = await loadClientAssetManifest(outDir, rscDir)
+	const clientAssetsByRoute = loadClientAssetsByRoute(
+		routeReferences ?? {},
+		clientAssetManifest,
+	)
+	const clientCssByRoute: Record<string, string[]> = {}
+	const clientJsByRoute: Record<string, string[]> = {}
+
+	for (const [route, assets] of Object.entries(clientAssetsByRoute ?? {})) {
+		clientCssByRoute[route] = assets.css
+		clientJsByRoute[route] = assets.js
+	}
+
+	const preloadClientJs =
+		manifest.preloadClientChunks === false ? undefined : clientJsByRoute
 	const artifactRoot = Prerender.getArtifactRootPath(outDir)
 	const staticRoot = path.join(outDir, 'static')
 	const staticMode = manifest.trailingSlash === 'always' ? 'always' : 'never'
@@ -95,7 +108,11 @@ export async function postbuild(
 		await fs.mkdir(path.dirname(preliminaryManifestPath), { recursive: true })
 		await fs.writeFile(
 			preliminaryManifestPath,
-			JSON.stringify({ artifacts: {}, clientCssByRoute }),
+			JSON.stringify({
+				artifacts: {},
+				clientCssByRoute,
+				...(preloadClientJs === undefined ? {} : { clientJsByRoute: preloadClientJs }),
+			}),
 		)
 
 		const entry = path.join(rscDir, 'index.js')
@@ -340,6 +357,7 @@ export async function postbuild(
 		publicFiles: [...manifest.publicFiles, ...generatedPublicFiles],
 		csp,
 		clientCssByRoute,
+		...(preloadClientJs === undefined ? {} : { clientJsByRoute: preloadClientJs }),
 		trailingSlash: manifest.trailingSlash,
 	}
 
