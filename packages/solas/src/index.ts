@@ -45,6 +45,7 @@ import { writeMaps } from './internal/codegen/maps.js'
 import { writeTypes } from './internal/codegen/types.js'
 import { postbuild } from './internal/postbuild.js'
 import { collect as collectPublicFiles } from './internal/public-files.js'
+import { createScanCssStubPlugin } from './internal/scan-css.js'
 
 const DEFAULT_CONFIG = {
 	precompress: false,
@@ -307,6 +308,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 				configFile: resolvedViteConfig.configFile ?? undefined,
 				root: resolvedViteConfig.root,
 				mode: resolvedViteConfig.mode,
+				plugins: [createScanCssStubPlugin()],
 			},
 			'serve',
 		)

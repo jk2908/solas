@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Fixed prerendering of dynamic routes whose modules import CSS indirectly. The build-time scan environment now stubs CSS imports, so `staticParams` is read without triggering Vite's uninitialised CSS cache.
+
 ## 0.25.0
 
 ### Breaking
