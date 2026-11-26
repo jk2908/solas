@@ -4,6 +4,7 @@ import http2 from 'node:http2'
 import net from 'node:net'
 import os from 'node:os'
 import path from 'node:path'
+import zlib from 'node:zlib'
 
 import { describe, it, expect, afterEach } from 'vitest'
 
@@ -40,6 +41,24 @@ async function waitFor(predicate: () => boolean, timeout = 2000) {
 
 		await new Promise(resolve => setTimeout(resolve, 10))
 	}
+}
+
+function rawGet(port: number, headers: http.OutgoingHttpHeaders = {}) {
+	return new Promise<{ headers: http.IncomingHttpHeaders; body: Buffer }>(
+		(resolve, reject) => {
+			http
+				.get({ host: '127.0.0.1', port, path: '/', headers }, res => {
+					const chunks: Buffer[] = []
+
+					res.on('data', chunk => chunks.push(chunk))
+					res.on('end', () =>
+						resolve({ headers: res.headers, body: Buffer.concat(chunks) }),
+					)
+					res.on('error', reject)
+				})
+				.on('error', reject)
+		},
+	)
 }
 
 function readFirstChunkThenDisconnect(port: number) {
@@ -141,6 +160,69 @@ describe('serve', () => {
 			body: 'hello body',
 		})
 		expect(await res.text()).toBe('hello body')
+	})
+
+	it('compresses streamed HTML with brotli', async () => {
+		const entry = await writeEntry(`
+			export default {
+				fetch() {
+					return new Response('<p>compressed response</p>'.repeat(100), {
+						headers: { 'content-type': 'text/html; charset=utf-8' },
+					})
+				},
+			}
+		`)
+
+		server = await serve({ entry, port: 0, host: '127.0.0.1' })
+		const response = await rawGet(getPort(server), { 'accept-encoding': 'br, gzip' })
+
+		expect(response.headers['content-encoding']).toBe('br')
+		expect(response.headers.vary).toContain('accept-encoding')
+		expect(zlib.brotliDecompressSync(response.body).toString()).toContain(
+			'compressed response',
+		)
+	})
+
+	it('honours explicit encodings and quality weights', async () => {
+		const entry = await writeEntry(`
+			export default {
+				fetch() {
+					return new Response('<p>weighted</p>'.repeat(100), {
+						headers: { 'content-type': 'text/html' },
+					})
+				},
+			}
+		`)
+
+		server = await serve({ entry, port: 0, host: '127.0.0.1' })
+		const port = getPort(server)
+		const explicit = await rawGet(port, { 'accept-encoding': '*;q=0, br' })
+		const weighted = await rawGet(port, { 'accept-encoding': 'br;q=0.1, gzip;q=1' })
+
+		expect(explicit.headers['content-encoding']).toBe('br')
+		expect(weighted.headers['content-encoding']).toBe('gzip')
+	})
+
+	it('does not double-compress an encoded response', async () => {
+		const body = zlib.gzipSync('already compressed')
+		const entry = await writeEntry(`
+			export default {
+				fetch() {
+					return new Response(new Uint8Array([${[...body].join(',')}]), {
+						headers: {
+							'content-type': 'text/html',
+							'content-encoding': 'gzip',
+						},
+					})
+				},
+			}
+		`)
+
+		server = await serve({ entry, port: 0, host: '127.0.0.1' })
+		const response = await rawGet(getPort(server), { 'accept-encoding': 'br, gzip' })
+
+		expect(response.headers['content-encoding']).toBe('gzip')
+		expect(zlib.gunzipSync(response.body).toString()).toBe('already compressed')
 	})
 
 	it('throws when the entry does not export a fetch handler', async () => {

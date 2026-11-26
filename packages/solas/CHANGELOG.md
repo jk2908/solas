@@ -5,6 +5,7 @@
 ### Features
 
 - Added manifest-driven `preloadClientChunks` links for each route's client entry and client chunks. Disable with `preloadClientChunks: false`.
+- Dynamic HTML, RSC, and PPR responses from the Node runtime now negotiate brotli or gzip. This is separate from the build-time `precompress` option for static assets.
 
 ### Fixes
 

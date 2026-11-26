@@ -2,7 +2,9 @@ import type { Http2ServerRequest, Http2ServerResponse } from 'node:http2'
 
 import http from 'node:http'
 import path from 'node:path'
+import { Readable } from 'node:stream'
 import { pathToFileURL } from 'node:url'
+import zlib from 'node:zlib'
 
 import { ErrorCode, SolasError } from '../utils/errors.js'
 import { createLogger } from '../utils/logger.js'
@@ -126,7 +128,7 @@ async function loadHandler(entry: string) {
  * `ReadableStream` for the fetch `Request`.
  */
 function nodeToWeb(req: NodeRequest) {
-	return new ReadableStream<Uint8Array>({
+	return new ReadableStream<Uint8Array<ArrayBufferLike>>({
 		start(controller) {
 			req.on('data', chunk => controller.enqueue(chunk))
 			req.on('end', () => controller.close())
@@ -235,10 +237,146 @@ function toRequest(req: NodeRequest, signal?: AbortSignal): Request {
 	return new Request(url, init)
 }
 
+type ByteStream = ReadableStream<Uint8Array<ArrayBufferLike>>
+
+const compressibleTypes = [
+	'text/html',
+	'text/x-component',
+	'text/plain',
+	'text/css',
+	'application/json',
+	'application/javascript',
+]
+
+/**
+ * Return the client's preference for one encoding.
+ *
+ * `Accept-Encoding` entries can include a `q` value from 0 to 1. That is a
+ * preference weight, not compression quality: `q=0` forbids the encoding, and
+ * an omitted value defaults to 1. An explicit entry wins over `*`.
+ */
+function contentEncodingQuality(header: string | undefined, encoding: 'br' | 'gzip') {
+	if (!header) return 0
+
+	let explicit: number | undefined
+	let wildcard: number | undefined
+
+	for (const part of header.split(',')) {
+		const [rawName, ...params] = part.trim().toLowerCase().split(';')
+		const name = rawName.trim()
+		if (!name) continue
+
+		// a coding is accepted at full weight unless it carries its own q value
+		let quality = 1
+
+		for (const param of params) {
+			const separator = param.indexOf('=')
+			if (separator === -1) continue
+
+			const key = param.slice(0, separator).trim()
+			if (key !== 'q') continue
+
+			const value = Number(param.slice(separator + 1))
+			quality = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0
+		}
+
+		if (name === encoding) explicit = quality
+		else if (name === '*') wildcard = quality
+	}
+
+	// an explicit rule takes precedence over the wildcard
+	return explicit ?? wildcard ?? 0
+}
+
+/**
+ * Pick an encoding only when the response can safely be transformed.
+ */
+function selectContentEncoding(
+	response: Response,
+	acceptEncodingHeader: string | undefined,
+) {
+	const contentType = response.headers.get('content-type')?.toLowerCase() ?? ''
+	const cacheControl = response.headers.get('cache-control')?.toLowerCase() ?? ''
+
+	// already-encoded, empty, and explicitly untransformable responses are sent as-is
+	if (response.status === 204 || response.status === 304) return null
+	if (response.headers.has('content-encoding')) return null
+	if (cacheControl.includes('no-transform')) return null
+	if (!compressibleTypes.some(type => contentType.startsWith(type))) return null
+
+	const brotli = contentEncodingQuality(acceptEncodingHeader, 'br')
+	const gzip = contentEncodingQuality(acceptEncodingHeader, 'gzip')
+
+	// choose the most preferred supported encoding
+	if (brotli <= 0 && gzip <= 0) return null
+	return brotli >= gzip ? 'br' : 'gzip'
+}
+
+/**
+ * Bridge a Node readable back to a web stream without buffering the response.
+ */
+function readableToWeb(source: Readable) {
+	const iterator = source[Symbol.asyncIterator]()
+
+	return new ReadableStream<Uint8Array<ArrayBufferLike>>({
+		async pull(controller) {
+			const { done, value } = await iterator.next()
+
+			if (done) {
+				controller.close()
+				return
+			}
+
+			controller.enqueue(value instanceof Uint8Array ? value : new Uint8Array(value))
+		},
+		async cancel() {
+			source.destroy()
+			await iterator.return?.()
+		},
+	})
+}
+
+/**
+ * Compress a response body while preserving streaming flushes.
+ */
+function compressResponseBody(body: ReadableStream<Uint8Array>, encoding: 'br' | 'gzip') {
+	const source = Readable.from(
+		(async function* () {
+			const reader = body.getReader()
+
+			try {
+				while (true) {
+					const { done, value } = await reader.read()
+
+					if (done) return
+					if (value) yield value
+				}
+			} finally {
+				// release the response stream even if the client disconnects
+				reader.releaseLock()
+			}
+		})(),
+	)
+
+	const compressor =
+		encoding === 'br'
+			? zlib.createBrotliCompress({
+					params: { [zlib.constants.BROTLI_PARAM_QUALITY]: 4 },
+					flush: zlib.constants.BROTLI_OPERATION_FLUSH,
+				})
+			: zlib.createGzip({ level: 6, flush: zlib.constants.Z_SYNC_FLUSH })
+
+	return readableToWeb(source.pipe(compressor))
+}
+
 /**
  * Write a fetch `Response` back to the Node response, streaming the body.
  */
-async function sendResponse(res: NodeResponse, response: Response) {
+async function sendResponse(
+	res: NodeResponse,
+	response: Response,
+	acceptEncoding: string | undefined,
+) {
 	const headers: Record<string, string | string[]> = {}
 
 	response.headers.forEach((value, key) => {
@@ -250,9 +388,27 @@ async function sendResponse(res: NodeResponse, response: Response) {
 	const cookies = response.headers.getSetCookie()
 	if (cookies.length > 0) headers['set-cookie'] = cookies
 
+	// choose an encoding based on the request and response headers
+	const encoding = selectContentEncoding(response, acceptEncoding)
+	let body: ByteStream | null = response.body
+
+	if (body && encoding && res.req.method !== 'HEAD') {
+		// stream through the compressor so the shell is not buffered
+		body = compressResponseBody(body, encoding)
+
+		// advertise the chosen encoding
+		headers['content-encoding'] = encoding
+		headers['vary'] = headers['vary']
+			? `${headers['vary']}, accept-encoding`
+			: 'accept-encoding'
+
+		// the compressed length is not known ahead of time
+		delete headers['content-length']
+	}
+
 	res.writeHead(response.status, headers)
 
-	if (!response.body || res.req.method === 'HEAD') {
+	if (!body || res.req.method === 'HEAD') {
 		res.end()
 		return
 	}
@@ -261,7 +417,7 @@ async function sendResponse(res: NodeResponse, response: Response) {
 	// leave the client waiting with no response
 	res.flushHeaders?.()
 
-	await webToNode(response.body, res)
+	await webToNode(body, res)
 	if (!res.destroyed) res.end()
 }
 
@@ -281,8 +437,13 @@ async function handleRequest(req: NodeRequest, res: NodeResponse, handler: Fetch
 
 	try {
 		const response = await handler.fetch(toRequest(req, abort.signal))
+		const acceptEncoding = req.headers['accept-encoding']
 
-		await sendResponse(res, response)
+		await sendResponse(
+			res,
+			response,
+			Array.isArray(acceptEncoding) ? acceptEncoding.join(', ') : acceptEncoding,
+		)
 	} catch (err) {
 		logger.error('Request failed', err)
 

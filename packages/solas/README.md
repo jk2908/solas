@@ -319,6 +319,8 @@ export default defineConfig({
 
 Use `precompress` to control whether Solas writes compressed browser-served build assets (like `.js`, `.css`, etc.).
 
+This does not control dynamic HTML, RSC, or PPR response compression. The Node runtime negotiates `br` or `gzip` for compressible streamed responses automatically. Cloudflare compresses eligible Worker responses at the platform layer, so the Worker adapter does not add its own content encoding.
+
 Default: `false`
 
 ```ts
