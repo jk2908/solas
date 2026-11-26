@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.25.0
+
+### Breaking
+
+- `Solas` is now a types-only namespace. `Solas.Request` replaces top-level `SolasRequest`, `Solas.RequestMeta` replaces top-level `RequestMeta`, and `Solas.ErrorCode` exposes the error code type. `Solas.getVersion()` moved to a top-level `getVersion()` export.
+- `SolasError` and `SolasErrorOptions` are no longer exported from the package root. The public error contract is the structural `Solas.Error` type plus `isSolasError`; the `SolasError` class remains internal.
+- Removed the public browser and HTTP router error classes, including `ExternalUrlError`, `MissingRouteParamError`, and the `HttpRouterError` class. Use the structural `BrowserRouterError`, `RouteTargetError`, and `HttpRouterError` types with their `is*` guards, and branch on `code` for fields such as `param` and `endpointId`. `HttpException` and `Redirect` are unchanged.
+
 ## 0.24.0
 
 ### Breaking
