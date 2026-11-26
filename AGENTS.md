@@ -22,10 +22,12 @@ Guidance for agents working in this repo.
 ## Messaging
 
 - Use one module-scoped logger per subsystem: `const log = createLogger('build')`. Do not create a logger per message category or phase. Use `logger.child(scope)` only for a genuinely nested subsystem.
+- Keep runtime exports flat. The `Solas` namespace is type-only: `Solas.Routes`, `Solas.Request`, `Solas.RequestMeta`, `Solas.ErrorCode`, `Solas.Error`. `ErrorCode`, `isSolasError` and `getVersion` are top-level runtime exports. `SolasError` is the internal class and is not exported from the package root.
 - Do not put a `[scope]:` tag inside the message.
 - Error messages start lowercase unless the first word is a proper noun or acronym, and do not end with punctuation. Put the fix in a one-line `hint`, which may be a full sentence with punctuation.
 - CLI lines are sentence case and do not end with punctuation. Debug lines can be shorter.
-- Throw `SolasError` (or a subclass) for framework errors. Pass the `ErrorCode` constant first, then the message, then an optional `hint`.
+- Throw `SolasError` (or a subclass) for framework errors internally. Pass the `ErrorCode` constant first, then the message, then an optional `hint`.
+- Public error contracts are structural: `Solas.Error`, `BrowserRouterError`, `RouteTargetError`, `HttpRouterError` with `isSolasError`, `isBrowserRouterError`, `isRouteTargetError`, `isHttpRouterError`. Keep concrete error classes internal.
 - Code values use `SCREAMING_SNAKE_CASE` with a `SOLAS_` prefix, for example `SOLAS_ROUTE_CONFLICT`. Add new values to `ErrorCode`; never invent a code at the call site.
 - Keep colour out of thrown errors and raw strings. The logger applies colour only when the output is a TTY, so piped and CI output stays plain.
 - CLI output uses symbols and columns: `build        ✓  Build complete`. Use `info` for progress, `success` for completed steps, `warn` for warnings, and `error` for failures. Do not log per-file work at `info`; use `debug` with a summary at `success`.

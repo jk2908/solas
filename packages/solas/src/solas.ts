@@ -1,18 +1,34 @@
-import { ErrorCode, SolasError } from './utils/errors.js'
+import type { SolasErrorCode } from './utils/errors.js'
 
+import type { HttpRouter } from './internal/http-router/router.js'
+import type { HttpException } from './internal/navigation/http-exception.js'
 import * as Config from './config.js'
 
-export interface Routes {}
+type NativeRequest = Request
+type NativeError = Error
 
-export function getVersion() {
-	const value = (import.meta.env as Record<string, unknown>).SOLAS_VERSION
+/**
+ * Framework types.
+ */
+export namespace Solas {
+	export interface Routes {}
 
-	if (typeof value !== 'string' || value.length === 0) {
-		throw new SolasError(
-			ErrorCode.VersionMissing,
-			`the ${Config.NAME} package version is missing`,
-		)
+	export interface Error extends NativeError {
+		readonly code: SolasErrorCode
+		readonly hint?: string
 	}
 
-	return value
+	export type RequestMeta = {
+		error?: HttpException | NativeError
+		action?: boolean
+		match: HttpRouter.Match | null
+		parsedFormData?: FormData | null
+		url?: URL
+	}
+
+	export type Request = NativeRequest & {
+		[Config.REQUEST_META_KEY]: RequestMeta
+	}
+
+	export type ErrorCode = SolasErrorCode
 }

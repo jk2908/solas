@@ -3,7 +3,12 @@ import type { Dirent } from 'node:fs'
 import fs from 'node:fs/promises'
 import path from 'node:path'
 
-import { ErrorCode, SolasError, type SolasErrorOptions } from '../utils/errors.js'
+import {
+	ErrorCode,
+	SolasError,
+	type SolasErrorCode,
+	type SolasErrorOptions,
+} from '../utils/errors.js'
 import { hash } from '../utils/hash.js'
 import { createLogger } from '../utils/logger.js'
 import { normalisePath } from '../utils/path.js'
@@ -68,7 +73,7 @@ type PreparedSegment = ScanResult['segments'][number] & {
 }
 
 class BuildError extends SolasError {
-	constructor(code: ErrorCode, message: string, options: SolasErrorOptions = {}) {
+	constructor(code: SolasErrorCode, message: string, options: SolasErrorOptions = {}) {
 		super(code, message, options)
 		this.name = 'BuildError'
 	}

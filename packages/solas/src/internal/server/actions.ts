@@ -8,8 +8,8 @@ import {
 	loadServerAction,
 } from '@vitejs/plugin-rsc/rsc'
 
+import type { Solas } from '../../solas.js'
 import * as Config from '../../config.js'
-import { SolasRequest } from '../../types.js'
 import { CsrfConfig, enforce } from './csrf.js'
 
 /**
@@ -50,7 +50,10 @@ export async function maybeAction(request: Request) {
  * @returns An object containing either the return value of the action or the form state, depending on the type
  * of action request.
  */
-export async function processActionRequest(request: SolasRequest, csrf: CsrfConfig = {}) {
+export async function processActionRequest(
+	request: Solas.Request,
+	csrf: CsrfConfig = {},
+) {
 	let returnValue: { ok: boolean; data: unknown } | undefined
 	let formState: ReactFormState | undefined
 	let temporaryReferences: unknown
@@ -85,7 +88,7 @@ export async function processActionRequest(request: SolasRequest, csrf: CsrfConf
 		// <form action={...}>
 
 		// we might have already parsed FormData in the router for multipart action
-		// detection should be attached to the SolasRequest, so we can reuse that
+		// detection should be attached to the Solas.Request, so we can reuse that
 		// to avoid parsing twice
 		const parsedFormData = request[Config.REQUEST_META_KEY]?.parsedFormData
 

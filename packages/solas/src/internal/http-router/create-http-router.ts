@@ -1,3 +1,4 @@
+import type { Solas } from '../../solas.js'
 import type {
 	Endpoint,
 	ImportMap,
@@ -6,7 +7,6 @@ import type {
 	ManifestEntryGroup,
 	PluginConfig,
 	Segment,
-	SolasRequest,
 } from '../../types.js'
 import {
 	InvalidRouteGroupError,
@@ -78,7 +78,7 @@ export function createHttpRouter(
 	config: Pick<PluginConfig, 'trailingSlash' | 'trustedOrigins' | 'url'>,
 	manifest: Manifest,
 	importMap: ImportMap,
-	rsc: (req: SolasRequest) => Response | Promise<Response>,
+	rsc: (req: Solas.Request) => Response | Promise<Response>,
 	serveFullPrerender?: (req: Request) => Promise<Response | null>,
 ) {
 	const router = new HttpRouter({

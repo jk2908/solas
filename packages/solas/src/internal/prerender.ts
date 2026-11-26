@@ -6,12 +6,12 @@ import { applyBasePath } from '../utils/base-path.js'
 import { ErrorCode, SolasError } from '../utils/errors.js'
 import { createLogger } from '../utils/logger.js'
 import { isRecord } from '../utils/validation.js'
+import { getVersion } from '../utils/version.js'
 
 import type { BuildContext } from '../types.js'
 import type { AssetRef, Assets } from './assets.js'
 import type { CspHashes } from './csp.js'
 import * as Config from '../config.js'
-import * as Solas from '../solas.js'
 import { nodeAssets } from './assets.js'
 import { addNonceToBootstrap } from './csp.js'
 import { parsePayloadRows } from './env/flight.js'
@@ -248,7 +248,7 @@ export async function loadMetadata(pathname: string, assets: Assets = nodeAssets
  * based on its metadata.
  */
 export function isCompatible(artifactMetadata: Metadata, pathname: string, mode: Mode) {
-	const schema = Solas.getVersion()
+	const schema = getVersion()
 
 	return (
 		artifactMetadata.schema === schema &&

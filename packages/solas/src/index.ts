@@ -557,7 +557,7 @@ function solas(c?: PluginConfig): PluginOption[] {
 }
 
 export default solas
-export * as Solas from './solas.js'
+export { getVersion } from './utils/version.js'
+export type { Solas } from './solas.js'
 export type * from './types.js'
-export { ErrorCode, SolasError, isSolasError } from './utils/errors.js'
-export type { SolasErrorOptions } from './utils/errors.js'
+export { ErrorCode, isSolasError } from './utils/errors.js'

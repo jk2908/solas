@@ -1,12 +1,7 @@
 import type { RequestCache } from '../src/internal/env/request-context.js'
 import type { HttpRouter } from '../src/internal/http-router/router.js'
-import type {
-	Endpoint,
-	Manifest,
-	RequestMeta,
-	Segment,
-	SolasRequest,
-} from '../src/types.js'
+import type { Solas } from '../src/solas.js'
+import type { Endpoint, Manifest, Segment } from '../src/types.js'
 import { HttpException } from '../src/internal/navigation/http-exception.js'
 
 export const EMPTY_PATHS = {
@@ -91,12 +86,12 @@ export function mockRequestContext(
 	cache: RequestCache = {},
 	prerender: {
 		prerender: null | 'full' | 'ppr'
-		request: SolasRequest
+		request: Solas.Request
 		cache: RequestCache
 	}['prerender'] = null,
 ) {
-	const meta: { [key: string]: RequestMeta } = { __SOLAS__: { match: null } }
-	const solasReq: SolasRequest = Object.assign(req, meta)
+	const meta: { [key: string]: Solas.RequestMeta } = { __SOLAS__: { match: null } }
+	const solasReq: Solas.Request = Object.assign(req, meta)
 	return { request: solasReq, prerender, cache }
 }
 

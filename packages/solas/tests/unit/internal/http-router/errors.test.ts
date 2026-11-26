@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { ErrorCode } from '../../../../src/utils/errors.js'
 
 import {
-	HttpRouterError,
+	HttpRouterErrorImpl,
 	InvalidRouteGroupError,
 	MiddlewareNextCalledMultipleTimesError,
 	MissingEndpointHandlerError,
@@ -18,7 +18,7 @@ describe('http router errors', () => {
 		const page = new MissingPageEntryError()
 		const next = new MiddlewareNextCalledMultipleTimesError()
 
-		expect(missing).toBeInstanceOf(HttpRouterError)
+		expect(missing).toBeInstanceOf(HttpRouterErrorImpl)
 		expect(missing.code).toBe(ErrorCode.HttpMissingEndpoint)
 		expect(group.code).toBe(ErrorCode.HttpInvalidRouteGroup)
 		expect(page.code).toBe(ErrorCode.HttpMissingPageEntry)

@@ -1,9 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
+import { getVersion } from '../../src/utils/version.js'
+
 import * as Config from '../../src/config.js'
 import * as Events from '../../src/events.js'
 import { getManifestPath } from '../../src/manifest.js'
-import { getVersion } from '../../src/solas.js'
 
 describe('Solas', () => {
 	describe('Config', () => {

@@ -2,7 +2,8 @@ import { match as createMatch, type MatchFunction } from 'path-to-regexp'
 
 import { normaliseBasePath } from '../../utils/base-path.js'
 
-import type { HttpMethod, PluginConfig, SolasRequest } from '../../types.js'
+import type { Solas } from '../../solas.js'
+import type { HttpMethod, PluginConfig } from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
 import * as Config from '../../config.js'
 import { HttpException } from '../navigation/http-exception.js'
@@ -23,7 +24,7 @@ const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)
  * The route match was resolved before middleware ran, so the metadata must
  * survive a request replacement.
  */
-function withRequestMeta(request: Request, source: SolasRequest): SolasRequest {
+function withRequestMeta(request: Request, source: Solas.Request): Solas.Request {
 	if (request === source) return source
 
 	return Object.assign(request, {
@@ -34,15 +35,15 @@ function withRequestMeta(request: Request, source: SolasRequest): SolasRequest {
 export namespace HttpRouter {
 	export type Params = Record<string, string | string[]>
 
-	export type Handler = (req: SolasRequest) => Response | Promise<Response>
+	export type Handler = (req: Solas.Request) => Response | Promise<Response>
 
 	export type ErrorHandler = (
 		err: Error,
-		req: SolasRequest,
+		req: Solas.Request,
 	) => Response | Promise<Response>
 
 	export type Middleware = (
-		req: SolasRequest,
+		req: Solas.Request,
 		next: (request?: Request) => Promise<Response>,
 	) => Response | Promise<Response>
 
@@ -107,7 +108,7 @@ export class HttpRouter {
 		},
 	}
 	#middleware: { global: HttpRouter.Middleware[] } = { global: [] }
-	#onError?: (err: Error, req: SolasRequest) => Response | Promise<Response>
+	#onError?: (err: Error, req: Solas.Request) => Response | Promise<Response>
 
 	constructor(public opts: HttpRouter.Options = {}) {
 		this.fetch = this.fetch.bind(this)
@@ -343,7 +344,7 @@ export class HttpRouter {
 
 			const matched = match
 			// attach route state once so middleware and handlers read the same request data
-			const request: SolasRequest = Object.assign(req, {
+			const request: Solas.Request = Object.assign(req, {
 				[Config.REQUEST_META_KEY]: { match: matched, action, parsedFormData },
 			})
 
@@ -381,18 +382,18 @@ export class HttpRouter {
 	 */
 	#run(
 		stack: HttpRouter.Middleware[],
-		req: SolasRequest,
-		next: (request: SolasRequest) => Promise<Response> | Response,
+		req: Solas.Request,
+		next: (request: Solas.Request) => Promise<Response> | Response,
 	) {
 		// build the middleware chain from the inside out
-		let run = (request: SolasRequest) => Promise.resolve(next(request))
+		let run = (request: Solas.Request) => Promise.resolve(next(request))
 
 		// wrap each middleware around the current chain
 		for (let i = stack.length - 1; i >= 0; i -= 1) {
 			const handler = stack[i]
 			const prev = run
 
-			run = (request: SolasRequest) => {
+			run = (request: Solas.Request) => {
 				let called = false
 
 				return Promise.resolve(

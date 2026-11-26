@@ -6,13 +6,8 @@ import { applyBasePath, normaliseBasePath, stripBasePath } from '../../utils/bas
 import { createLogger } from '../../utils/logger.js'
 import { normalisePath, trimTrailingSlash } from '../../utils/path.js'
 
-import type {
-	ImportMap,
-	Manifest,
-	Route,
-	RuntimeConfig,
-	SolasRequest,
-} from '../../types.js'
+import type { Solas } from '../../solas.js'
+import type { ImportMap, Manifest, Route, RuntimeConfig } from '../../types.js'
 import type { AssetRef, Assets } from '../assets.js'
 import type { RscSegment } from '../route-segments.js'
 import type { SSRModule } from './ssr.js'
@@ -253,7 +248,7 @@ async function createPayload({
 	effectivePrerenderMode,
 	invalidatedPaths,
 }: {
-	request: SolasRequest
+	request: Solas.Request
 	resolver: Resolver
 	loadShell: (pathname: string) => Promise<string | null>
 	loadDynamicLayouts: (pathname: string) => Promise<string[]>
@@ -642,7 +637,7 @@ export function createHandler(
 	 * converts the payload into component, HTML, or prerender artifact responses, and
 	 * applies the final status and headers.
 	 */
-	async function createResponse(request: SolasRequest) {
+	async function createResponse(request: Solas.Request) {
 		if (request[Config.REQUEST_META_KEY].action) {
 			return withRevalidations(() => renderResponse(request))
 		}
@@ -650,7 +645,7 @@ export function createHandler(
 		return renderResponse(request)
 	}
 
-	async function renderResponse(request: SolasRequest) {
+	async function renderResponse(request: Solas.Request) {
 		let opts: {
 			formState?: ReactFormState
 			temporaryReferences?: unknown

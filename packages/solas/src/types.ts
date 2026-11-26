@@ -134,18 +134,6 @@ export type BuildContext = {
 	command?: 'build' | 'serve'
 }
 
-export type RequestMeta = {
-	error?: HttpException | Error
-	action?: boolean
-	match: HttpRouter.Match | null
-	parsedFormData?: FormData | null
-	url?: URL
-}
-
-export type SolasRequest = Request & {
-	[Config.REQUEST_META_KEY]: RequestMeta
-}
-
 export type Segment = {
 	__id: string
 	__path: string

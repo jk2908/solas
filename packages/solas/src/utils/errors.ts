@@ -1,3 +1,5 @@
+import type { Solas } from '../solas.js'
+
 /**
  * Stable identifiers for errors raised by Solas.
  *
@@ -43,7 +45,7 @@ export const ErrorCode = {
 	HttpMiddlewareNextMultiple: 'SOLAS_HTTP_MIDDLEWARE_NEXT_MULTIPLE',
 } as const
 
-export type ErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
+export type SolasErrorCode = (typeof ErrorCode)[keyof typeof ErrorCode]
 
 export type SolasErrorOptions = {
 	/**
@@ -59,11 +61,11 @@ export type SolasErrorOptions = {
  * Messages are plain sentences with no `[scope]:` prefix. `code` is the stable
  * machine-readable identifier, and `hint` is the one-line fix for a human.
  */
-export class SolasError extends Error {
-	readonly code: ErrorCode
+export class SolasError extends Error implements Solas.Error {
+	readonly code: SolasErrorCode
 	readonly hint?: string
 
-	constructor(code: ErrorCode, message: string, options: SolasErrorOptions = {}) {
+	constructor(code: SolasErrorCode, message: string, options: SolasErrorOptions = {}) {
 		super(message, { cause: options.cause })
 
 		this.name = 'SolasError'
@@ -84,7 +86,7 @@ export class SolasError extends Error {
 /**
  * Check whether a value is a Solas error, including across bundles.
  */
-export function isSolasError(error: unknown): error is SolasError {
+export function isSolasError(error: unknown): error is Solas.Error {
 	return (
 		error instanceof SolasError ||
 		(typeof error === 'object' &&
@@ -118,12 +120,10 @@ export function formatError(error: unknown, options: FormatOptions = {}) {
 	const lines: string[] = []
 
 	if (includeMessage) {
-		lines.push(
-			error instanceof SolasError ? error.message : `${error.name}: ${error.message}`,
-		)
+		lines.push(isSolasError(error) ? error.message : `${error.name}: ${error.message}`)
 	}
 
-	if (error instanceof SolasError) {
+	if (isSolasError(error)) {
 		lines.push(`code  ${error.code}`)
 
 		if (error.hint) {

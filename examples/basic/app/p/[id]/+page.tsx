@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 
-import { Route, Solas } from '@jk2908/solas'
+import type { Route, Solas } from '@jk2908/solas'
 import { abort } from '@jk2908/solas/navigation'
 import { dynamic } from '@jk2908/solas/server'
 

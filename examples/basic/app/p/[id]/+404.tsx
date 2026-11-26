@@ -1,4 +1,4 @@
-import { Route, Solas } from '@jk2908/solas'
+import type { Route, Solas } from '@jk2908/solas'
 import type { HttpExceptionLike } from '@jk2908/solas/navigation'
 
 export const metadata: Route.Metadata<Solas.Routes['/p/:id'], HttpExceptionLike> = ({

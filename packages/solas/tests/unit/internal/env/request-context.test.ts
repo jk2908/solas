@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import type { SolasRequest } from '../../../../src/types.js'
+import type { Solas } from '../../../../src/solas.js'
 import { RequestContext } from '../../../../src/internal/env/request-context.js'
 
 describe('RequestContext', () => {
@@ -14,7 +14,7 @@ describe('RequestContext', () => {
 		it('provides request context to the callback', async () => {
 			const req = Object.assign(new Request('http://localhost/test'), {
 				__SOLAS__: { match: null },
-			}) as SolasRequest
+			}) as Solas.Request
 
 			const ctx = { request: req, prerender: null as const, cache: {} }
 
@@ -29,7 +29,7 @@ describe('RequestContext', () => {
 		it('provides prerender mode', async () => {
 			const req = Object.assign(new Request('http://localhost'), {
 				__SOLAS__: { match: null },
-			}) as SolasRequest
+			}) as Solas.Request
 
 			const ctx = { request: req, prerender: 'full' as const, cache: {} }
 
@@ -43,7 +43,7 @@ describe('RequestContext', () => {
 		it('provides cache object', async () => {
 			const req = Object.assign(new Request('http://localhost'), {
 				__SOLAS__: { match: null },
-			}) as SolasRequest
+			}) as Solas.Request
 
 			const cache = { headers: new Map([['x-test', 'value']]) }
 			const ctx = { request: req, prerender: null as const, cache }
@@ -58,7 +58,7 @@ describe('RequestContext', () => {
 		it('supports async callbacks', async () => {
 			const req = Object.assign(new Request('http://localhost'), {
 				__SOLAS__: { match: null },
-			}) as SolasRequest
+			}) as Solas.Request
 
 			const ctx = { request: req, prerender: null as const, cache: {} }
 
@@ -73,11 +73,11 @@ describe('RequestContext', () => {
 		it('isolates nested contexts', async () => {
 			const req1 = Object.assign(new Request('http://localhost/outer'), {
 				__SOLAS__: { match: null },
-			}) as SolasRequest
+			}) as Solas.Request
 
 			const req2 = Object.assign(new Request('http://localhost/inner'), {
 				__SOLAS__: { match: null },
-			}) as SolasRequest
+			}) as Solas.Request
 
 			const result = await RequestContext.write(
 				{ request: req1, prerender: null, cache: {} },
@@ -98,7 +98,7 @@ describe('RequestContext', () => {
 		it('context is not available after write completes', async () => {
 			const req = Object.assign(new Request('http://localhost'), {
 				__SOLAS__: { match: null },
-			}) as SolasRequest
+			}) as Solas.Request
 
 			const ctx = { request: req, prerender: null as const, cache: {} }
 

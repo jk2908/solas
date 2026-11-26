@@ -6,9 +6,9 @@ import { prerender as reactPrerender } from 'react-dom/static.edge'
 import { createFromReadableStream } from '@vitejs/plugin-rsc/ssr'
 
 import { createLogger } from '../../utils/logger.js'
+import { getVersion } from '../../utils/version.js'
 
 import type { RscPayload } from './rsc.js'
-import * as Solas from '../../solas.js'
 import { BrowserRouterProvider } from '../browser-router/router.js'
 import { RedirectBoundary } from '../navigation/redirect-boundary.js'
 import * as Prerender from '../prerender.js'
@@ -115,7 +115,7 @@ async function prerender(rscStream: ReadableStream<Uint8Array>, opts: Opts = {})
 	const bootstrapScriptContent = await import.meta.viteRsc.loadBootstrapScriptContent(
 		'index',
 	)
-	const schema = Solas.getVersion()
+	const schema = getVersion()
 
 	if (ppr) {
 		const controller = new AbortController()

@@ -1,10 +1,23 @@
-import { ErrorCode, SolasError } from '../../utils/errors.js'
+import { ErrorCode, SolasError, isSolasError } from '../../utils/errors.js'
+
+import type { Solas } from '../../solas.js'
 
 export type RouteTargetErrorCode =
 	| typeof ErrorCode.LinkMissingParam
 	| typeof ErrorCode.LinkInvalidWildcard
 
-export class RouteTargetError extends SolasError {
+export type RouteTargetError = Solas.Error &
+	(
+		| {
+				readonly code: typeof ErrorCode.LinkMissingParam
+				readonly param: string
+		  }
+		| {
+				readonly code: typeof ErrorCode.LinkInvalidWildcard
+		  }
+	)
+
+export class RouteTargetErrorImpl extends SolasError {
 	declare readonly code: RouteTargetErrorCode
 
 	constructor(code: RouteTargetErrorCode, message: string, hint?: string) {
@@ -13,7 +26,7 @@ export class RouteTargetError extends SolasError {
 	}
 }
 
-export class MissingRouteParamError extends RouteTargetError {
+export class MissingRouteParamError extends RouteTargetErrorImpl {
 	readonly param: string
 
 	constructor(param: string) {
@@ -27,7 +40,7 @@ export class MissingRouteParamError extends RouteTargetError {
 	}
 }
 
-export class InvalidWildcardParamError extends RouteTargetError {
+export class InvalidWildcardParamError extends RouteTargetErrorImpl {
 	constructor() {
 		super(
 			ErrorCode.LinkInvalidWildcard,
@@ -42,7 +55,20 @@ export type BrowserRouterErrorCode =
 	| typeof ErrorCode.RouterInvalidUrl
 	| typeof ErrorCode.RouterInvalidPayload
 
-export class BrowserRouterError extends SolasError {
+export type BrowserRouterError = Solas.Error &
+	(
+		| {
+				readonly code: typeof ErrorCode.RouterExternalUrl
+		  }
+		| {
+				readonly code: typeof ErrorCode.RouterInvalidUrl
+		  }
+		| {
+				readonly code: typeof ErrorCode.RouterInvalidPayload
+		  }
+	)
+
+export class BrowserRouterErrorImpl extends SolasError {
 	declare readonly code: BrowserRouterErrorCode
 
 	constructor(code: BrowserRouterErrorCode, message: string, hint?: string) {
@@ -51,7 +77,7 @@ export class BrowserRouterError extends SolasError {
 	}
 }
 
-export class ExternalUrlError extends BrowserRouterError {
+export class ExternalUrlError extends BrowserRouterErrorImpl {
 	constructor() {
 		super(
 			ErrorCode.RouterExternalUrl,
@@ -62,14 +88,14 @@ export class ExternalUrlError extends BrowserRouterError {
 	}
 }
 
-export class InvalidNavigationUrlError extends BrowserRouterError {
+export class InvalidNavigationUrlError extends BrowserRouterErrorImpl {
 	constructor() {
 		super(ErrorCode.RouterInvalidUrl, 'router.go() received an invalid URL')
 		this.name = 'InvalidNavigationUrlError'
 	}
 }
 
-export class InvalidNavigationPayloadError extends BrowserRouterError {
+export class InvalidNavigationPayloadError extends BrowserRouterErrorImpl {
 	constructor() {
 		super(
 			ErrorCode.RouterInvalidPayload,
@@ -81,23 +107,17 @@ export class InvalidNavigationPayloadError extends BrowserRouterError {
 
 export function isBrowserRouterError(error: unknown): error is BrowserRouterError {
 	return (
-		error instanceof BrowserRouterError ||
-		(typeof error === 'object' &&
-			error !== null &&
-			'code' in error &&
-			(error.code === ErrorCode.RouterExternalUrl ||
-				error.code === ErrorCode.RouterInvalidUrl ||
-				error.code === ErrorCode.RouterInvalidPayload))
+		isSolasError(error) &&
+		(error.code === ErrorCode.RouterExternalUrl ||
+			error.code === ErrorCode.RouterInvalidUrl ||
+			error.code === ErrorCode.RouterInvalidPayload)
 	)
 }
 
 export function isRouteTargetError(error: unknown): error is RouteTargetError {
 	return (
-		error instanceof RouteTargetError ||
-		(typeof error === 'object' &&
-			error !== null &&
-			'code' in error &&
-			(error.code === ErrorCode.LinkMissingParam ||
-				error.code === ErrorCode.LinkInvalidWildcard))
+		isSolasError(error) &&
+		(error.code === ErrorCode.LinkMissingParam ||
+			error.code === ErrorCode.LinkInvalidWildcard)
 	)
 }

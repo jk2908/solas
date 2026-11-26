@@ -1,6 +1,6 @@
 import { applyBasePath, normaliseBasePath } from '../../utils/base-path.js'
 
-import * as Solas from '../../solas.js'
+import type { Solas } from '../../solas.js'
 import { InvalidWildcardParamError, MissingRouteParamError } from './errors.js'
 
 const BASE_PATH = normaliseBasePath(import.meta.env.BASE_URL)

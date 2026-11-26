@@ -1,7 +1,7 @@
 import * as Context from '../../utils/context.js'
 import type { Cookies } from '../../utils/cookies.js'
 
-import type { SolasRequest } from '../../types.js'
+import type { Solas } from '../../solas.js'
 
 export type RequestCache = {
 	cookies?: Readonly<ReturnType<typeof Cookies.parse>>
@@ -10,7 +10,7 @@ export type RequestCache = {
 }
 
 export const RequestContext = Context.create<{
-	request: SolasRequest
+	request: Solas.Request
 	prerender: 'ppr' | 'full' | null
 	cache: RequestCache
 	nonce?: string

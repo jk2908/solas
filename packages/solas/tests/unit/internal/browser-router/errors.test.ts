@@ -3,13 +3,13 @@ import { describe, expect, it } from 'vitest'
 import { ErrorCode } from '../../../../src/utils/errors.js'
 
 import {
-	BrowserRouterError,
+	BrowserRouterErrorImpl,
 	ExternalUrlError,
 	InvalidNavigationPayloadError,
 	InvalidNavigationUrlError,
 	InvalidWildcardParamError,
 	MissingRouteParamError,
-	RouteTargetError,
+	RouteTargetErrorImpl,
 	isBrowserRouterError,
 	isRouteTargetError,
 } from '../../../../src/internal/browser-router/errors.js'
@@ -19,7 +19,7 @@ describe('browser router errors', () => {
 		const missing = new MissingRouteParamError('id')
 		const wildcard = new InvalidWildcardParamError()
 
-		expect(missing).toBeInstanceOf(RouteTargetError)
+		expect(missing).toBeInstanceOf(RouteTargetErrorImpl)
 		expect(missing.code).toBe(ErrorCode.LinkMissingParam)
 		expect(wildcard.code).toBe(ErrorCode.LinkInvalidWildcard)
 		expect(isRouteTargetError(missing)).toBe(true)
@@ -31,7 +31,7 @@ describe('browser router errors', () => {
 		const invalid = new InvalidNavigationUrlError()
 		const payload = new InvalidNavigationPayloadError()
 
-		expect(external).toBeInstanceOf(BrowserRouterError)
+		expect(external).toBeInstanceOf(BrowserRouterErrorImpl)
 		expect(external.code).toBe(ErrorCode.RouterExternalUrl)
 		expect(invalid.code).toBe(ErrorCode.RouterInvalidUrl)
 		expect(payload.code).toBe(ErrorCode.RouterInvalidPayload)
