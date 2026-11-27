@@ -5,42 +5,16 @@ import type { Plugin, PluginOption } from 'vite'
 
 import { nodeFileTrace } from '@vercel/nft'
 
+import { exists } from '../utils/fs.js'
+
+import type { Solas } from '../solas.js'
 import type { Adapter } from '../types.js'
 import * as Config from '../config.js'
-
-export type SolasVercelOptions = {
-	/**
-	 * Directory, relative to the project root, the Vercel Build Output is
-	 * written to.
-	 *
-	 * @default '.vercel/output'
-	 */
-	outDir?: string
-	/**
-	 * Node.js runtime used by the generated Vercel Function.
-	 *
-	 * @default 'nodejs22.x'
-	 */
-	runtime?: string
-	/**
-	 * Maximum duration of the generated Vercel Function, in seconds.
-	 */
-	maxDuration?: number
-}
 
 const DEFAULT_OUTPUT = '.vercel/output'
 const DEFAULT_RUNTIME = 'nodejs22.x'
 const FUNCTION_NAME = 'index.func'
 const ROOT_FILES = ['sitemap.xml', 'robots.txt'] as const
-
-async function exists(filePath: string) {
-	try {
-		await fs.access(filePath)
-		return true
-	} catch {
-		return false
-	}
-}
 
 async function copyFile(source: string, target: string) {
 	await fs.mkdir(path.dirname(target), { recursive: true })
@@ -146,7 +120,7 @@ async function traceFunction(cwd: string, functionDir: string) {
  * Prerendered HTML and PPR artifacts stay inside the function so RSC requests
  * are never answered with static HTML by the asset layer.
  */
-function adapter(options: SolasVercelOptions = {}) {
+function adapter(options: Solas.VercelAdapterOptions = {}) {
 	const cwd = process.cwd()
 	const outputDir = path.resolve(cwd, options.outDir ?? DEFAULT_OUTPUT)
 	const functionDir = path.join(outputDir, 'functions', FUNCTION_NAME)

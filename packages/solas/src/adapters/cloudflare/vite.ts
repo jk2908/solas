@@ -5,6 +5,9 @@ import type { Plugin, PluginOption } from 'vite'
 
 import { cloudflare as cloudflareVitePlugin } from '@cloudflare/vite-plugin'
 
+import { exists } from '../../utils/fs.js'
+
+import type { Solas } from '../../solas.js'
 import type { Adapter } from '../../types.js'
 import * as Config from '../../config.js'
 import { writeCloudflareEntry } from '../../internal/codegen/environments.js'
@@ -17,13 +20,6 @@ import { withBindingsShim } from './bindings.js'
 type CloudflarePluginConfig = Parameters<typeof cloudflareVitePlugin>[0]
 type WorkerConfigCustomizer = NonNullable<CloudflarePluginConfig>['config']
 
-export type SolasCloudflareOptions = {
-	/**
-	 * Options forwarded to `@cloudflare/vite-plugin`.
-	 */
-	cloudflare?: CloudflarePluginConfig
-}
-
 const VIRTUAL_ENTRY = 'virtual:solas-cloudflare-entry'
 
 /**
@@ -34,15 +30,6 @@ const VIRTUAL_ENTRY = 'virtual:solas-cloudflare-entry'
  * ("Invalid hook call").
  */
 const WORKER_OPTIMIZE_DEPS = ['path-to-regexp'] as const
-
-async function pathExists(filePath: string) {
-	try {
-		await fs.access(filePath)
-		return true
-	} catch {
-		return false
-	}
-}
 
 /**
  * Recursively find directories named `assets` beneath Cloudflare's build output.
@@ -90,7 +77,7 @@ async function copyOutput(cwd: string) {
 	const skipPrecompressed = (source: string) => !/\.(br|gz)$/.test(source)
 
 	for (const assetDir of assetDirs) {
-		if (await pathExists(artifactSource)) {
+		if (await exists(artifactSource)) {
 			await fs.cp(artifactSource, path.join(assetDir, NAMESPACE_PREFIX.artifact), {
 				recursive: true,
 				force: true,
@@ -98,7 +85,7 @@ async function copyOutput(cwd: string) {
 			})
 		}
 
-		if (await pathExists(staticSource)) {
+		if (await exists(staticSource)) {
 			await fs.cp(staticSource, path.join(assetDir, NAMESPACE_PREFIX.static), {
 				recursive: true,
 				force: true,
@@ -111,7 +98,7 @@ async function copyOutput(cwd: string) {
 		for (const file of ['sitemap.xml', 'robots.txt']) {
 			const source = path.join(outDir, file)
 
-			if (await pathExists(source)) {
+			if (await exists(source)) {
 				await fs.copyFile(source, path.join(assetDir, file))
 			}
 		}
@@ -165,7 +152,7 @@ function withAdapterConfig(
  * asset-backed store, points Solas's prerender step at the Cloudflare Worker
  * bundle, and copies prerender artifacts into the asset output.
  */
-export function adapter(options: SolasCloudflareOptions = {}) {
+export function adapter(options: Solas.CloudflareAdapterOptions = {}) {
 	const cwd = process.cwd()
 	// back the virtual entry id with a path inside the generated dir so the
 	// generated entry's relative imports (`./manifest.js`, ...) resolve

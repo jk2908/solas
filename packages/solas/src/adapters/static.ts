@@ -3,21 +3,15 @@ import path from 'node:path'
 
 import type { Plugin, PluginOption } from 'vite'
 
+import { exists } from '../utils/fs.js'
+
+import type { Solas } from '../solas.js'
 import type { Adapter } from '../types.js'
 import * as Config from '../config.js'
 import { buildPolicy, injectMetaTag } from '../internal/csp.js'
 import { Features, guards } from '../internal/guards.js'
 import { staticRoutePath } from '../internal/prerender.js'
 import { loadManifest } from '../manifest.js'
-
-export type SolasStaticOptions = {
-	/**
-	 * Directory, relative to the project root, the static site is written to.
-	 *
-	 * @default 'build'
-	 */
-	outDir?: string
-}
 
 const ROOT_FILES = ['sitemap.xml', 'robots.txt'] as const
 
@@ -33,7 +27,7 @@ const ROOT_FILES = ['sitemap.xml', 'robots.txt'] as const
  * when the graph contains server actions or `+endpoint` routes, which a static
  * host cannot run.
  */
-function adapter(options: SolasStaticOptions = {}) {
+function adapter(options: Solas.StaticAdapterOptions = {}) {
 	const cwd = process.cwd()
 	const outDir = options.outDir ?? 'build'
 
@@ -113,15 +107,6 @@ function adapter(options: SolasStaticOptions = {}) {
 	const plugins: PluginOption[] = [guards(Features.None), plugin]
 
 	return { name: 'static', plugins, prerender: 'full' } satisfies Adapter
-}
-
-async function exists(filePath: string) {
-	try {
-		await fs.access(filePath)
-		return true
-	} catch {
-		return false
-	}
 }
 
 export { adapter as default }
