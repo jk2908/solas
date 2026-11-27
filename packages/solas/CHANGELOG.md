@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added a Vercel adapter that writes a Build Output with static client assets and a Node function running the Solas runtime.
+
 ## 0.26.0
 
 ### Features

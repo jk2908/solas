@@ -797,6 +797,37 @@ Because it forces full prerendering, routes that need a server are not a fit: pe
 
 Server actions and runtime endpoints also need a server, so the build warns when the graph contains any (a `'use server'` module or a `+endpoint` file).
 
+### Vercel
+
+The Vercel adapter writes a Build Output containing static client files and a Node function that runs the Solas handler.
+
+```ts
+// vite.config.ts
+import { defineConfig } from 'vite'
+
+import solas from '@jk2908/solas'
+import vercelAdapter from '@jk2908/solas/adapters/vercel'
+import react from '@vitejs/plugin-react'
+
+export default defineConfig({
+	plugins: [solas({ adapter: vercelAdapter() }), react()],
+})
+```
+
+```sh
+vite build
+vercel deploy --prebuilt
+```
+
+The adapter writes `.vercel/output` with:
+
+- client assets in `static/`
+- prerendered pages, RSC payloads, and PPR artifacts inside the function
+- a function entry using `@jk2908/solas/runtime/node`
+- a filesystem-first route followed by the Solas function
+
+Options: `outDir` (defaults to `.vercel/output`), `runtime` (defaults to `nodejs22.x`), and `maxDuration`.
+
 ## Runtime helpers
 
 Runtime helpers run at request time. They live under `@jk2908/solas/runtime/*` and are never passed to `solas({ adapter })`.

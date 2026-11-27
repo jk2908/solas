@@ -77,6 +77,10 @@
 			"types": "./dist/adapters/static.d.ts",
 			"import": "./dist/adapters/static.js"
 		},
+		"./adapters/vercel": {
+			"types": "./dist/adapters/vercel.d.ts",
+			"import": "./dist/adapters/vercel.js"
+		},
 		"./runtime/cloudflare": {
 			"types": "./dist/runtime/cloudflare/index.d.ts",
 			"import": "./dist/runtime/cloudflare/index.js"
@@ -101,6 +105,7 @@
 		"prepublishOnly": "npm run build && npm run pack:dry"
 	},
 	"dependencies": {
+		"@vercel/nft": "^1.11.15",
 		"@vitejs/plugin-rsc": "^0.5.36",
 		"oxc-parser": "^0.134.0",
 		"oxfmt": "^0.35.0",
